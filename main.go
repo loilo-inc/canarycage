@@ -13,6 +13,7 @@ import (
 	"time"
 	"golang.org/x/sync/errgroup"
 	"math"
+	"github.com/apex/log"
 )
 
 func main() {
@@ -21,22 +22,16 @@ func main() {
 		Region: &envars.Region,
 	})
 	if err != nil {
+		log.Fatalf("failed to create new AWS session due to: %s", err.Error())
 		panic(err)
 	}
 	awsEcs := ecs.New(ses)
-	// task-definition-nextを作成する
-	if _, err := CreateNextTaskDefinition(envars, awsEcs); err != nil {
-		panic(err)
-	}
-	// service-nextを作成する
-	nextService, err := CreateNextService(envars, awsEcs);
-	if err != nil {
-		panic(err)
-	}
 	// 漸進的ロールアウト & ロールバックを実行
-	if err := StartGradualRollout(envars, ses, awsEcs, nextService); err != nil {
+	if err := StartGradualRollOut(envars, ses, awsEcs); err != nil {
+		log.Fatalf("😭failed roll out new tasks due to: %s", err.Error())
 		panic(err)
 	}
+	log.Infof("🎉service roll out has completed successfully!🎉")
 }
 
 func CreateNextTaskDefinition(envars *Envars, awsEcs *ecs.ECS) (*ecs.TaskDefinition, error) {
@@ -116,7 +111,7 @@ func AccumulatePeriodicServiceHealth(
 	timer := time.NewTimer(envars.RollOutPeriod)
 	<-timer.C
 	getStatics := func(metricName string, unit string) (float64, error) {
-		if out, err := cw.GetMetricStatistics(&cloudwatch.GetMetricStatisticsInput{
+		out, err := cw.GetMetricStatistics(&cloudwatch.GetMetricStatisticsInput{
 			Namespace:  &nameSpace,
 			Dimensions: dimensions,
 			MetricName: &metricName,
@@ -124,30 +119,31 @@ func AccumulatePeriodicServiceHealth(
 			EndTime:    &endTime,
 			Period:     &period,
 			Unit:       &unit,
-		}); err != nil {
-			return 0, nil
-		} else {
-			var ret float64 = 0
-			var err error
-			switch unit {
-			case "Sum":
-				for _, v := range out.Datapoints {
-					ret += *v.Sum
-				}
-			case "Average":
-				for _, v := range out.Datapoints {
-					ret += *v.Average
-				}
-				if l := len(out.Datapoints); l > 0 {
-					ret /= float64(len(out.Datapoints))
-				} else {
-					err = errors.New("no data points found")
-				}
-			default:
-				err = errors.New(fmt.Sprintf("unsuported unit type: %s", unit))
-			}
-			return ret, err
+		})
+		if err != nil {
+			log.Fatalf("failed to get CloudWatch's '%s' metric statistics due to: %s", metricName, err.Error())
+			return 0, err
 		}
+		var ret float64 = 0
+		switch unit {
+		case "Sum":
+			for _, v := range out.Datapoints {
+				ret += *v.Sum
+			}
+		case "Average":
+			for _, v := range out.Datapoints {
+				ret += *v.Average
+			}
+			if l := len(out.Datapoints); l > 0 {
+				ret /= float64(l)
+			} else {
+				err = errors.New("no data points found")
+			}
+		default:
+			err = errors.New(fmt.Sprintf("unsuported unit type: %s", unit))
+		}
+		return ret, err
+
 	}
 	eg := errgroup.Group{}
 	var requestCnt = 0.0
@@ -156,8 +152,9 @@ func AccumulatePeriodicServiceHealth(
 	var responseTime = 0.0
 	accumulate := func(metricName string, unit string, dest *float64) func() (error) {
 		return func() (error) {
-			if v, e := getStatics(metricName, unit); e != nil {
-				return e
+			if v, err := getStatics(metricName, unit); err != nil {
+				log.Errorf("failed to accumulate CloudWatch's '%s' metric value due to: %s", metricName, err.Error())
+				return err
 			} else {
 				*dest = v
 				return nil
@@ -169,6 +166,7 @@ func AccumulatePeriodicServiceHealth(
 	eg.Go(accumulate("Target5xxCount", "Sum", &target5xxCnt))
 	eg.Go(accumulate("TargetResponseTime", "Average", &responseTime))
 	if err := eg.Wait(); err != nil {
+		log.Errorf("failed to accumulate periodic service health due to: %s", err.Error())
 		return nil, err
 	} else {
 		if requestCnt == 0 && elb5xxCnt == 0 {
@@ -184,7 +182,19 @@ func AccumulatePeriodicServiceHealth(
 	}
 }
 
-func StartGradualRollout(envars *Envars, ses *session.Session, awsEcs *ecs.ECS, nextService *ecs.Service) (error) {
+func StartGradualRollOut(envars *Envars, ses *session.Session, awsEcs *ecs.ECS) (error) {
+	// task-definition-nextを作成する
+	_, err := CreateNextTaskDefinition(envars, awsEcs)
+	if err != nil {
+		log.Fatalf("😭failed to create new task definition due to: %s", err.Error())
+		return err
+	}
+	// service-nextを作成する
+	nextService, err := CreateNextService(envars, awsEcs)
+	if err != nil {
+		log.Fatalf("😭failed to create new service due to: %s", err.Error())
+		return err
+	}
 	// ロールバックのためのデプロイを始める前の現在のサービスのタスク数
 	var originalRunningTaskCount int
 	if out, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
@@ -193,6 +203,7 @@ func StartGradualRollout(envars *Envars, ses *session.Session, awsEcs *ecs.ECS, 
 			&envars.CurrentServiceArn,
 		},
 	}); err != nil {
+		log.Errorf("failed to describe current service due to: %s", err.Error())
 		return err
 	} else {
 		originalRunningTaskCount = int(*out.Services[0].RunningCount)
@@ -200,11 +211,11 @@ func StartGradualRollout(envars *Envars, ses *session.Session, awsEcs *ecs.ECS, 
 	// ロールアウトで置き換えられたタスクの数
 	replacedCnt := 0
 	// ロールアウト実行回数
-	rolloutCnt := 0
+	rollOutCnt := 0
+	lb := nextService.LoadBalancers[0]
+	cw := cloudwatch.New(ses)
 	// next serviceのperiodic healthが完全に安定し、current serviceの数が0になるまで繰り返す
 	for {
-		lb := nextService.LoadBalancers[0]
-		cw := cloudwatch.New(ses)
 		epoch := time.Now()
 		var health *ServiceHealth
 		var err error
@@ -218,34 +229,53 @@ func StartGradualRollout(envars *Envars, ses *session.Session, awsEcs *ecs.ECS, 
 				nextService.ServiceArn,
 			},
 		}); err != nil {
+			log.Errorf("failed to describe next service due to: %s", err.Error())
 			return err
 		} else {
 			currentService := out.Services[0]
 			nextService := out.Services[1]
 			if *currentService.RunningCount == 0 && int(*nextService.RunningCount) == originalRunningTaskCount {
 				// 完全に置き換わった
-				return nil
-			}
-			if envars.AvailabilityThreshold <= envars.AvailabilityThreshold && envars.ResponseTimeThreshold <= health.responseTime {
-				// 合格
-				err := Rollout(envars, awsEcs, currentService, &replacedCnt, &rolloutCnt)
-				if err != nil {
+				if _, err := awsEcs.DeleteService(&ecs.DeleteServiceInput{
+					Cluster: &envars.Cluster,
+					Service: currentService.ServiceName,
+				}); err != nil {
+					log.Fatalf("failed to delete empty current service due to: %s", err.Error())
 					return err
 				}
+				log.Infof("all current tasks have been replaced into next tasks")
+				return nil
+			}
+			if health.availability <= envars.AvailabilityThreshold && envars.ResponseTimeThreshold <= health.responseTime {
+				// カナリアテストに合格した場合、次のロールアウトに入る
+				if err := RollOut(envars, awsEcs, currentService, nextService, &replacedCnt, &rollOutCnt); err != nil {
+					log.Fatalf("failed to roll out tasks due to: %s", err.Error())
+					return err
+				}
+				log.Infof(
+					"😙 %dth canary test has passed. %d/%d tasks roll outed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
+					rollOutCnt, replacedCnt, originalRunningTaskCount,
+					health.availability, envars.AvailabilityThreshold, health.responseTime, envars.ResponseTimeThreshold,
+				)
 			} else {
 				// カナリアテストに失敗した場合、task-definition-currentでデプロイを始めた段階のcurrent serviceのタスク数まで戻す
+				log.Warnf(
+					"😢 %dth canary test haven't passed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
+					rollOutCnt, health.availability, envars.AvailabilityThreshold, health.responseTime, envars.ResponseTimeThreshold,
+				)
 				return Rollback(envars, awsEcs, currentService, *nextService.ServiceName, originalRunningTaskCount)
 			}
 		}
 	}
 }
 
-func Rollout(
+func RollOut(
 	envars *Envars,
 	awsEcs *ecs.ECS,
 	currentService *ecs.Service,
+	nextService *ecs.Service,
 	replacedCount *int,
-	rolloutCount *int,
+	rollOutCount *int,
 ) error {
 	launchType := "Fargate"
 	desiredStatus := "RUNNING"
@@ -255,24 +285,54 @@ func Rollout(
 		DesiredStatus: &desiredStatus,
 		LaunchType:    &launchType,
 	}); err != nil {
+		log.Errorf("failed to list current tasks due to: %s", err.Error())
 		return err
 	} else {
 		tasks := out.TaskArns
 		//TODO: 2018/08/01 ここでRUNNINGタスクの中から止めるものを選択するロジックを考えるべきかもしれない by sakurai
-		numToBeReplaced := int(math.Exp2(float64(*rolloutCount)))
+		numToBeReplaced := int(math.Exp2(float64(*rollOutCount)))
+		eg := errgroup.Group{}
 		for i := 0; i < numToBeReplaced && len(tasks) > 0; i++ {
 			task := tasks[0]
 			tasks = tasks[1:]
-			if _, err := awsEcs.StopTask(&ecs.StopTaskInput{
-				Cluster: &envars.Cluster,
-				Task:    task,
-			}); err != nil {
-				return err
-			} else {
+			// current-serviceから1つタスクを止めて、next-serviceに1つタスクを追加する
+			eg.Go(func() error {
+				subEg := errgroup.Group{}
+				subEg.Go(func() error {
+					if _, err := awsEcs.StopTask(&ecs.StopTaskInput{
+						Cluster: &envars.Cluster,
+						Task:    task,
+					}); err != nil {
+						log.Errorf("failed to stop task from current service: taskArn=%s", *task)
+						return err
+					}
+					return nil
+				})
+				subEg.Go(func() error {
+					group := fmt.Sprintf("service:%s", *nextService.ServiceName)
+					if out, err := awsEcs.StartTask(&ecs.StartTaskInput{
+						Cluster:        &envars.Cluster,
+						TaskDefinition: nextService.TaskDefinition,
+						Group:          &group,
+					}); err != nil {
+						log.Errorf("failed to start task into next service: taskArn=%s", out.Tasks[0].TaskArn)
+						return err
+					}
+					return nil
+				})
+				if err := subEg.Wait(); err != nil {
+					log.Fatalf("failed to replace tasks due to: %s", err.Error())
+					return err
+				}
 				*replacedCount += 1
-			}
+				return nil
+			})
 		}
-		*rolloutCount += 1
+		if err := eg.Wait(); err != nil {
+			log.Fatalf("failed to roll out tasks due to: %s", err.Error())
+			return err
+		}
+		*rollOutCount += 1
 		return nil
 	}
 }
@@ -289,27 +349,56 @@ func Rollback(
 	if rollbackCount < 0 {
 		rollbackCount = currentTaskCount
 	}
+	log.Infof(
+		"start rollback of current service: originalTaskCount=%d, currentTaskCount=%d, tasksToBeRollback=%d",
+		originalTaskCount, currentService.RunningCount, rollbackCount,
+	)
 	group := fmt.Sprintf("service:%s", *currentService.ServiceName)
 	if _, err := awsEcs.DeleteService(&ecs.DeleteServiceInput{
 		Cluster: &envars.Cluster,
 		Service: &nextServiceName,
 	}); err != nil {
+		log.Fatalf("failed to delete unhealthy next service due to: %s", err.Error())
 		return err
 	}
 	eg := errgroup.Group{}
+	rollbackCompletedCount := 0
+	rollbackFailedCount := 0
+	iconFunc := RunningIcon()
 	for i := 0; i < rollbackCount; i++ {
 		eg.Go(func() error {
-			_, err := awsEcs.StartTask(&ecs.StartTaskInput{
+			// タスクを追加
+			out, err := awsEcs.StartTask(&ecs.StartTaskInput{
 				Cluster:        &envars.Cluster,
 				TaskDefinition: currentService.TaskDefinition,
 				Group:          &group,
 			})
+			if err != nil {
+				rollbackFailedCount += 1
+				log.Errorf("failed to launch task: taskArn=%s, totalFailure=%d", out.Tasks[0].TaskArn, rollbackFailedCount)
+				return err
+			}
+			if err := awsEcs.WaitUntilTasksRunning(&ecs.DescribeTasksInput{
+				Cluster: &envars.Cluster,
+				Tasks:   []*string{out.Tasks[0].TaskArn},
+			}); err != nil {
+				rollbackFailedCount += 1
+				log.Errorf("task hasn't reached RUNNING state within maximum attempt windows: taskArn=%s", out.Tasks[0].TaskArn)
+				return err
+			}
+			rollbackCompletedCount += 1
+			log.Infof("%s️ rollback is continuing: %d/%d", iconFunc(), rollbackCompletedCount, rollbackCount)
 			return err
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		// ここに来たらヤバイ
+		//TODO: ここに来たらヤバイので手動ロールバックへの動線を貼る
+		log.Fatalf(
+			"😱service rollback hasn't completed: succeeded=%d/%d, failed=%d",
+			rollbackCompletedCount, rollbackCount, rollbackFailedCount,
+		)
 		return err
 	}
+	log.Info("😓service rollback has completed successfully")
 	return nil
 }
