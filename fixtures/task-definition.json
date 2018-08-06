@@ -1,0 +1,39 @@
+{
+    "family": "lnsh-dev",
+    "taskRoleArn": "arn:aws:iam::828165198279:role/lnsh-dev-ecs-task-role",
+    "executionRoleArn": "arn:aws:iam::828165198279:role/lnsh-dev-ecs-task-execution-role",
+    "networkMode": "awsvpc",
+    "containerDefinitions": [
+        {
+            "name": "http-echo",
+            "image": "loilodev/canarycage:latest",
+            "cpu": 100,
+            "memory": 512,
+            "memoryReservation": 500, 
+            "portMappings": [
+                {
+                    "containerPort": 8000,
+                    "hostPort": 8000
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {"name": "NODE_ENV", "value": "development"}
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "canarycage/test",
+                    "awslogs-stream-prefix": "cage",
+                    "awslogs-region": "us-west-2"
+                }
+            }
+        }
+    ],
+    "requiresCompatibilities": [
+        "EC2", "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "0.5GB"
+}
+
