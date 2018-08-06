@@ -14,6 +14,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"math"
 	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
+	"github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface"
 )
 
 func main() {
@@ -26,33 +28,33 @@ func main() {
 		panic(err)
 	}
 	awsEcs := ecs.New(ses)
-	if err := StartGradualRollOut(envars, ses, awsEcs); err != nil {
+	cw := cloudwatch.New(ses)
+	if err := envars.StartGradualRollOut(awsEcs, cw); err != nil {
 		log.Fatalf("😭failed roll out new tasks due to: %s", err.Error())
 		panic(err)
 	}
 	log.Infof("🎉service roll out has completed successfully!🎉")
 }
 
-func CreateNextTaskDefinition(envars *Envars, awsEcs *ecs.ECS) (*ecs.TaskDefinition, error) {
-	taskDefinitionJson, _ := base64.StdEncoding.DecodeString(envars.NextTaskDefinitionBase64)
-	var taskDefinition ecs.RegisterTaskDefinitionInput
-	if err := json.Unmarshal([]byte(taskDefinitionJson), &taskDefinition); err != nil {
+
+func (envars *Envars) CreateNextTaskDefinition(awsEcs ecsiface.ECSAPI) (*ecs.TaskDefinition, error) {
+	taskDefinition, err := UnmarshalTaskDefinition(envars.NextTaskDefinitionBase64)
+	if err != nil {
 		return nil, err
 	}
-	if out, err := awsEcs.RegisterTaskDefinition(&taskDefinition); err != nil {
+	if out, err := awsEcs.RegisterTaskDefinition(taskDefinition); err != nil {
 		return nil, err
 	} else {
 		return out.TaskDefinition, nil
 	}
 }
 
-func CreateNextService(envars *Envars, awsEcs *ecs.ECS) (*ecs.Service, error) {
-	serviceDefinitionJson, _ := base64.StdEncoding.DecodeString(envars.NextServiceDefinitionBase64)
-	var serviceDefinition ecs.CreateServiceInput
-	if err := json.Unmarshal([]byte(serviceDefinitionJson), &serviceDefinition); err != nil {
+func (envars *Envars) CreateNextService(awsEcs ecsiface.ECSAPI, nextTaskDefinitionArn *string) (*ecs.Service, error) {
+	serviceDefinition, err := UnmarshalServiceDefinition(envars.NextServiceDefinitionBase64)
+	if err != nil {
 		return nil, err
 	}
-	if out, err := awsEcs.CreateService(&serviceDefinition); err != nil {
+	if out, err := awsEcs.CreateService(serviceDefinition); err != nil {
 		return nil, err
 	} else {
 		return out.Service, nil
@@ -82,9 +84,8 @@ type ServiceHealth struct {
 	responseTime float64
 }
 
-func AccumulatePeriodicServiceHealth(
-	cw *cloudwatch.CloudWatch,
-	envars *Envars,
+func (envars *Envars) AccumulatePeriodicServiceHealth(
+	cw cloudwatchiface.CloudWatchAPI,
 	targetGroupArn string,
 	epoch time.Time,
 ) (*ServiceHealth, error) {
@@ -162,8 +163,8 @@ func AccumulatePeriodicServiceHealth(
 		}
 	}
 	eg.Go(accumulate("RequestCount", "Sum", &requestCnt))
-	eg.Go(accumulate("ELB5xxCount", "Sum", &elb5xxCnt))
-	eg.Go(accumulate("Target5xxCount", "Sum", &target5xxCnt))
+	eg.Go(accumulate("HTTPCode_ELB_5XX_Count", "Sum", &elb5xxCnt))
+	eg.Go(accumulate("HTTPCode_Target_5XX_Count", "Sum", &target5xxCnt))
 	eg.Go(accumulate("TargetResponseTime", "Average", &responseTime))
 	if err := eg.Wait(); err != nil {
 		log.Errorf("failed to accumulate periodic service health due to: %s", err.Error())
@@ -182,15 +183,15 @@ func AccumulatePeriodicServiceHealth(
 	}
 }
 
-func StartGradualRollOut(envars *Envars, ses *session.Session, awsEcs *ecs.ECS) (error) {
+func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchiface.CloudWatchAPI) (error) {
 	// task-definition-nextを作成する
-	_, err := CreateNextTaskDefinition(envars, awsEcs)
+	taskDefinition, err := envars.CreateNextTaskDefinition(awsEcs)
 	if err != nil {
 		log.Fatalf("😭failed to create new task definition due to: %s", err.Error())
 		return err
 	}
 	// service-nextを作成する
-	nextService, err := CreateNextService(envars, awsEcs)
+	nextService, err := envars.CreateNextService(awsEcs, taskDefinition.TaskDefinitionArn)
 	if err != nil {
 		log.Fatalf("😭failed to create new service due to: %s", err.Error())
 		return err
@@ -232,7 +233,6 @@ func StartGradualRollOut(envars *Envars, ses *session.Session, awsEcs *ecs.ECS) 
 		return ret
 	}()
 	lb := nextService.LoadBalancers[0]
-	cw := cloudwatch.New(ses)
 	// next serviceのperiodic healthが安定し、current serviceのtaskの数が0になるまで繰り返す
 	for {
 		if estimatedRollOutCount < rollOutCnt {
@@ -244,7 +244,7 @@ func StartGradualRollOut(envars *Envars, ses *session.Session, awsEcs *ecs.ECS) 
 			)
 		}
 		epoch := time.Now()
-		health, err := AccumulatePeriodicServiceHealth(cw, envars, *lb.TargetGroupArn, epoch)
+		health, err := envars.AccumulatePeriodicServiceHealth(cw, *lb.TargetGroupArn, epoch)
 		if err != nil {
 			return err
 		}
@@ -282,7 +282,7 @@ func StartGradualRollOut(envars *Envars, ses *session.Session, awsEcs *ecs.ECS) 
 		}
 		if health.availability <= envars.AvailabilityThreshold && envars.ResponseTimeThreshold <= health.responseTime {
 			// カナリアテストに合格した場合、次のロールアウトに入る
-			if err := RollOut(envars, awsEcs, currentService, nextService, &replacedCnt, &rollOutCnt); err != nil {
+			if err := envars.RollOut(awsEcs, currentService, nextService, &replacedCnt, &rollOutCnt); err != nil {
 				log.Fatalf("failed to roll out tasks due to: %s", err.Error())
 				return err
 			}
@@ -297,20 +297,19 @@ func StartGradualRollOut(envars *Envars, ses *session.Session, awsEcs *ecs.ECS) 
 				"😢 %dth canary test haven't passed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
 				rollOutCnt, health.availability, envars.AvailabilityThreshold, health.responseTime, envars.ResponseTimeThreshold,
 			)
-			return Rollback(envars, awsEcs, currentService, *nextService.ServiceName, originalRunningTaskCount)
+			return envars.Rollback(awsEcs, currentService, *nextService.ServiceName, originalRunningTaskCount)
 		}
 	}
 }
 
-func RollOut(
-	envars *Envars,
-	awsEcs *ecs.ECS,
+func (envars *Envars) RollOut(
+	awsEcs ecsiface.ECSAPI,
 	currentService *ecs.Service,
 	nextService *ecs.Service,
 	replacedCount *int,
 	rollOutCount *int,
 ) error {
-	launchType := "Fargate"
+	launchType := "FARGATE"
 	desiredStatus := "RUNNING"
 	if out, err := awsEcs.ListTasks(&ecs.ListTasksInput{
 		Cluster:       &envars.Cluster,
@@ -386,9 +385,8 @@ func RollOut(
 	}
 }
 
-func Rollback(
-	envars *Envars,
-	awsEcs *ecs.ECS,
+func (envars *Envars) Rollback(
+	awsEcs ecsiface.ECSAPI,
 	currentService *ecs.Service,
 	nextServiceName string,
 	originalTaskCount int,

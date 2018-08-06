@@ -1,0 +1,9 @@
+all: containers/healthy containers/unhealthy containers/up-but-buggy containers/up-but-slow
+containers/healthy:
+	docker build -t canarycage/containers/healthy containers/healthy
+containers/unhealthy:
+	docker build -t canarycage/containers/unhealthy containers/unhealthy
+containers/up-but-buggy:
+	docker build -t canarycage/containers/up-but-buggy containers/up-but-buggy
+containers/up-but-slow:
+	docker build -t canarycage/containers/up-but-slow containers/up-but-slow
