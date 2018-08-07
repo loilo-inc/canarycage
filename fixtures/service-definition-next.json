@@ -1,0 +1,33 @@
+{
+    "cluster": "default",
+    "serviceName": "service-next",
+    "taskDefinition": "service:2",
+    "loadBalancers": [
+        {
+            "targetGroupArn": "arn:aws:elasticloadbalancing:us-west-2:828165198279:targetgroup/lnsh-develop-alb-tg-http/c5411770347103ce",
+            "containerName": "lnsh",
+            "containerPort": 8000
+        }
+    ],
+    "desiredCount": 2,
+    "launchType": "FARGATE",
+    "deploymentConfiguration": {
+        "maximumPercent": 200,
+        "minimumHealthyPercent": 100
+    },
+    "networkConfiguration": {
+        "awsvpcConfiguration": {
+            "subnets": [
+                "subnet-f42d8bbf",
+                "subnet-0434b07d",
+                "subnet-5737ac0d"
+            ],
+            "securityGroups": [
+                "sg-83553cfd"
+            ],
+            "assignPublicIp": "ENABLED"
+        }
+    },
+    "healthCheckGracePeriodSeconds": 0
+}
+
