@@ -1,4 +1,8 @@
 all: containers/healthy containers/unhealthy containers/up-but-buggy containers/up-but-slow
+build:
+	docker build -t canarycage .
+test: build
+	docker run -t canarycage go test -v
 containers/healthy:
 	docker build -t canarycage/containers/healthy containers/healthy
 containers/unhealthy:
