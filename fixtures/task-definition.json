@@ -1,5 +1,5 @@
 {
-    "family": "lnsh-dev",
+    "family": "canarycage:1",
     "taskRoleArn": "arn:aws:iam::828165198279:role/lnsh-dev-ecs-task-role",
     "executionRoleArn": "arn:aws:iam::828165198279:role/lnsh-dev-ecs-task-execution-role",
     "networkMode": "awsvpc",

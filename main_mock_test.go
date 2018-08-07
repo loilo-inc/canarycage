@@ -21,6 +21,7 @@ const kCurrentServiceName = "current-service"
 const kNextServiceName = "next-service"
 
 func TestStartGradualRollOut(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
 	serviceJson, _ := ioutil.ReadFile("fixtures/service-definition.json")
 	taskJson, _ := ioutil.ReadFile("fixtures/task-definition.json")
 	envars := Envars{
@@ -31,8 +32,8 @@ func TestStartGradualRollOut(t *testing.T) {
 		Cluster:                     "cage-test",
 		CurrentServiceArn:           "current-service",
 		CurrentTaskDefinitionArn:    "current-task-definition",
-		NextTaskDefinitionBase64:    base64.StdEncoding.EncodeToString([]byte(serviceJson)),
-		NextServiceDefinitionBase64: base64.StdEncoding.EncodeToString([]byte(taskJson)),
+		NextTaskDefinitionBase64:    base64.StdEncoding.EncodeToString([]byte(taskJson)),
+		NextServiceDefinitionBase64: base64.StdEncoding.EncodeToString([]byte(serviceJson)),
 		NextServiceName:             kNextServiceName,
 		AvailabilityThreshold:       0.9970,
 		ResponseTimeThreshold:       1,
@@ -45,7 +46,6 @@ func TestStartGradualRollOut(t *testing.T) {
 		services: make(map[string]ecs.Service),
 		envars:   envars,
 	}
-	log.SetLevel(log.DebugLevel)
 	ecsMock.EXPECT().CreateService(gomock.Any()).DoAndReturn(ctx.CreateService)
 	ecsMock.EXPECT().DeleteService(gomock.Any()).DoAndReturn(ctx.DeleteService)
 	ecsMock.EXPECT().StartTask(gomock.Any()).DoAndReturn(ctx.StartTask)
@@ -100,10 +100,10 @@ func (ctx *IntegrationContext) CreateService(input *ecs.CreateServiceInput) (*ec
 		RunningCount:  input.DesiredCount,
 		LaunchType:    &lt,
 		LoadBalancers: input.LoadBalancers,
-		Status:        &idstr,
-		ServiceArn:    &st,
+		Status:        &st,
+		ServiceArn:    &idstr,
 	}
-	ctx.services[idstr] = ret
+	ctx.services[*input.ServiceName] = ret
 	return &ecs.CreateServiceOutput{
 		Service: &ret,
 	}, nil
