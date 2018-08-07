@@ -5,10 +5,9 @@ version: 2
 jobs:
   build:
     machine:
-      - docker_layer_caching: true
+      docker_layer_caching: true
     working_directory: /go/src/github.com/loilo-inc/canarycage
     steps:
       - checkout
-      # specify any bash command here prefixed with `run: `
       - run: go get -u github.com/keroxp/shake
       - run: shake test
