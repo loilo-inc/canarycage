@@ -1,7 +1,7 @@
 {
     "cluster": "default",
-    "serviceName": "next-service",
-    "taskDefinition": "family:1",
+    "serviceName": "service-next",
+    "taskDefinition": "service:2",
     "loadBalancers": [
         {
             "targetGroupArn": "arn:aws:elasticloadbalancing:us-west-2:828165198279:targetgroup/lnsh-develop-alb-tg-http/c5411770347103ce",

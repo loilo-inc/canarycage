@@ -9,200 +9,120 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/loilo-inc/canarycage/mock/mock_ecs"
 	"github.com/loilo-inc/canarycage/mock/mock_cloudwatch"
-	"regexp"
-	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/apex/log"
+	"github.com/loilo-inc/canarycage/test"
 )
 
-const kCurrentServiceName = "current-service"
-const kNextServiceName = "next-service"
+const kCurrentServiceName = "service-current"
 
-func TestStartGradualRollOut(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
-	serviceJson, _ := ioutil.ReadFile("fixtures/service-definition.json")
-	taskJson, _ := ioutil.ReadFile("fixtures/task-definition.json")
-	envars := Envars{
+func DefaultEnvars() *Envars {
+	serviceJson, _ := ioutil.ReadFile("fixtures/service-definition-next.json")
+	taskJson, _ := ioutil.ReadFile("fixtures/task-definition-next.json")
+	return &Envars{
 		Region:                      "us-west-2",
 		ReleaseStage:                "test",
-		RollOutPeriod:               time.Duration(5) * time.Second,
+		RollOutPeriod:               time.Duration(0) * time.Second,
 		LoadBalancerArn:             "hoge/app/1111/hoge",
 		Cluster:                     "cage-test",
-		CurrentServiceArn:           "current-service",
+		CurrentServiceName:          kCurrentServiceName,
 		CurrentTaskDefinitionArn:    "current-task-definition",
 		NextTaskDefinitionBase64:    base64.StdEncoding.EncodeToString([]byte(taskJson)),
 		NextServiceDefinitionBase64: base64.StdEncoding.EncodeToString([]byte(serviceJson)),
-		NextServiceName:             kNextServiceName,
 		AvailabilityThreshold:       0.9970,
 		ResponseTimeThreshold:       1,
 	}
+}
+func TestStartGradualRollOut(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	envars := DefaultEnvars()
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	ecsMock := mock_ecs.NewMockECSAPI(ctrl)
-	ctx := IntegrationContext{
-		tasks:    make(map[string]ecs.Task),
-		services: make(map[string]ecs.Service),
-		envars:   envars,
+	ctx, ecsMock, cwMock := envars.Setup(ctrl, 0, 1)
+	if ctx.ServiceSize() != 1 {
+		t.Fatalf("current service not setup")
 	}
-	ecsMock.EXPECT().CreateService(gomock.Any()).DoAndReturn(ctx.CreateService)
-	ecsMock.EXPECT().DeleteService(gomock.Any()).DoAndReturn(ctx.DeleteService)
-	ecsMock.EXPECT().StartTask(gomock.Any()).DoAndReturn(ctx.StartTask)
-	ecsMock.EXPECT().StopTask(gomock.Any()).DoAndReturn(ctx.StopTask)
-	ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any()).DoAndReturn(ctx.RegisterTaskDefinition)
-	ecsMock.EXPECT().WaitUntilServicesStable(gomock.Any()).DoAndReturn(ctx.WaitUntilServicesStable)
-	ecsMock.EXPECT().WaitUntilServicesInactive(gomock.Any()).DoAndReturn(ctx.WaitUntilServicesInactive)
-	ecsMock.EXPECT().DescribeServices(gomock.Any()).DoAndReturn(ctx.DescribeServices)
-	ecsMock.EXPECT().WaitUntilTasksRunning(gomock.Any()).DoAndReturn(ctx.WaitUntilTasksRunning)
-	ecsMock.EXPECT().WaitUntilTasksStopped(gomock.Any()).DoAndReturn(ctx.WaitUntilTasksStopped)
-	ecsMock.EXPECT().ListTasks(gomock.Any()).DoAndReturn(ctx.ListTasks)
-	cwMock := mock_cloudwatch.NewMockCloudWatchAPI(ctrl)
-	cwMock.EXPECT().GetMetricStatistics(gomock.Any()).DoAndReturn(ctx.GetMetricStatics)
+	if taskCnt := ctx.TaskSize(); taskCnt != 0 {
+		t.Fatalf("current tasks not setup: %d / %d", taskCnt, 0)
+	}
 	envars.StartGradualRollOut(ecsMock, cwMock)
 }
 
-type IntegrationContext struct {
-	services map[string]ecs.Service
-	tasks    map[string]ecs.Task
-	envars   Envars
-}
-
-func (ctx *IntegrationContext) GetMetricStatics(input *cloudwatch.GetMetricStatisticsInput) (*cloudwatch.GetMetricStatisticsOutput, error) {
-	var ret cloudwatch.Datapoint
-	switch *input.MetricName {
-	case "RequestCount":
-		sum := 100000.0
-		ret.Sum = &sum
-	case "HTTPCode_ELB_5XX_Count":
-		sum := 1.0
-		ret.Sum = &sum
-	case "HTTPCode_Target_5XX_Count":
-		sum := 1.0
-		ret.Sum = &sum
-	case "TargetResponseTime":
-		average := 0.1
-		ret.Average = &average
+func TestStartGradualRollOut2(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	envars := DefaultEnvars()
+	ctrl := gomock.NewController(t)
+	ctx, ecsMock, cwMock := envars.Setup(ctrl, 2, 2)
+	if ctx.ServiceSize() != 1 {
+		t.Fatalf("current service not setup")
 	}
-	return &cloudwatch.GetMetricStatisticsOutput{
-		Datapoints: []*cloudwatch.Datapoint{
-			&ret,
-		},
-	}, nil
-}
-
-func (ctx *IntegrationContext) CreateService(input *ecs.CreateServiceInput) (*ecs.CreateServiceOutput, error) {
-	idstr := uuid.New().String()
-	lt := "FARGATE"
-	st := "ACTIVE"
-	ret := ecs.Service{
-		ServiceName:   input.ServiceName,
-		RunningCount:  input.DesiredCount,
-		LaunchType:    &lt,
-		LoadBalancers: input.LoadBalancers,
-		Status:        &st,
-		ServiceArn:    &idstr,
+	if taskCnt := ctx.TaskSize(); taskCnt != 2 {
+		t.Fatalf("current tasks not setup: %d / %d", taskCnt, 2)
 	}
-	ctx.services[*input.ServiceName] = ret
-	return &ecs.CreateServiceOutput{
-		Service: &ret,
-	}, nil
-}
-func (ctx *IntegrationContext) DeleteService(input *ecs.DeleteServiceInput) (*ecs.DeleteServiceOutput, error) {
-	service := ctx.services[*input.Service]
-	delete(ctx.services, *input.Service)
-	return &ecs.DeleteServiceOutput{
-		Service: &service,
-	}, nil
+	envars.StartGradualRollOut(ecsMock, cwMock)
 }
 
-func (ctx *IntegrationContext) RegisterTaskDefinition(input *ecs.RegisterTaskDefinitionInput) (*ecs.RegisterTaskDefinitionOutput, error) {
-	idstr := uuid.New().String()
-	return &ecs.RegisterTaskDefinitionOutput{
-		TaskDefinition: &ecs.TaskDefinition{
-			TaskDefinitionArn: &idstr,
-		},
-	}, nil
-}
-
-func (ctx *IntegrationContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutput, error) {
-	regex := regexp.MustCompile("service:(.+?)$")
-	m := regex.FindStringSubmatch(*input.Group)
-	s := ctx.services[m[1]]
-	*s.RunningCount += 1
-	id := uuid.New()
-	idstr := id.String()
-	ret := ecs.Task{
-		TaskArn:           &idstr,
-		ClusterArn:        input.Cluster,
-		TaskDefinitionArn: input.TaskDefinition,
-		Group:             input.Group,
+func TestStartGradualRollOut3(t *testing.T) {
+	log.SetLevel(log.InfoLevel)
+	envars := DefaultEnvars()
+	ctrl := gomock.NewController(t)
+	ctx, ecsMock, cwMock := envars.Setup(ctrl, 2, 15)
+	if ctx.ServiceSize() != 1 {
+		t.Fatalf("current service not setup")
 	}
-	ctx.tasks[idstr] = ret
-	return &ecs.StartTaskOutput{
-		Tasks: []*ecs.Task{ &ret },
-	}, nil
-}
-
-func (ctx *IntegrationContext) StopTask(input *ecs.StopTaskInput) (*ecs.StopTaskOutput, error) {
-	ret := ctx.tasks[*input.Task]
-	delete(ctx.tasks, *input.Task)
-	return &ecs.StopTaskOutput{
-		Task: &ret,
-	}, nil
-}
-
-func (ctx *IntegrationContext) ListTasks(input *ecs.ListTasksInput) (*ecs.ListTasksOutput, error) {
-	var ret []*string
-	for _, v := range ctx.tasks {
-		ret = append(ret, v.TaskArn)
+	if taskCnt := ctx.TaskSize(); taskCnt != 2 {
+		t.Fatalf("current tasks not setup: %d / %d", taskCnt, 2)
 	}
-	return &ecs.ListTasksOutput{
-		TaskArns: ret,
-	}, nil
+	envars.StartGradualRollOut(ecsMock, cwMock)
 }
 
-func (ctx *IntegrationContext) WaitUntilServicesStable(input *ecs.DescribeServicesInput) (error) {
-	for _, v := range input.Services {
-		if _, ok := ctx.services[*v]; !ok {
-			return errors.New(fmt.Sprintf("service:%s not found", *v))
+func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int, nextStartTaskCount int) (*test.MockContext, *mock_ecs.MockECSAPI, *mock_cloudwatch.MockCloudWatchAPI) {
+	ecsMock := mock_ecs.NewMockECSAPI(ctrl)
+	cwMock := mock_cloudwatch.NewMockCloudWatchAPI(ctrl)
+	ctx := test.NewMockContext()
+	ecsMock.EXPECT().CreateService(gomock.Any()).DoAndReturn(ctx.CreateService).AnyTimes()
+	ecsMock.EXPECT().DeleteService(gomock.Any()).DoAndReturn(ctx.DeleteService).AnyTimes()
+	ecsMock.EXPECT().StartTask(gomock.Any()).DoAndReturn(ctx.StartTask).AnyTimes()
+	ecsMock.EXPECT().StopTask(gomock.Any()).DoAndReturn(ctx.StopTask).AnyTimes()
+	ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any()).DoAndReturn(ctx.RegisterTaskDefinition).AnyTimes()
+	ecsMock.EXPECT().WaitUntilServicesStable(gomock.Any()).DoAndReturn(ctx.WaitUntilServicesStable).AnyTimes()
+	ecsMock.EXPECT().WaitUntilServicesInactive(gomock.Any()).DoAndReturn(ctx.WaitUntilServicesInactive).AnyTimes()
+	ecsMock.EXPECT().DescribeServices(gomock.Any()).DoAndReturn(ctx.DescribeServices).AnyTimes()
+	ecsMock.EXPECT().WaitUntilTasksRunning(gomock.Any()).DoAndReturn(ctx.WaitUntilTasksRunning).AnyTimes()
+	ecsMock.EXPECT().WaitUntilTasksStopped(gomock.Any()).DoAndReturn(ctx.WaitUntilTasksStopped).AnyTimes()
+	ecsMock.EXPECT().ListTasks(gomock.Any()).DoAndReturn(ctx.ListTasks).AnyTimes()
+	cwMock.EXPECT().GetMetricStatistics(gomock.Any()).DoAndReturn(ctx.GetMetricStatics).AnyTimes()
+	taskdef, _ := ioutil.ReadFile("fixtures/task-definition-current.json")
+	servicedef, _ := ioutil.ReadFile("fixtures/service-definition-current.json")
+	t, _ := UnmarshalTaskDefinition(base64.StdEncoding.EncodeToString(taskdef))
+	s, _ := UnmarshalServiceDefinition(base64.StdEncoding.EncodeToString(servicedef))
+	taskDefinition, _ := ctx.RegisterTaskDefinition(t)
+	service, _ := ctx.CreateService(s)
+	for ; ctx.TaskSize() < currentTaskCount; {
+		group := fmt.Sprintf("service:%s", *service.Service.ServiceName)
+		_, err := ctx.StartTask(&ecs.StartTaskInput{
+			Cluster:        &envars.Cluster,
+			Group:          &group,
+			TaskDefinition: taskDefinition.TaskDefinition.TaskDefinitionArn,
+		})
+		if err != nil {
+			log.Error(err.Error())
 		}
 	}
-	return nil
+	return ctx, ecsMock, cwMock
 }
 
-func (ctx *IntegrationContext) DescribeServices(input *ecs.DescribeServicesInput) (*ecs.DescribeServicesOutput, error) {
-	var ret []*ecs.Service
-	for _, v := range ctx.services {
-		ret = append(ret, &v)
+func TestEnvars_Rollback(t *testing.T) {
+	envars := DefaultEnvars()
+	ctrl := gomock.NewController(t)
+	ctx, e, _ := envars.Setup(ctrl,10,0)
+	csvr, _ := ctx.GetService(kCurrentServiceName)
+	nt, _ := envars.CreateNextTaskDefinition(e)
+	nsvr, _ := envars.CreateNextService(e, nt.TaskDefinitionArn)
+	o, err := envars.RollOut(e, csvr, nsvr, 10, 0, 2)
+	if err != nil {
+		t.Fatal(err.Error())
 	}
-	return &ecs.DescribeServicesOutput{
-		Services: ret,
-	}, nil
-}
-
-func (ctx *IntegrationContext) WaitUntilServicesInactive(input *ecs.DescribeServicesInput) (error) {
-	for _, v := range input.Services {
-		if _, ok := ctx.services[*v]; ok {
-			return errors.New(fmt.Sprintf("service:%s found", *v))
-		}
+	if len(o) != 2 {
+		t.Fatalf("E: %d, A: %d", 2, len(o))
 	}
-	return nil
-}
-
-func (ctx *IntegrationContext) WaitUntilTasksRunning(input *ecs.DescribeTasksInput) (error) {
-	for _, v := range input.Tasks {
-		if _, ok := ctx.tasks[*v]; !ok {
-			return errors.New(fmt.Sprintf("task:%s not running", *v))
-		}
-	}
-	return nil
-}
-func (ctx *IntegrationContext) WaitUntilTasksStopped(input *ecs.DescribeTasksInput) (error) {
-	for _, v := range input.Tasks {
-		if _, ok := ctx.tasks[*v]; ok {
-			return errors.New(fmt.Sprintf("task:%s found", *v))
-		}
-	}
-	return nil
 }
