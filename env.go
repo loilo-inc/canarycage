@@ -14,7 +14,7 @@ type Envars struct {
 	RollOutPeriod               time.Duration
 	LoadBalancerArn             string
 	Cluster                     string
-	CurrentServiceArn           string
+	CurrentServiceName          string
 	CurrentTaskDefinitionArn    string
 	NextTaskDefinitionBase64    string
 	NextServiceDefinitionBase64 string
@@ -39,20 +39,19 @@ func InvariantEnvars(keys ...string) error {
 	return nil
 }
 
-const kCurrentServiceArnKey = "CAGE_CURRENT_SERVICE_ARN"
+const kCurrentServiceNameKey = "CAGE_CURRENT_SERVICE_NAME"
 const kCurrentTaskDefinitionArnKey = "CAGE_CURRENT_TASK_DEFINITION_ARN"
 const kNextTaskDefinitionBase64Key = "CAGE_NEXT_TASK_DEFINITION_BASE64"
 const kNextServiceDefinitionBase64Key = "CAGE_NEXT_SERVICE_DEFINITION_BASE64"
-const kNextServiceNameKey = "CAGE_NEXT_SERVICE_NAME"
 const kClusterKey = "CAGE_AWS_ECS_CLUSTER"
 const kServiceLoadBalancerArnKey = "CAGE_LB_ARN"
 const kAvailabilityThresholdKey = "CAGE_AVAILABILITY_THRESHOLD"
 const kResponseTimeThresholdKey = "CAGE_RESPONSE_TIME_THRESHOLD"
-const kRollOutPeriodKey = "CAGE_ROLLOUT_PERIOD"
+const kRollOutPeriodKey = "CAGE_ROLL_OUT_PERIOD"
 
 func EnsureEnvars() (*Envars, error) {
 	InvariantEnvars(
-		kCurrentServiceArnKey,
+		kCurrentServiceNameKey,
 		kCurrentTaskDefinitionArnKey,
 		kNextServiceDefinitionBase64Key,
 		kNextTaskDefinitionBase64Key,
@@ -84,11 +83,10 @@ func EnsureEnvars() (*Envars, error) {
 		RollOutPeriod:               time.Duration(period) * time.Second,
 		LoadBalancerArn:             os.Getenv(kServiceLoadBalancerArnKey),
 		Cluster:                     os.Getenv(kClusterKey),
-		CurrentServiceArn:           os.Getenv(kCurrentServiceArnKey),
+		CurrentServiceName:          os.Getenv(kCurrentServiceNameKey),
 		CurrentTaskDefinitionArn:    os.Getenv(kCurrentTaskDefinitionArnKey),
-		NextServiceDefinitionBase64: os.Getenv(kCurrentServiceArnKey),
+		NextServiceDefinitionBase64: os.Getenv(kCurrentServiceNameKey),
 		NextTaskDefinitionBase64:    os.Getenv(kNextTaskDefinitionBase64Key),
-		NextServiceName:             os.Getenv(kNextServiceNameKey),
 		AvailabilityThreshold:       avl,
 		ResponseTimeThreshold:       resp,
 	}, nil
