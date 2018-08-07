@@ -4,8 +4,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecs"
-	"encoding/base64"
-	"encoding/json"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"regexp"
 	"github.com/pkg/errors"
@@ -196,9 +194,10 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 		log.Fatalf("😭failed to create new service due to: %s", err.Error())
 		return err
 	}
+	services := []*string{ nextService.ServiceName }
 	if err := awsEcs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
 		Cluster:  &envars.Cluster,
-		Services: []*string{nextService.ServiceName},
+		Services: services,
 	}); err != nil {
 		log.Fatalf("created next service state hasn't reached STABLE state within an interval due to: %s", err.Error())
 		return err
