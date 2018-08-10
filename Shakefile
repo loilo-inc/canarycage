@@ -2,7 +2,12 @@ all: containers/healthy containers/unhealthy containers/up-but-buggy containers/
 build:
 	docker build -t canarycage .
 test: build
-	docker run -t canarycage go test -v
+	docker run -t canarycage shake do-test
+do-test:
+	go test -race -coverprofile=coverage.txt -covermode=atomic
+	if [ ${CI} ];then
+		bash <(curl -s https://codecov.io/bash)
+	fi
 containers/healthy:
 	docker build -t canarycage/containers/healthy containers/healthy
 containers/unhealthy:

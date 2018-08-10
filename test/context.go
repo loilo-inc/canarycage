@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sync"
 	"errors"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/apex/log"
 )
 
 type MockContext struct {
@@ -19,11 +21,11 @@ type MockContext struct {
 func NewMockContext() *MockContext {
 	return &MockContext{
 		services: make(map[string]*ecs.Service),
-		tasks: make(map[string]*ecs.Task),
+		tasks:    make(map[string]*ecs.Task),
 	}
 }
 
-func (ctx *MockContext) GetTask (id string) (*ecs.Task, bool) {
+func (ctx *MockContext) GetTask(id string) (*ecs.Task, bool) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	o, ok := ctx.tasks[id]
@@ -78,7 +80,7 @@ func (ctx *MockContext) CreateService(input *ecs.CreateServiceInput) (*ecs.Creat
 	st := "ACTIVE"
 	ret := &ecs.Service{
 		ServiceName:   input.ServiceName,
-		RunningCount:  input.DesiredCount,
+		RunningCount:  aws.Int64(0),
 		LaunchType:    &lt,
 		LoadBalancers: input.LoadBalancers,
 		DesiredCount:  input.DesiredCount,
@@ -86,8 +88,17 @@ func (ctx *MockContext) CreateService(input *ecs.CreateServiceInput) (*ecs.Creat
 		ServiceArn:    &idstr,
 	}
 	ctx.mux.Lock()
-	defer ctx.mux.Unlock()
 	ctx.services[*input.ServiceName] = ret
+	ctx.mux.Unlock()
+	log.Debugf("%s: %d, desired=%d", *input.ServiceName, *ret.RunningCount, *input.DesiredCount)
+	for i := 0; i < int(*input.DesiredCount); i++ {
+		ctx.StartTask(&ecs.StartTaskInput{
+			Cluster:        input.Cluster,
+			Group:          aws.String(fmt.Sprintf("service:%s", *input.ServiceName)),
+			TaskDefinition: input.TaskDefinition,
+		})
+	}
+	log.Debugf("%s: %d", *input.ServiceName, *ret.RunningCount)
 	return &ecs.CreateServiceOutput{
 		Service: ret,
 	}, nil

@@ -37,12 +37,12 @@ func TestStartGradualRollOut(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	envars := DefaultEnvars()
 	ctrl := gomock.NewController(t)
-	ctx, ecsMock, cwMock := envars.Setup(ctrl, 0, 1)
+	ctx, ecsMock, cwMock := envars.Setup(ctrl, 2, 1)
 	if ctx.ServiceSize() != 1 {
 		t.Fatalf("current service not setup")
 	}
-	if taskCnt := ctx.TaskSize(); taskCnt != 0 {
-		t.Fatalf("current tasks not setup: %d / %d", taskCnt, 0)
+	if taskCnt := ctx.TaskSize(); taskCnt != 2 {
+		t.Fatalf("current tasks not setup: %d / %d", taskCnt, 2)
 	}
 	envars.StartGradualRollOut(ecsMock, cwMock)
 }
@@ -96,9 +96,9 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int, nextS
 	t, _ := UnmarshalTaskDefinition(base64.StdEncoding.EncodeToString(taskdef))
 	s, _ := UnmarshalServiceDefinition(base64.StdEncoding.EncodeToString(servicedef))
 	taskDefinition, _ := ctx.RegisterTaskDefinition(t)
-	service, _ := ctx.CreateService(s)
-	for ; ctx.TaskSize() < currentTaskCount; {
-		group := fmt.Sprintf("service:%s", *service.Service.ServiceName)
+	o, _ := ctx.CreateService(s)
+	for i := int(*o.Service.RunningCount); i < currentTaskCount; i++ {
+		group := fmt.Sprintf("service:%s", *o.Service.ServiceName)
 		_, err := ctx.StartTask(&ecs.StartTaskInput{
 			Cluster:        &envars.Cluster,
 			Group:          &group,
@@ -111,18 +111,45 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int, nextS
 	return ctx, ecsMock, cwMock
 }
 
-func TestEnvars_Rollback(t *testing.T) {
+func TestEnvars_RollOut(t *testing.T) {
 	envars := DefaultEnvars()
 	ctrl := gomock.NewController(t)
-	ctx, e, _ := envars.Setup(ctrl,10,0)
-	csvr, _ := ctx.GetService(kCurrentServiceName)
+	ctx, e, _ := envars.Setup(ctrl, 10, 0)
+	currentService, _ := ctx.GetService(kCurrentServiceName)
 	nt, _ := envars.CreateNextTaskDefinition(e)
 	nsvr, _ := envars.CreateNextService(e, nt.TaskDefinitionArn)
-	o, err := envars.RollOut(e, csvr, nsvr, 10, 0, 2)
+	o, err := envars.RollOut(e, currentService, nsvr, 10, 0, 2)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 	if len(o) != 2 {
 		t.Fatalf("E: %d, A: %d", 2, len(o))
+	}
+}
+
+func TestEnvars_Rollback(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	envars := DefaultEnvars()
+	ctrl := gomock.NewController(t)
+	ctx, e, _ := envars.Setup(ctrl, 2, 12)
+	currentService, _ := ctx.GetService(kCurrentServiceName)
+	nt, _ := envars.CreateNextTaskDefinition(e)
+	nextService, _ := envars.CreateNextService(e, nt.TaskDefinitionArn)
+	log.Debugf("%d", ctx.ServiceSize())
+	err := envars.Rollback(e, currentService, *nextService.ServiceName, 10)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if ctx.ServiceSize() != 1 {
+		t.Fatal("next service still exists")
+	}
+	o, err := e.ListTasks(&ecs.ListTasksInput{
+		ServiceName: currentService.ServiceName,
+	})
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if l := len(o.TaskArns); l != 10 {
+		t.Fatalf("next service was not rollbacked: E: %d, A: %d", 10, l)
 	}
 }
