@@ -1,18 +1,11 @@
-all: containers/healthy containers/unhealthy containers/up-but-buggy containers/up-but-slow
 build:
 	docker build -t canarycage .
 test: build
 	docker run -t canarycage shake do-test
 do-test:
-	go test -race -coverprofile=coverage.txt -covermode=atomic
+	go test -coverprofile=coverage.txt -covermode=count
 	if [ ${CI} ];then
 		bash <(curl -s https://codecov.io/bash)
 	fi
-containers/healthy:
-	docker build -t canarycage/containers/healthy containers/healthy
-containers/unhealthy:
-	docker build -t canarycage/containers/unhealthy containers/unhealthy
-containers/up-but-buggy:
-	docker build -t canarycage/containers/up-but-buggy containers/up-but-buggy
-containers/up-but-slow:
-	docker build -t canarycage/containers/up-but-slow containers/up-but-slow
+test-container:
+	docker build -t canarycage/test-container test-container
