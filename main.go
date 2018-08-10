@@ -459,7 +459,7 @@ func (envars *Envars) Rollback(
 	)
 	rollbackCompletedCount := 0
 	rollbackFailedCount := 0
-	currentServiceGroup := fmt.Sprintf("service:%s", nextServiceName)
+	currentServiceGroup := fmt.Sprintf("service:%s", *currentService.ServiceName)
 	eg := errgroup.Group{}
 	eg.Go(func() error {
 		if _, err := awsEcs.DeleteService(&ecs.DeleteServiceInput{
