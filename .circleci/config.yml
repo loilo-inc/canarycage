@@ -10,4 +10,6 @@ jobs:
     steps:
       - checkout
       - run: go get -u github.com/keroxp/shake
-      - run: shake test
+      - run: .circleci/circle.env.sh >> .env
+      - run: shake build
+      - run: docker run --env-file=.env -t canarycage shake do-test
