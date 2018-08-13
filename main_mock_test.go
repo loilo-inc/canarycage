@@ -33,46 +33,28 @@ func DefaultEnvars() *Envars {
 		ResponseTimeThreshold:       1,
 	}
 }
+
 func TestStartGradualRollOut(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
-	envars := DefaultEnvars()
-	ctrl := gomock.NewController(t)
-	ctx, ecsMock, cwMock := envars.Setup(ctrl, 2, 1)
-	if ctx.ServiceSize() != 1 {
-		t.Fatalf("current service not setup")
+	arr := [][]int{{2, 1, 2}, {2, 2, 2}, {2, 15, 2}}
+	for _, v := range arr {
+		envars := DefaultEnvars()
+		current := v[0]
+		next := v[1]
+		expect := v[2]
+		ctrl := gomock.NewController(t)
+		ctx, ecsMock, cwMock := envars.Setup(ctrl, current, next)
+		if ctx.ServiceSize() != 1 {
+			t.Fatalf("current service not setup")
+		}
+		if taskCnt := ctx.TaskSize(); taskCnt != expect {
+			t.Fatalf("current tasks not setup: %d / %d", taskCnt, expect)
+		}
+		err := envars.StartGradualRollOut(ecsMock, cwMock)
+		if err != nil {
+			t.Fatalf("%s", err)
+		}
 	}
-	if taskCnt := ctx.TaskSize(); taskCnt != 2 {
-		t.Fatalf("current tasks not setup: %d / %d", taskCnt, 2)
-	}
-	envars.StartGradualRollOut(ecsMock, cwMock)
-}
-
-func TestStartGradualRollOut2(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
-	envars := DefaultEnvars()
-	ctrl := gomock.NewController(t)
-	ctx, ecsMock, cwMock := envars.Setup(ctrl, 2, 2)
-	if ctx.ServiceSize() != 1 {
-		t.Fatalf("current service not setup")
-	}
-	if taskCnt := ctx.TaskSize(); taskCnt != 2 {
-		t.Fatalf("current tasks not setup: %d / %d", taskCnt, 2)
-	}
-	envars.StartGradualRollOut(ecsMock, cwMock)
-}
-
-func TestStartGradualRollOut3(t *testing.T) {
-	log.SetLevel(log.InfoLevel)
-	envars := DefaultEnvars()
-	ctrl := gomock.NewController(t)
-	ctx, ecsMock, cwMock := envars.Setup(ctrl, 2, 15)
-	if ctx.ServiceSize() != 1 {
-		t.Fatalf("current service not setup")
-	}
-	if taskCnt := ctx.TaskSize(); taskCnt != 2 {
-		t.Fatalf("current tasks not setup: %d / %d", taskCnt, 2)
-	}
-	envars.StartGradualRollOut(ecsMock, cwMock)
 }
 
 func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int, nextStartTaskCount int) (*test.MockContext, *mock_ecs.MockECSAPI, *mock_cloudwatch.MockCloudWatchAPI) {
@@ -111,21 +93,21 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int, nextS
 	return ctx, ecsMock, cwMock
 }
 
-func TestEnvars_RollOut(t *testing.T) {
-	envars := DefaultEnvars()
-	ctrl := gomock.NewController(t)
-	ctx, e, _ := envars.Setup(ctrl, 10, 0)
-	currentService, _ := ctx.GetService(kCurrentServiceName)
-	nt, _ := envars.CreateNextTaskDefinition(e)
-	nsvr, _ := envars.CreateNextService(e, nt.TaskDefinitionArn)
-	o, err := envars.RollOut(e, currentService, nsvr, 10, 0, 2)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-	if len(o) != 2 {
-		t.Fatalf("E: %d, A: %d", 2, len(o))
-	}
-}
+//func TestEnvars_RollOut(t *testing.T) {
+//	envars := DefaultEnvars()
+//	ctrl := gomock.NewController(t)
+//	ctx, e, _ := envars.Setup(ctrl, 10, 0)
+//	currentService, _ := ctx.GetService(kCurrentServiceName)
+//	nt, _ := envars.CreateNextTaskDefinition(e)
+//	nsvr, _ := envars.CreateNextService(e, nt.TaskDefinitionArn)
+//	o, err := envars.RollOut(e, currentService, nsvr, 10, 0, 2)
+//	if err != nil {
+//		t.Fatal(err.Error())
+//	}
+//	if len(o) != 2 {
+//		t.Fatalf("E: %d, A: %d", 2, len(o))
+//	}
+//}
 
 func TestEnvars_Rollback(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
@@ -136,7 +118,7 @@ func TestEnvars_Rollback(t *testing.T) {
 	nt, _ := envars.CreateNextTaskDefinition(e)
 	nextService, _ := envars.CreateNextService(e, nt.TaskDefinitionArn)
 	log.Debugf("%d", ctx.ServiceSize())
-	err := envars.Rollback(e, currentService, *nextService.ServiceName, 10)
+	err := envars.Rollback(e, *nextService.ServiceName, 10)
 	if err != nil {
 		t.Fatal(err.Error())
 	}

@@ -36,13 +36,27 @@ func TestEstimateRollOutCount(t *testing.T) {
 }
 
 func TestEnsureReplaceCount(t *testing.T) {
-	if a := EnsureReplaceCount(1, 0, 2); a != 2 {
-		t.Fatalf("E: %d, A: %d", 2, a)
+	// 初回はdesired countだけ減らす
+	if a, r := EnsureReplaceCount(2, 0, 0, 4); a != 0 {
+		t.Fatalf("E: %d, A: %d", 0, a)
+	} else if r != 2 {
+		t.Fatalf("E: %d, A: %d", 2, r)
 	}
-	if a := EnsureReplaceCount(3, 4, 15); a != 8 {
+	// 二回目以降はceil(log2(DesiredCount))
+	if a, r := EnsureReplaceCount(2, 1, 1, 6); a != 4 {
+		t.Fatalf("E: %d, A: %d", 4, a)
+	} else if r != 4 {
+		t.Fatalf("E: %d, A: %d", 4, r)
+	}
+	// 三回目以降はoriginal countになるまで
+	if a, r := EnsureReplaceCount(2, 6, 2, 15); a != 8 {
 		t.Fatalf("E: %d, A: %d", 8, a)
+	} else if r != 8 {
+		t.Fatalf("E: %d, A: %d", 8, r)
 	}
-	if a := EnsureReplaceCount(4, 14, 16); a != 2 {
-		t.Fatalf("E: %d, A: %d", 2, a)
+	if a, r := EnsureReplaceCount(2, 14, 3, 15); a != 1 {
+		t.Fatalf("E: %d, A: %d", 1, a)
+	} else if r != 1 {
+		t.Fatalf("E: %d, A: %d", 1, r)
 	}
 }
