@@ -34,30 +34,6 @@ func main() {
 	log.Infof("🎉service roll out has completed successfully!🎉")
 }
 
-func (envars *Envars) CreateNextTaskDefinition(awsEcs ecsiface.ECSAPI) (*ecs.TaskDefinition, error) {
-	taskDefinition, err := UnmarshalTaskDefinition(envars.NextTaskDefinitionBase64)
-	if err != nil {
-		return nil, err
-	}
-	if out, err := awsEcs.RegisterTaskDefinition(taskDefinition); err != nil {
-		return nil, err
-	} else {
-		return out.TaskDefinition, nil
-	}
-}
-
-func (envars *Envars) CreateNextService(awsEcs ecsiface.ECSAPI, nextTaskDefinitionArn *string) (*ecs.Service, error) {
-	serviceDefinition, err := UnmarshalServiceDefinition(envars.NextServiceDefinitionBase64)
-	if err != nil {
-		return nil, err
-	}
-	if out, err := awsEcs.CreateService(serviceDefinition); err != nil {
-		return nil, err
-	} else {
-		return out.Service, nil
-	}
-}
-
 func ExtractAlbId(arn string) (string, error) {
 	regex := regexp.MustCompile(`^.+(app/.+?)$`)
 	if group := regex.FindStringSubmatch(arn); group == nil || len(group) == 1 {
@@ -219,50 +195,31 @@ func EnsureReplaceCount(
 }
 
 func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchiface.CloudWatchAPI) (error) {
-	// task-definition-nextを作成する
-	taskDefinition, err := envars.CreateNextTaskDefinition(awsEcs)
-	if err != nil {
-		log.Errorf("😭failed to create new task definition due to: %s", err.Error())
-		return err
-	}
-	// service-nextを作成する
-	nextService, err := envars.CreateNextService(awsEcs, taskDefinition.TaskDefinitionArn)
-	if err != nil {
-		log.Errorf("😭failed to create new service due to: %s", err.Error())
-		return err
-	}
-	services := []*string{nextService.ServiceName}
-	if err := awsEcs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
-		Cluster:  &envars.Cluster,
-		Services: services,
-	}); err != nil {
-		log.Errorf("created next service state hasn't reached STABLE state within an interval due to: %s", err.Error())
-		return err
-	}
 	// ロールバックのためのデプロイを始める前の現在のサービスのタスク数
 	var originalRunningTaskCount int
-	if out, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
+	out, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
 		Cluster: &envars.Cluster,
 		Services: []*string{
-			&envars.CurrentServiceName,
+			&envars.ServiceName,
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		log.Errorf("failed to describe current service due to: %s", err.Error())
 		return err
-	} else {
-		originalRunningTaskCount = int(*out.Services[0].RunningCount)
 	}
+	service := out.Services[0]
+	originalRunningTaskCount = int(*out.Services[0].RunningCount)
 	// ロールアウトで置き換えられたタスクの数
 	totalReplacedCnt := 0
 	// ロールアウト実行回数。CreateServiceで第一陣が配置されてるので1
 	totalRollOutCnt := 0
 	// 推定ロールアウト施行回数
-	estimatedRollOutCount := EstimateRollOutCount(originalRunningTaskCount, int(*nextService.RunningCount))
+	estimatedRollOutCount := EstimateRollOutCount(originalRunningTaskCount, int(*service.RunningCount))
 	log.Infof(
 		"currently %d tasks running on '%s', %d tasks on '%s'. %d times roll out estimated",
-		originalRunningTaskCount, envars.CurrentServiceName, *nextService.RunningCount, *nextService.ServiceName, estimatedRollOutCount,
+		originalRunningTaskCount, envars.ServiceName, *service.RunningCount, *service.ServiceName, estimatedRollOutCount,
 	)
-	lb := nextService.LoadBalancers[0]
+	lb := service.LoadBalancers[0]
 	// next serviceのperiodic healthが安定し、current serviceのtaskの数が0になるまで繰り返す
 	for {
 		log.Infof("=== preparing for %dth roll out ===", totalRollOutCnt)
@@ -277,17 +234,17 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 		startTime := time.Now()
 		endTime := startTime
 		endTime.Add(envars.RollOutPeriod)
-		addCnt, removeCnt := EnsureReplaceCount(*nextService.DesiredCount, totalRollOutCnt, totalReplacedCnt, originalRunningTaskCount)
+		addCnt, removeCnt := EnsureReplaceCount(*service.DesiredCount, totalRollOutCnt, totalReplacedCnt, originalRunningTaskCount)
 		// Phase1: service-nextにtask-nextを指定数配置
-		log.Infof("start adding of next tasks. this will add %d tasks to %s", addCnt, *nextService.ServiceName)
-		_, err := envars.StartTasks(awsEcs, nextService.ServiceName, nextService.TaskDefinition, addCnt)
+		log.Infof("start adding of next tasks. this will add %d tasks to %s", addCnt, *service.ServiceName)
+		_, err := envars.StartTasks(awsEcs, &envars.NextTaskDefinitionArn, addCnt)
 		if err != nil {
 			log.Errorf("failed to add next tasks due to: %s", err)
 			return err
 		}
 		log.Infof(
 			"start accumulating periodic service health of '%s' during %s ~ %s",
-			*nextService.ServiceName, startTime.String(), endTime.String(),
+			*service.ServiceName, startTime.String(), endTime.String(),
 		)
 		// Phase2: service-nextのperiodic healthを計測
 		health, err := envars.AccumulatePeriodicServiceHealth(cw, *lb.TargetGroupArn, startTime, endTime)
@@ -301,7 +258,7 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 				"😢 %dth canary test has failed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
 				totalRollOutCnt, health.availability, envars.AvailabilityThreshold, health.responseTime, envars.ResponseTimeThreshold,
 			)
-			return envars.Rollback(awsEcs, *nextService.ServiceName, originalRunningTaskCount)
+			return envars.Rollback(awsEcs, originalRunningTaskCount)
 		}
 		log.Infof(
 			"😙 %dth canary test has passed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
@@ -309,10 +266,10 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 		)
 		// Phase3: service-currentからタスクを指定数消す
 		log.Infof(
-			"%dth roll out starting: will add %d tasks to '%s' and remove %d tasks from '%s'",
-			totalRollOutCnt, addCnt, *nextService.ServiceName, removeCnt, &envars.CurrentServiceName,
+			"%dth roll out starting: will add %d tasks '%s' and remove %d tasks '%s'",
+			totalRollOutCnt, addCnt, envars.NextTaskDefinitionArn, removeCnt, envars.CurrentTaskDefinitionArn,
 		)
-		removed, err := envars.StopTasks(awsEcs, &envars.CurrentServiceName, removeCnt)
+		removed, err := envars.StopTasks(awsEcs, &envars.CurrentTaskDefinitionArn, removeCnt)
 		if err != nil {
 			log.Errorf("failed to roll out tasks due to: %s", err.Error())
 			return err
@@ -324,45 +281,24 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 		)
 		totalRollOutCnt += 1
 		// Phase4: ロールアウトが終わったかどうかを確認
-		out, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
-			Cluster: &envars.Cluster,
-			Services: []*string{
-				&envars.CurrentServiceName,
-				nextService.ServiceName,
-			},
+		out, err := envars.ListTasks(awsEcs, []*string{
+			&envars.CurrentTaskDefinitionArn,
+			&envars.NextTaskDefinitionArn,
 		})
 		if err != nil {
-			log.Errorf("failed to describe next service due to: %s", err.Error())
+			log.Errorf("failed to list tasks due to: %s", err.Error())
 			return err
 		}
-		currentService := out.Services[0]
-		nextService := out.Services[1]
-		if *currentService.RunningCount == 0 && int(*nextService.RunningCount) >= originalRunningTaskCount {
+		currentTaskCount := len(out[0])
+		nextTaskCount := len(out[1])
+		if currentTaskCount == 0 && nextTaskCount >= originalRunningTaskCount {
 			log.Infof("☀️all tasks successfully have been roll outed!☀️")
-			log.Infof("starting to delete old service '%s'", *currentService.ServiceName)
-			// すべてのタスクが完全に置き換わったら、current serviceを消す
-			if _, err := awsEcs.DeleteService(&ecs.DeleteServiceInput{
-				Cluster: &envars.Cluster,
-				Service: currentService.ServiceName,
-			}); err != nil {
-				log.Errorf("failed to delete empty current service due to: %s", err.Error())
-				return err
-			}
-			log.Infof("'%s' has successfully been deleted. waiting for service state to be INACTIVE", *currentService.ServiceName)
-			if err := awsEcs.WaitUntilServicesInactive(&ecs.DescribeServicesInput{
-				Cluster:  &envars.Cluster,
-				Services: []*string{currentService.ServiceArn},
-			}); err != nil {
-				log.Errorf("deleted current service state hasn't reached INACTIVE state within an interval due to: %s", err.Error())
-				return err
-			}
-			log.Infof("'%s' is now INACTIVE and will be deleted soon", *currentService.ServiceName)
 			return nil
 		} else {
 			log.Infof(
-				"roll out is continuing. %d tasks running on '%s', %d tasks on '%s'",
-				*currentService.RunningCount, *currentService.ServiceName,
-				*nextService.RunningCount, *nextService.ServiceName,
+				"roll out is continuing. %d tasks running by '%s', %d tasks by '%s'",
+				currentTaskCount, envars.CurrentTaskDefinitionArn,
+				nextTaskCount, envars.NextTaskDefinitionArn,
 			)
 		}
 	}
@@ -370,7 +306,6 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 
 func (envars *Envars) StartTasks(
 	awsEcs ecsiface.ECSAPI,
-	serviceName *string,
 	taskDefinition *string,
 	numToAdd int,
 ) ([]*ecs.Task, error) {
@@ -379,7 +314,7 @@ func (envars *Envars) StartTasks(
 	var ret []*ecs.Task
 	for i := 0; i < numToAdd; i++ {
 		eg.Go(func() error {
-			group := fmt.Sprintf("service:%s", *serviceName)
+			group := fmt.Sprintf("service:%s", envars.ServiceName)
 			out, err := awsEcs.StartTask(&ecs.StartTaskInput{
 				Cluster:        &envars.Cluster,
 				TaskDefinition: taskDefinition,
@@ -399,7 +334,7 @@ func (envars *Envars) StartTasks(
 			mux.Lock()
 			defer mux.Unlock()
 			ret = append(ret, out.Tasks...)
-			log.Infof("task '%s' on '%s has successfully started", *out.Tasks[0].TaskArn, *serviceName)
+			log.Infof("task '%s' on '%s has successfully started", *out.Tasks[0].TaskArn, envars.ServiceName)
 			return nil
 		})
 	}
@@ -413,31 +348,28 @@ func (envars *Envars) StartTasks(
 
 func (envars *Envars) StopTasks(
 	awsEcs ecsiface.ECSAPI,
-	serviceName *string,
+	taskDefinition *string,
 	numToRemove int,
 ) ([]*ecs.Task, error) {
-	out, err := awsEcs.ListTasks(&ecs.ListTasksInput{
-		Cluster:       &envars.Cluster,
-		ServiceName:   serviceName,
-		DesiredStatus: aws.String("RUNNING"),
-	})
+	out, err := envars.ListTasks(awsEcs, []*string{taskDefinition})
 	if err != nil {
 		log.Errorf("failed to list current tasks due to: %s", err.Error())
 		return nil, err
 	}
+	log.Debugf("%s", out[0])
+	tasks := out[0]
 	eg := errgroup.Group{}
 	var ret []*ecs.Task
 	var mux sync.Mutex
-	if len(out.TaskArns) < numToRemove {
-		numToRemove = len(out.TaskArns)
+	if len(tasks) < numToRemove || numToRemove < 0 {
+		numToRemove = len(tasks)
 	}
 	for i := 0; i < numToRemove; i++ {
-		task := out.TaskArns[i]
-		// current-serviceから1つタスクを止めて、next-serviceに1つタスクを追加する
+		task := tasks[i]
 		eg.Go(func() error {
 			out, err := awsEcs.StopTask(&ecs.StopTaskInput{
 				Cluster: &envars.Cluster,
-				Task:    task,
+				Task:    task.TaskArn,
 			})
 			if err != nil {
 				log.Errorf("failed to stop task from current service: taskArn=%s", *task)
@@ -450,7 +382,7 @@ func (envars *Envars) StopTasks(
 				log.Errorf("stopped current task state hasn't reached STOPPED state within maximum attempt windows: taskArn=%s", out.Task.TaskArn)
 				return err
 			}
-			log.Infof("task '%s' on '%s' has successfully stopped", *task, serviceName)
+			log.Infof("task '%s' on '%s' has successfully stopped", *task, envars.ServiceName)
 			mux.Lock()
 			defer mux.Unlock()
 			ret = append(ret, out.Task)
@@ -464,57 +396,73 @@ func (envars *Envars) StopTasks(
 	return ret, nil
 }
 
-func (envars *Envars) Rollback(
+func (envars *Envars) ListTasks(
 	awsEcs ecsiface.ECSAPI,
-	nextServiceName string,
-	originalTaskCount int,
-) error {
-	out, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
-		Cluster:  &envars.Cluster,
-		Services: []*string{aws.String(envars.CurrentServiceName)},
+	taskDefinitions []*string,
+) ([][]*ecs.Task, error) {
+	out, err := awsEcs.ListTasks(&ecs.ListTasksInput{
+		Cluster:     &envars.Cluster,
+		ServiceName: &envars.ServiceName,
 	})
 	if err != nil {
-		log.Errorf("failed to describe services due to: %s", err)
+		log.Errorf("failed to list current tasks due to: %s", err.Error())
+		return nil, err
+	}
+	var ret [][]*ecs.Task
+	if out, err := awsEcs.DescribeTasks(&ecs.DescribeTasksInput{
+		Cluster: &envars.Cluster,
+		Tasks:   out.TaskArns,
+	}); err != nil {
+		log.Errorf("failed to describe tasks due to: %s", err)
+		return nil, err
+	} else {
+		for _, td := range taskDefinitions {
+			var res []*ecs.Task
+			for _, v := range out.Tasks {
+				log.Debugf("%s == %s", *td, *v.TaskDefinitionArn)
+				if *v.TaskDefinitionArn == *td {
+					res = append(res, v)
+				}
+			}
+			ret = append(ret, res)
+		}
+		log.Debugf("%s", ret)
+		return ret, nil
+	}
+}
+
+func (envars *Envars) Rollback(
+	awsEcs ecsiface.ECSAPI,
+	originalTaskCount int,
+) error {
+	tasks, err := envars.ListTasks(awsEcs, []*string{&envars.CurrentTaskDefinitionArn})
+	if err != nil {
 		return err
 	}
-	currentService := out.Services[0]
-	currentTaskCount := int(*currentService.RunningCount)
-	rollbackCount := originalTaskCount - currentTaskCount
+	currentTasks := tasks[0]
+	rollbackCount := originalTaskCount - len(currentTasks)
 	if rollbackCount < 0 {
-		rollbackCount = currentTaskCount
+		rollbackCount = len(currentTasks)
 	}
 	log.Infof(
 		"start rollback of current service: originalTaskCount=%d, currentTaskCount=%d, tasksToBeRollback=%d",
-		originalTaskCount, *currentService.RunningCount, rollbackCount,
+		originalTaskCount, len(currentTasks), rollbackCount,
 	)
 	rollbackCompletedCount := 0
 	rollbackFailedCount := 0
-	currentServiceGroup := fmt.Sprintf("service:%s", *currentService.ServiceName)
+	serviceGroup := fmt.Sprintf("service:%s", envars.ServiceName)
 	eg := errgroup.Group{}
 	eg.Go(func() error {
-		if _, err := awsEcs.DeleteService(&ecs.DeleteServiceInput{
-			Cluster: &envars.Cluster,
-			Service: &nextServiceName,
-		}); err != nil {
-			log.Errorf("failed to delete unhealthy next service due to: %s", err.Error())
-			return err
-		}
-		if err := awsEcs.WaitUntilServicesInactive(&ecs.DescribeServicesInput{
-			Cluster:  &envars.Cluster,
-			Services: []*string{&nextServiceName},
-		}); err != nil {
-			log.Errorf("deleted current service state hasn't reached INACTIVE state within an interval due to: %s", err.Error())
-			return err
-		}
-		return nil
+		_, err := envars.StopTasks(awsEcs, &envars.NextTaskDefinitionArn, -1)
+		return err
 	})
 	for i := 0; i < rollbackCount; i++ {
 		eg.Go(func() error {
 			// タスクを追加
 			out, err := awsEcs.StartTask(&ecs.StartTaskInput{
 				Cluster:        &envars.Cluster,
-				TaskDefinition: currentService.TaskDefinition,
-				Group:          &currentServiceGroup,
+				TaskDefinition: &envars.CurrentTaskDefinitionArn,
+				Group:          &serviceGroup,
 			})
 			if err != nil {
 				rollbackFailedCount += 1
