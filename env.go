@@ -1,11 +1,12 @@
 package main
 
 import (
-	"os"
 	"github.com/pkg/errors"
 	"fmt"
 	"strconv"
 	"time"
+	"github.com/apex/log"
+	"math"
 )
 
 type Envars struct {
@@ -23,16 +24,21 @@ type Envars struct {
 	ResponseTimeThreshold       float64
 }
 
-func LookupEnv(key string, defaultValue string) (string) {
-	if v, ok := os.LookupEnv(key); ok {
+type Lookupper struct {
+	lookup func(string) (string, bool)
+	get    func(string) (string)
+}
+
+func (l *Lookupper) LookupEnv(key string, defaultValue string) (string) {
+	if v, ok := l.lookup(key); ok {
 		return v
 	} else {
 		return defaultValue
 	}
 }
-func InvariantEnvars(keys ...string) error {
+func (l *Lookupper) InvariantEnvars(keys ...string) error {
 	for _, v := range keys {
-		if _, ok := os.LookupEnv(v); !ok {
+		if _, ok := l.lookup(v); !ok {
 			return errors.New(fmt.Sprintf("required envar %s is not defined", v))
 		}
 	}
@@ -49,44 +55,54 @@ const kAvailabilityThresholdKey = "CAGE_AVAILABILITY_THRESHOLD"
 const kResponseTimeThresholdKey = "CAGE_RESPONSE_TIME_THRESHOLD"
 const kRollOutPeriodKey = "CAGE_ROLL_OUT_PERIOD"
 
-func EnsureEnvars() (*Envars, error) {
-	InvariantEnvars(
+func EnsureEnvars(
+	getEnv func(string) string,
+	lookupEnv func(string) (string, bool),
+) (*Envars, error) {
+	l := Lookupper{
+		get:    getEnv,
+		lookup: lookupEnv,
+	}
+	if err := l.InvariantEnvars(
 		kCurrentServiceNameKey,
 		kCurrentTaskDefinitionArnKey,
 		kNextServiceDefinitionBase64Key,
 		kNextTaskDefinitionBase64Key,
 		kClusterKey,
 		kServiceLoadBalancerArnKey,
-	)
-	avl, err := strconv.ParseFloat(LookupEnv(kAvailabilityThresholdKey, "0.9970"), 64)
+	); err != nil {
+		log.Errorf("some required envars are not defined: %s", err)
+		return nil, err
+	}
+	avl, err := strconv.ParseFloat(l.LookupEnv(kAvailabilityThresholdKey, "0.9970"), 64)
 	if err != nil {
 		return nil, err
-	} else if avl < 0 || 1 < avl {
+	} else if !(0.0 <= avl && avl <= 1.0) {
 		return nil, errors.New(fmt.Sprintf("CAGE_AVAILABILITY_THRESHOLD must be between 0 and 1, but got '%f'", avl))
 	}
-	resp, err := strconv.ParseFloat(LookupEnv(kResponseTimeThresholdKey, "1.000"), 64)
+	resp, err := strconv.ParseFloat(l.LookupEnv(kResponseTimeThresholdKey, "1.000"), 64)
 	if err != nil {
 		return nil, err
-	} else if resp < 0 {
+	} else if !(0 < resp && resp <= 300) {
 		return nil, errors.New(fmt.Sprintf("CAGE_RESPONSE_TIME_THRESHOLD must be greater than 0, but got '%f'", resp))
 	}
 	// sec
-	period, err := strconv.ParseFloat(LookupEnv(kRollOutPeriodKey, "300"), 64)
+	period, err := strconv.ParseFloat(l.LookupEnv(kRollOutPeriodKey, "300"), 64)
 	if err != nil {
 		return nil, err
-	} else if period < 60 {
+	} else if !(60 <= period && period != math.NaN() && period != math.Inf(0)) {
 		return nil, errors.New(fmt.Sprintf("CAGE_ROLLOUT_PERIOD must be lesser than 60, but got '%f'", period))
 	}
 	return &Envars{
-		Region:                      LookupEnv("CAGE_AWS_REGION", "us-west-2"),
-		ReleaseStage:                LookupEnv("CAGE_RELEASE_STAGE", "local"),
+		Region:                      l.LookupEnv("CAGE_AWS_REGION", "us-west-2"),
+		ReleaseStage:                l.LookupEnv("CAGE_RELEASE_STAGE", "local"),
 		RollOutPeriod:               time.Duration(period) * time.Second,
-		LoadBalancerArn:             os.Getenv(kServiceLoadBalancerArnKey),
-		Cluster:                     os.Getenv(kClusterKey),
-		CurrentServiceName:          os.Getenv(kCurrentServiceNameKey),
-		CurrentTaskDefinitionArn:    os.Getenv(kCurrentTaskDefinitionArnKey),
-		NextServiceDefinitionBase64: os.Getenv(kCurrentServiceNameKey),
-		NextTaskDefinitionBase64:    os.Getenv(kNextTaskDefinitionBase64Key),
+		LoadBalancerArn:             getEnv(kServiceLoadBalancerArnKey),
+		Cluster:                     getEnv(kClusterKey),
+		CurrentServiceName:          getEnv(kCurrentServiceNameKey),
+		CurrentTaskDefinitionArn:    getEnv(kCurrentTaskDefinitionArnKey),
+		NextServiceDefinitionBase64: getEnv(kNextServiceDefinitionBase64Key),
+		NextTaskDefinitionBase64:    getEnv(kNextTaskDefinitionBase64Key),
 		AvailabilityThreshold:       avl,
 		ResponseTimeThreshold:       resp,
 	}, nil

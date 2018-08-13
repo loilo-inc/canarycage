@@ -7,5 +7,7 @@ do-test:
 	if [ ${CI} ];then
 		bash <(curl -s https://codecov.io/bash)
 	fi
+in: build
+	docker run -v `pwd`:/go/src/github.com/loilo-inc/canarycage -t canarycage /bin/bash
 test-container:
 	docker build -t canarycage/test-container test-container

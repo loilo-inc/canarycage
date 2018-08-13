@@ -15,22 +15,21 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface"
 	"sync"
+	"os"
 )
 
 func main() {
-	envars, err := EnsureEnvars()
+	envars, err := EnsureEnvars(os.Getenv, os.LookupEnv)
 	ses, err := session.NewSession(&aws.Config{
 		Region: &envars.Region,
 	})
 	if err != nil {
 		log.Fatalf("failed to create new AWS session due to: %s", err.Error())
-		panic(err)
 	}
 	awsEcs := ecs.New(ses)
 	cw := cloudwatch.New(ses)
 	if err := envars.StartGradualRollOut(awsEcs, cw); err != nil {
 		log.Fatalf("😭failed roll out new tasks due to: %s", err.Error())
-		panic(err)
 	}
 	log.Infof("🎉service roll out has completed successfully!🎉")
 }
@@ -120,7 +119,7 @@ func (envars *Envars) AccumulatePeriodicServiceHealth(
 			Unit:       &unit,
 		})
 		if err != nil {
-			log.Fatalf("failed to get CloudWatch's '%s' metric statistics due to: %s", metricName, err.Error())
+			log.Errorf("failed to get CloudWatch's '%s' metric statistics due to: %s", metricName, err.Error())
 			return 0, err
 		}
 		var ret float64 = 0
@@ -223,13 +222,13 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 	// task-definition-nextを作成する
 	taskDefinition, err := envars.CreateNextTaskDefinition(awsEcs)
 	if err != nil {
-		log.Fatalf("😭failed to create new task definition due to: %s", err.Error())
+		log.Errorf("😭failed to create new task definition due to: %s", err.Error())
 		return err
 	}
 	// service-nextを作成する
 	nextService, err := envars.CreateNextService(awsEcs, taskDefinition.TaskDefinitionArn)
 	if err != nil {
-		log.Fatalf("😭failed to create new service due to: %s", err.Error())
+		log.Errorf("😭failed to create new service due to: %s", err.Error())
 		return err
 	}
 	services := []*string{nextService.ServiceName}
@@ -237,7 +236,7 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 		Cluster:  &envars.Cluster,
 		Services: services,
 	}); err != nil {
-		log.Fatalf("created next service state hasn't reached STABLE state within an interval due to: %s", err.Error())
+		log.Errorf("created next service state hasn't reached STABLE state within an interval due to: %s", err.Error())
 		return err
 	}
 	// ロールバックのためのデプロイを始める前の現在のサービスのタスク数
@@ -283,7 +282,7 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 		log.Infof("start adding of next tasks. this will add %d tasks to %s", addCnt, *nextService.ServiceName)
 		_, err := envars.StartTasks(awsEcs, nextService.ServiceName, nextService.TaskDefinition, addCnt)
 		if err != nil {
-			log.Fatalf("failed to add next tasks due to: %s", err)
+			log.Errorf("failed to add next tasks due to: %s", err)
 			return err
 		}
 		log.Infof(
@@ -315,7 +314,7 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 		)
 		removed, err := envars.StopTasks(awsEcs, &envars.CurrentServiceName, removeCnt)
 		if err != nil {
-			log.Fatalf("failed to roll out tasks due to: %s", err.Error())
+			log.Errorf("failed to roll out tasks due to: %s", err.Error())
 			return err
 		}
 		totalReplacedCnt += len(removed)
@@ -346,7 +345,7 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 				Cluster: &envars.Cluster,
 				Service: currentService.ServiceName,
 			}); err != nil {
-				log.Fatalf("failed to delete empty current service due to: %s", err.Error())
+				log.Errorf("failed to delete empty current service due to: %s", err.Error())
 				return err
 			}
 			log.Infof("'%s' has successfully been deleted. waiting for service state to be INACTIVE", *currentService.ServiceName)
@@ -405,7 +404,7 @@ func (envars *Envars) StartTasks(
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		log.Fatalf("registering of next tasks hasn't completed due to: %s", err)
+		log.Errorf("registering of next tasks hasn't completed due to: %s", err)
 		return nil, err
 	}
 	log.Infof("registering of next tasks has successfully completed")
@@ -429,6 +428,9 @@ func (envars *Envars) StopTasks(
 	eg := errgroup.Group{}
 	var ret []*ecs.Task
 	var mux sync.Mutex
+	if len(out.TaskArns) < numToRemove {
+		numToRemove = len(out.TaskArns)
+	}
 	for i := 0; i < numToRemove; i++ {
 		task := out.TaskArns[i]
 		// current-serviceから1つタスクを止めて、next-serviceに1つタスクを追加する
@@ -456,7 +458,7 @@ func (envars *Envars) StopTasks(
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		log.Fatalf("%dth draining of current tasks hasn't completed due to: %s", err.Error())
+		log.Errorf("%dth draining of current tasks hasn't completed due to: %s", err.Error())
 		return nil, err
 	}
 	return ret, nil
@@ -472,7 +474,7 @@ func (envars *Envars) Rollback(
 		Services: []*string{aws.String(envars.CurrentServiceName)},
 	})
 	if err != nil {
-		log.Fatalf("failed to describe services due to: %s", err)
+		log.Errorf("failed to describe services due to: %s", err)
 		return err
 	}
 	currentService := out.Services[0]
@@ -494,14 +496,14 @@ func (envars *Envars) Rollback(
 			Cluster: &envars.Cluster,
 			Service: &nextServiceName,
 		}); err != nil {
-			log.Fatalf("failed to delete unhealthy next service due to: %s", err.Error())
+			log.Errorf("failed to delete unhealthy next service due to: %s", err.Error())
 			return err
 		}
 		if err := awsEcs.WaitUntilServicesInactive(&ecs.DescribeServicesInput{
 			Cluster:  &envars.Cluster,
 			Services: []*string{&nextServiceName},
 		}); err != nil {
-			log.Fatalf("deleted current service state hasn't reached INACTIVE state within an interval due to: %s", err.Error())
+			log.Errorf("deleted current service state hasn't reached INACTIVE state within an interval due to: %s", err.Error())
 			return err
 		}
 		return nil
@@ -534,7 +536,7 @@ func (envars *Envars) Rollback(
 	}
 	if err := eg.Wait(); err != nil {
 		//TODO: ここに来たらヤバイので手動ロールバックへの動線を貼る
-		log.Fatalf(
+		log.Errorf(
 			"😱service rollback hasn't completed: succeeded=%d/%d, failed=%d",
 			rollbackCompletedCount, rollbackCount, rollbackFailedCount,
 		)

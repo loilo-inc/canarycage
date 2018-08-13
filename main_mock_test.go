@@ -36,12 +36,12 @@ func DefaultEnvars() *Envars {
 
 func TestStartGradualRollOut(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
-	arr := [][]int{{2, 1, 2}, {2, 2, 2}, {2, 15, 2}}
+	arr := [][]int{{2, 1}, {2, 2}, {2, 15}, {15, 2}}
 	for _, v := range arr {
 		envars := DefaultEnvars()
 		current := v[0]
 		next := v[1]
-		expect := v[2]
+		expect := v[0]
 		ctrl := gomock.NewController(t)
 		ctx, ecsMock, cwMock := envars.Setup(ctrl, current, next)
 		if ctx.ServiceSize() != 1 {
