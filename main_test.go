@@ -13,6 +13,9 @@ func TestExtractAlbId(t *testing.T) {
 			t.Fatalf("expected: %s, but got: %s", exp, out)
 		}
 	}
+	if _, err := ExtractAlbId("hogehoge"); err == nil {
+		t.Fatalf("should return error if alb is invalid")
+	}
 }
 func TestExtractTargetGroupId(t *testing.T) {
 	if out, err := ExtractTargetGroupId("arn:aws:elasticloadbalancing:us-west-2:1111:targetgroup/tg/12345"); err != nil {
@@ -22,6 +25,9 @@ func TestExtractTargetGroupId(t *testing.T) {
 		if out != exp {
 			t.Fatalf("expected: %s, but got: %s", exp, out)
 		}
+	}
+	if _, err := ExtractTargetGroupId("hoge"); err == nil {
+		t.Fatalf("should return error if tg is invalid")
 	}
 }
 

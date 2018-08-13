@@ -14,7 +14,9 @@ func TestUnmarshalTaskDefinition(t *testing.T) {
 	if *out.Family != "service:1" {
 		t.Fatalf("e: %s, but: %s", "canarycage:1", *out.Family)
 	}
-
+	if _, err := UnmarshalTaskDefinition("hhh"); err == nil {
+		t.Fatalf("should return error if json is invalid")
+	}
 }
 
 func TestUnmarshalServiceDefinition(t *testing.T) {
@@ -30,5 +32,8 @@ func TestUnmarshalServiceDefinition(t *testing.T) {
 	}
 	if *out.ServiceName != "service-current" {
 		t.Fatalf("e: %s, a: %s", "next-service", *out.ServiceName)
+	}
+	if _, err := UnmarshalServiceDefinition("hhh"); err == nil {
+		t.Fatalf("should return error if json is invalid")
 	}
 }
