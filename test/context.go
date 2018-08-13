@@ -148,6 +148,10 @@ func (ctx *MockContext) StopTask(input *ecs.StopTaskInput) (*ecs.StopTaskOutput,
 	defer ctx.mux.Unlock()
 	ret := ctx.tasks[*input.Task]
 	delete(ctx.tasks, *input.Task)
+	reg := regexp.MustCompile("service:(.+?)$")
+	m := reg.FindStringSubmatch(*ret.Group)
+	service := ctx.services[m[1]]
+	*service.RunningCount -= 1
 	return &ecs.StopTaskOutput{
 		Task: ret,
 	}, nil
