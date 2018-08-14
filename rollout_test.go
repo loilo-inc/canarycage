@@ -31,7 +31,7 @@ func DefaultEnvars() *Envars {
 }
 
 func TestStartGradualRollOut(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.InfoLevel)
 	arr := [][]int{{2}, {2}, {2}, {15}}
 	for _, v := range arr {
 		envars := DefaultEnvars()
@@ -96,7 +96,7 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int) (*tes
 }
 
 func TestEnvars_Rollback(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.InfoLevel)
 	envars := DefaultEnvars()
 	ctrl := gomock.NewController(t)
 	ctx, e, _ := envars.Setup(ctrl, 2)
