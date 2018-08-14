@@ -2,159 +2,125 @@ package main
 
 import (
 	"testing"
-	"github.com/stretchr/testify/assert"
-	"time"
 	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go/aws"
+	"math"
+	"io/ioutil"
+	"encoding/json"
+	"github.com/stretchr/testify/assert"
 )
 
-func newLookupper() Lookupper {
-	return Lookupper{
-		get: func(s string) string {
-			if s == "PATH" {
-				return "path"
-			} else {
-				return ""
-			}
-		},
-		lookup: func(s string) (string, bool) {
-			if s == "PATH" {
-				return "path", true
-			} else if s == "EMPTY" {
-				return "", true
-			} else {
-				return "", false
-			}
-		},
-	}
-}
-func newLookupperWithMap(m *map[string]string) Lookupper {
-	return Lookupper{
-		get: func(s string) string {
-			if o, ok := (*m)[s]; ok {
-				return o
-			} else {
-				return ""
-			}
-		},
-		lookup: func(s string) (string, bool) {
-			if o, ok := (*m)[s]; ok {
-				return o, ok
-			} else {
-				return "", ok
-			}
-
-		},
-	}
-}
-func TestLookupper_InvariantEnvars(t *testing.T) {
-	l := newLookupper()
-	if err := l.InvariantEnvars("PATH"); err != nil {
-		t.Fatalf(err.Error())
-	}
-	if err := l.InvariantEnvars("HOGEEE"); err == nil {
-		t.Fatalf("should return error if specified envar isn't defined")
-	}
-}
-
-func TestLookupEnv(t *testing.T) {
-	l := newLookupper()
-	path := l.get("PATH")
-	if o := l.LookupEnv("PATH", "way"); o != path {
-		t.Fatalf("E: %s, A: %s", path, o)
-	}
-	if o := l.LookupEnv("WAY", "way"); o != "way" {
-		t.Fatalf("E: %s, A: %s", "way", o)
-	}
-}
-
 func TestEnsureEnvars(t *testing.T) {
-	envs := make(map[string]string)
-	envs[kServiceNameKey] = "service-current"
-	envs[kClusterKey] = "cluster"
-	envs[kCurrentTaskDefinitionArnKey] = "arn://task-current"
-	envs[kNextTaskDefinitionArnKey] = "abcde"
-	envs[kServiceLoadBalancerArnKey] = "arn://lb"
-	envs[kAvailabilityThresholdKey] = "0.9"
-	envs[kResponseTimeThresholdKey] = "0.5"
-	envs[kRollOutPeriodKey] = "200"
-	l := newLookupperWithMap(&envs)
-	e, err := EnsureEnvars(l.get, l.lookup)
-	if err != nil {
+	e := &Envars{
+		Cluster:                  aws.String("cluster"),
+		ServiceName:              aws.String("service"),
+		CurrentTaskDefinitionArn: aws.String("current"),
+		NextTaskDefinitionArn:    aws.String("next"),
+		LoadBalancerArn:          aws.String("lb"),
+		AvailabilityThreshold:    aws.Float64(0.9),
+		ResponseTimeThreshold:    aws.Float64(0.5),
+		RollOutPeriod:            aws.Int64(60),
+	}
+	if err := EnsureEnvars(e); err != nil {
 		t.Fatalf(err.Error())
 	}
-	assert.Equal(t, e.Cluster, envs[kClusterKey])
-	assert.Equal(t, e.ServiceName, envs[kServiceNameKey])
-	assert.Equal(t, e.CurrentTaskDefinitionArn, envs[kCurrentTaskDefinitionArnKey])
-	assert.Equal(t, e.NextTaskDefinitionArn, envs[kNextTaskDefinitionArnKey])
-	assert.Equal(t, e.LoadBalancerArn, envs[kServiceLoadBalancerArnKey])
-	assert.Equal(t, e.AvailabilityThreshold, 0.9)
-	assert.Equal(t, e.ResponseTimeThreshold, 0.5)
-	assert.Equal(t, e.RollOutPeriod, time.Duration(200)*time.Second)
+}
+
+func TestEnsureEnvars4(t *testing.T) {
+	e := &Envars{
+		Cluster:                  aws.String("cluster"),
+		ServiceName:              aws.String("service"),
+		CurrentTaskDefinitionArn: aws.String("current"),
+		NextTaskDefinitionArn:    aws.String("next"),
+		LoadBalancerArn:          aws.String("lb"),
+	}
+	if err := EnsureEnvars(e); err != nil {
+		t.Fatalf(err.Error())
+	}
 }
 
 func TestEnsureEnvars2(t *testing.T) {
 	// 必須環境変数がなければエラー
-	arr := []string{
-		kServiceNameKey,
-		kCurrentTaskDefinitionArnKey,
-		kNextTaskDefinitionArnKey,
-		kClusterKey,
-		kServiceLoadBalancerArnKey,
-	}
-	m := make(map[string]string)
-	l := newLookupperWithMap(&m)
+	dummy := aws.String("aaa")
+	arr := []string{kServiceKey, kCurrentTaskDefinitionArnKey, kNextTaskDefinitionArnKey, kClusterKey, kLoadBalancerArnKey}
 	for i, v := range arr {
+		m := make(map[string]*string)
+		m[kServiceKey] = dummy
+		m[kCurrentTaskDefinitionArnKey] = dummy
+		m[kNextTaskDefinitionArnKey] = dummy
+		m[kClusterKey] = dummy
+		m[kLoadBalancerArnKey] = dummy
 		for j, u := range arr {
 			if i == j {
-				delete(m, u)
-			} else {
-				m[u] = "ok"
+				m[u] = nil
 			}
 		}
-		_, err := EnsureEnvars(l.get, l.lookup)
+		e := &Envars{
+			ServiceName:              m[kServiceKey],
+			CurrentTaskDefinitionArn: m[kCurrentTaskDefinitionArnKey],
+			NextTaskDefinitionArn:    m[kNextTaskDefinitionArnKey],
+			Cluster:                  m[kClusterKey],
+			LoadBalancerArn:          m[kLoadBalancerArnKey],
+		}
+		err := EnsureEnvars(e)
 		if err == nil {
 			t.Fatalf("should return error if %s is not defined: %s", v, m[v])
 		}
 	}
 }
 
-func dummyEnvs() map[string]string {
-	m := make(map[string]string)
-	m[kServiceNameKey] = "hoge"
-	m[kCurrentTaskDefinitionArnKey] = "hoge"
-	m[kNextTaskDefinitionArnKey] = "hoge"
-	m[kClusterKey] = "hoge"
-	m[kServiceLoadBalancerArnKey] = "hoge"
-	return m
+func dummyEnvs() *Envars {
+	dummy := aws.String("aaa")
+	return &Envars{
+		ServiceName:              dummy,
+		CurrentTaskDefinitionArn: dummy,
+		NextTaskDefinitionArn:    dummy,
+		Cluster:                  dummy,
+		LoadBalancerArn:          dummy,
+	}
 }
 func TestEnsureEnvars3(t *testing.T) {
 	// availabilityがおかしい
 	log.SetLevel(log.DebugLevel)
-	arr := []string{"-1.0", "1.1", "NaN", "Infinity", "way", ""}
+	arr := []float64{-1.0, 1.1, math.NaN(), math.Inf(0), math.Inf(-1)}
 	for _, v := range arr {
-		m := dummyEnvs()
-		m[kAvailabilityThresholdKey] = v
-		l := newLookupperWithMap(&m)
-		if _, err := EnsureEnvars(l.get, l.lookup); err == nil {
-			t.Fatalf("should return error if availability is invalid: %s", v)
+		e := dummyEnvs()
+		e.AvailabilityThreshold = aws.Float64(v)
+		if err := EnsureEnvars(e); err == nil {
+			t.Fatalf("should return error if availability is invalid: %f", v)
 		}
 	}
-	arr = []string {"0", "NaN", "Infinity", "way", ""}
-	for _, v := range arr {
-		m := dummyEnvs()
-		m[kResponseTimeThresholdKey] = v
-		l := newLookupperWithMap(&m)
-		if _, err := EnsureEnvars(l.get, l.lookup); err == nil {
-			t.Fatalf("should return error if responsen time is invalid: %s", v)
+	for _, v := range []float64{0, math.NaN(), math.Inf(0), math.Inf(-1)} {
+		e := dummyEnvs()
+		e.ResponseTimeThreshold = aws.Float64(v)
+		if err := EnsureEnvars(e); err == nil {
+			t.Fatalf("should return error if responsen time is invalid: %f", v)
 		}
 	}
-	arr = []string { "0", "59", "NaN", "Infinity", "way", ""}
-	for _ , v := range arr {
-		m := dummyEnvs()
-		m[kRollOutPeriodKey] = v
-		l := newLookupperWithMap(&m)
-		if _, err := EnsureEnvars(l.get, l.lookup); err == nil {
-			t.Fatalf("should return error if roll out period is invalid: %s", v)
+	for _, v := range []int64{0, 59, int64(math.NaN()), int64(math.Inf(0)), int64(math.Inf(-1))} {
+		e := dummyEnvs()
+		e.RollOutPeriod = aws.Int64(v)
+		if err := EnsureEnvars(e); err == nil {
+			t.Fatalf("should return error if roll out period is invalid: %d", v)
 		}
 	}
+}
+
+func TestUnmarshalEnvars(t *testing.T) {
+	// jsonからも読み込める
+	d, _ := ioutil.ReadFile("fixtures/envars.json")
+	dest := Envars{}
+	err := json.Unmarshal(d, &dest)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	assert.Equal(t, "us-east-2", *dest.Region)
+	assert.Equal(t, "cluster", *dest.Cluster)
+	assert.Equal(t, "arn://lb", *dest.LoadBalancerArn)
+	assert.Equal(t, "service", *dest.ServiceName)
+	assert.Equal(t, "arn://current", *dest.CurrentTaskDefinitionArn)
+	assert.Equal(t, "arn://next", *dest.NextTaskDefinitionArn)
+	assert.Equal(t, 0.9999, *dest.AvailabilityThreshold)
+	assert.Equal(t, 1.2, *dest.ResponseTimeThreshold)
+	assert.Equal(t, int64(100), *dest.RollOutPeriod)
 }

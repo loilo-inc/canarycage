@@ -1,0 +1,11 @@
+{
+  "region": "us-east-2",
+  "cluster": "cluster",
+  "loadBalancerArn": "arn://lb",
+  "serviceName": "service",
+  "currentTaskDefinitionArn": "arn://current",
+  "nextTaskDefinitionArn": "arn://next",
+  "availabilityThreshold": 0.9999,
+  "responseTimeThreshold": 1.2,
+  "rollOutPeriod": 100
+}

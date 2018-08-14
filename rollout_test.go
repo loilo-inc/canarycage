@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"testing"
-	"time"
 	"github.com/golang/mock/gomock"
 	"github.com/loilo-inc/canarycage/mock/mock_ecs"
 	"github.com/loilo-inc/canarycage/mock/mock_cloudwatch"
@@ -17,16 +16,15 @@ const kCurrentServiceName = "service-current"
 
 func DefaultEnvars() *Envars {
 	return &Envars{
-		Region:                   "us-west-2",
-		ReleaseStage:             "test",
-		RollOutPeriod:            time.Duration(0) * time.Second,
-		LoadBalancerArn:          "hoge/app/1111/hoge",
-		Cluster:                  "cage-test",
-		ServiceName:              kCurrentServiceName,
-		CurrentTaskDefinitionArn: "current-task-definition",
-		NextTaskDefinitionArn:    "next-task-definition",
-		AvailabilityThreshold:    0.9970,
-		ResponseTimeThreshold:    1,
+		Region:                   aws.String("us-west-2"),
+		RollOutPeriod:            aws.Int64(0),
+		LoadBalancerArn:          aws.String("hoge/app/1111/hoge"),
+		Cluster:                  aws.String("cage-test"),
+		ServiceName:              aws.String(kCurrentServiceName),
+		CurrentTaskDefinitionArn: aws.String("current-task-definition"),
+		NextTaskDefinitionArn:    aws.String("next-task-definition"),
+		AvailabilityThreshold:    aws.Float64(0.9970),
+		ResponseTimeThreshold:    aws.Float64(1),
 	}
 }
 
@@ -69,7 +67,7 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int) (*tes
 	ecsMock.EXPECT().ListTasks(gomock.Any()).DoAndReturn(ctx.ListTasks).AnyTimes()
 	cwMock.EXPECT().GetMetricStatistics(gomock.Any()).DoAndReturn(ctx.GetMetricStatics).AnyTimes()
 	a := &ecs.CreateServiceInput{
-		ServiceName: &envars.ServiceName,
+		ServiceName: envars.ServiceName,
 		LoadBalancers: []*ecs.LoadBalancer{
 			{
 				TargetGroupArn: aws.String("arn://tg"),
@@ -77,16 +75,16 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int) (*tes
 				ContainerPort:  aws.Int64(80),
 			},
 		},
-		TaskDefinition: &envars.CurrentTaskDefinitionArn,
+		TaskDefinition: envars.CurrentTaskDefinitionArn,
 		DesiredCount:   aws.Int64(2),
 	}
 	o, _ := ctx.CreateService(a)
-	group := fmt.Sprintf("service:%s", envars.ServiceName)
+	group := fmt.Sprintf("service:%s", *envars.ServiceName)
 	for i := int(*o.Service.RunningCount); i < currentTaskCount; i++ {
 		_, err := ctx.StartTask(&ecs.StartTaskInput{
-			Cluster:        &envars.Cluster,
+			Cluster:        envars.Cluster,
 			Group:          &group,
-			TaskDefinition: &envars.CurrentTaskDefinitionArn,
+			TaskDefinition: envars.CurrentTaskDefinitionArn,
 		})
 		if err != nil {
 			log.Fatal(err.Error())
@@ -100,12 +98,12 @@ func TestEnvars_Rollback(t *testing.T) {
 	envars := DefaultEnvars()
 	ctrl := gomock.NewController(t)
 	ctx, e, _ := envars.Setup(ctrl, 2)
-	group := fmt.Sprintf("service:%s", envars.ServiceName)
+	group := fmt.Sprintf("service:%s", *envars.ServiceName)
 	for i := 0; i < 12; i++ {
 		_, err := ctx.StartTask(&ecs.StartTaskInput{
-			Cluster:        &envars.Cluster,
+			Cluster:        envars.Cluster,
 			Group:          &group,
-			TaskDefinition: &envars.NextTaskDefinitionArn,
+			TaskDefinition: envars.NextTaskDefinitionArn,
 		})
 		if err != nil {
 			log.Fatal(err.Error())
