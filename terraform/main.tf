@@ -78,7 +78,7 @@ resource "aws_alb" "test" {
   security_groups = ["${aws_security_group.public.id}"]
 }
 
-resource "aws_alb_target_group" "blue" {
+resource "aws_alb_target_group" "test" {
   name = "cage-tg-test-blue"
   port = 80
   protocol = "HTTP"
@@ -93,33 +93,9 @@ resource "aws_alb_target_group" "blue" {
   target_type = "ip"
 }
 
-resource "aws_alb_target_group" "green" {
-  name = "cage-tg-test-green"
-  port = 80
-  protocol = "HTTP"
-  vpc_id = "${aws_vpc.test.id}"
-  health_check {
-    healthy_threshold = 2
-    unhealthy_threshold = 2
-    timeout = 45
-    path = "/health_check"
-    interval = 60
-  }
-  target_type = "ip"
-}
-
-resource "aws_alb_listener" "blue_http" {
+resource "aws_alb_listener" "http" {
   "default_action" {
-    target_group_arn = "${aws_alb_target_group.blue.arn}"
-    type = "forward"
-  }
-  load_balancer_arn = "${aws_alb.test.arn}"
-  port = 80
-}
-
-resource "aws_alb_listener" "green_http" {
-  "default_action" {
-    target_group_arn = "${aws_alb_target_group.green.arn}"
+    target_group_arn = "${aws_alb_target_group.test.arn}"
     type = "forward"
   }
   load_balancer_arn = "${aws_alb.test.arn}"
