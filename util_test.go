@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestExtractAlbId(t *testing.T) {
@@ -32,37 +33,17 @@ func TestExtractTargetGroupId(t *testing.T) {
 }
 
 func TestEstimateRollOutCount(t *testing.T) {
-	arr := [][]int{{1, 1, 1}, {2, 1, 2}, {10, 2, 4}}
-	for _, v := range arr {
-		o := EstimateRollOutCount(v[0], v[1])
-		if o != v[2] {
-			t.Fatalf("E: %d, A: %d: originalCount=%d, nextDisiredCount=%d", v[2], o, v[0], v[1])
-		}
-	}
+	assert.Equal(t, 1, EstimateRollOutCount(1))
+	assert.Equal(t, 2, EstimateRollOutCount(2))
+	assert.Equal(t, 4, EstimateRollOutCount(10))
 }
 
 func TestEnsureReplaceCount(t *testing.T) {
-	// 初回はdesired countだけ減らす
-	if a, r := EnsureReplaceCount(2, 0, 0, 4); a != 0 {
-		t.Fatalf("E: %d, A: %d", 0, a)
-	} else if r != 2 {
-		t.Fatalf("E: %d, A: %d", 2, r)
-	}
-	// 二回目以降はceil(log2(DesiredCount))
-	if a, r := EnsureReplaceCount(2, 1, 1, 6); a != 4 {
-		t.Fatalf("E: %d, A: %d", 4, a)
-	} else if r != 4 {
-		t.Fatalf("E: %d, A: %d", 4, r)
-	}
-	// 三回目以降はoriginal countになるまで
-	if a, r := EnsureReplaceCount(2, 6, 2, 15); a != 8 {
-		t.Fatalf("E: %d, A: %d", 8, a)
-	} else if r != 8 {
-		t.Fatalf("E: %d, A: %d", 8, r)
-	}
-	if a, r := EnsureReplaceCount(2, 14, 3, 15); a != 1 {
-		t.Fatalf("E: %d, A: %d", 1, a)
-	} else if r != 1 {
-		t.Fatalf("E: %d, A: %d", 1, r)
-	}
+	// 2^0 = 1
+	assert.Equal(t, 1, EnsureReplaceCount(0, 0, 4))
+	// 2^1 = 2
+	assert.Equal(t, 2, EnsureReplaceCount(1, 1, 6))
+	// 2^2 = 4
+	assert.Equal(t, 4, EnsureReplaceCount(6, 2, 15))
+	assert.Equal(t, 1, EnsureReplaceCount(14, 3, 15))
 }

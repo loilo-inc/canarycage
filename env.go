@@ -10,18 +10,16 @@ import (
 )
 
 type Envars struct {
-	Region                      string
-	ReleaseStage                string
-	RollOutPeriod               time.Duration
-	LoadBalancerArn             string
-	Cluster                     string
-	CurrentServiceName          string
-	CurrentTaskDefinitionArn    string
-	NextTaskDefinitionBase64    string
-	NextServiceDefinitionBase64 string
-	NextServiceName             string
-	AvailabilityThreshold       float64
-	ResponseTimeThreshold       float64
+	Region                   string
+	ReleaseStage             string
+	RollOutPeriod            time.Duration
+	LoadBalancerArn          string
+	Cluster                  string
+	ServiceName              string
+	CurrentTaskDefinitionArn string
+	NextTaskDefinitionArn    string
+	AvailabilityThreshold    float64
+	ResponseTimeThreshold    float64
 }
 
 type Lookupper struct {
@@ -45,10 +43,9 @@ func (l *Lookupper) InvariantEnvars(keys ...string) error {
 	return nil
 }
 
-const kCurrentServiceNameKey = "CAGE_CURRENT_SERVICE_NAME"
+const kServiceNameKey = "CAGE_SERVICE_NAME"
 const kCurrentTaskDefinitionArnKey = "CAGE_CURRENT_TASK_DEFINITION_ARN"
-const kNextTaskDefinitionBase64Key = "CAGE_NEXT_TASK_DEFINITION_BASE64"
-const kNextServiceDefinitionBase64Key = "CAGE_NEXT_SERVICE_DEFINITION_BASE64"
+const kNextTaskDefinitionArnKey = "CAGE_NEXT_TASK_DEFINITION_ARN"
 const kClusterKey = "CAGE_AWS_ECS_CLUSTER"
 const kServiceLoadBalancerArnKey = "CAGE_LB_ARN"
 const kAvailabilityThresholdKey = "CAGE_AVAILABILITY_THRESHOLD"
@@ -64,10 +61,9 @@ func EnsureEnvars(
 		lookup: lookupEnv,
 	}
 	if err := l.InvariantEnvars(
-		kCurrentServiceNameKey,
+		kServiceNameKey,
 		kCurrentTaskDefinitionArnKey,
-		kNextServiceDefinitionBase64Key,
-		kNextTaskDefinitionBase64Key,
+		kNextTaskDefinitionArnKey,
 		kClusterKey,
 		kServiceLoadBalancerArnKey,
 	); err != nil {
@@ -94,16 +90,15 @@ func EnsureEnvars(
 		return nil, errors.New(fmt.Sprintf("CAGE_ROLLOUT_PERIOD must be lesser than 60, but got '%f'", period))
 	}
 	return &Envars{
-		Region:                      l.LookupEnv("CAGE_AWS_REGION", "us-west-2"),
-		ReleaseStage:                l.LookupEnv("CAGE_RELEASE_STAGE", "local"),
-		RollOutPeriod:               time.Duration(period) * time.Second,
-		LoadBalancerArn:             getEnv(kServiceLoadBalancerArnKey),
-		Cluster:                     getEnv(kClusterKey),
-		CurrentServiceName:          getEnv(kCurrentServiceNameKey),
-		CurrentTaskDefinitionArn:    getEnv(kCurrentTaskDefinitionArnKey),
-		NextServiceDefinitionBase64: getEnv(kNextServiceDefinitionBase64Key),
-		NextTaskDefinitionBase64:    getEnv(kNextTaskDefinitionBase64Key),
-		AvailabilityThreshold:       avl,
-		ResponseTimeThreshold:       resp,
+		Region:                   l.LookupEnv("CAGE_AWS_REGION", "us-west-2"),
+		ReleaseStage:             l.LookupEnv("CAGE_RELEASE_STAGE", "local"),
+		RollOutPeriod:            time.Duration(period) * time.Second,
+		LoadBalancerArn:          getEnv(kServiceLoadBalancerArnKey),
+		Cluster:                  getEnv(kClusterKey),
+		ServiceName:              getEnv(kServiceNameKey),
+		CurrentTaskDefinitionArn: getEnv(kCurrentTaskDefinitionArnKey),
+		NextTaskDefinitionArn:    getEnv(kNextTaskDefinitionArnKey),
+		AvailabilityThreshold:    avl,
+		ResponseTimeThreshold:    resp,
 	}, nil
 }

@@ -69,11 +69,10 @@ func TestLookupEnv(t *testing.T) {
 
 func TestEnsureEnvars(t *testing.T) {
 	envs := make(map[string]string)
-	envs[kCurrentServiceNameKey] = "service-current"
+	envs[kServiceNameKey] = "service-current"
 	envs[kClusterKey] = "cluster"
 	envs[kCurrentTaskDefinitionArnKey] = "arn://task-current"
-	envs[kNextServiceDefinitionBase64Key] = "abcde"
-	envs[kNextTaskDefinitionBase64Key] = "fghij"
+	envs[kNextTaskDefinitionArnKey] = "abcde"
 	envs[kServiceLoadBalancerArnKey] = "arn://lb"
 	envs[kAvailabilityThresholdKey] = "0.9"
 	envs[kResponseTimeThresholdKey] = "0.5"
@@ -84,10 +83,9 @@ func TestEnsureEnvars(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	assert.Equal(t, e.Cluster, envs[kClusterKey])
-	assert.Equal(t, e.CurrentServiceName, envs[kCurrentServiceNameKey])
+	assert.Equal(t, e.ServiceName, envs[kServiceNameKey])
 	assert.Equal(t, e.CurrentTaskDefinitionArn, envs[kCurrentTaskDefinitionArnKey])
-	assert.Equal(t, e.NextServiceDefinitionBase64, envs[kNextServiceDefinitionBase64Key])
-	assert.Equal(t, e.NextTaskDefinitionBase64, envs[kNextTaskDefinitionBase64Key])
+	assert.Equal(t, e.NextTaskDefinitionArn, envs[kNextTaskDefinitionArnKey])
 	assert.Equal(t, e.LoadBalancerArn, envs[kServiceLoadBalancerArnKey])
 	assert.Equal(t, e.AvailabilityThreshold, 0.9)
 	assert.Equal(t, e.ResponseTimeThreshold, 0.5)
@@ -97,10 +95,9 @@ func TestEnsureEnvars(t *testing.T) {
 func TestEnsureEnvars2(t *testing.T) {
 	// 必須環境変数がなければエラー
 	arr := []string{
-		kCurrentServiceNameKey,
+		kServiceNameKey,
 		kCurrentTaskDefinitionArnKey,
-		kNextServiceDefinitionBase64Key,
-		kNextTaskDefinitionBase64Key,
+		kNextTaskDefinitionArnKey,
 		kClusterKey,
 		kServiceLoadBalancerArnKey,
 	}
@@ -123,10 +120,9 @@ func TestEnsureEnvars2(t *testing.T) {
 
 func dummyEnvs() map[string]string {
 	m := make(map[string]string)
-	m[kCurrentServiceNameKey] = "hoge"
+	m[kServiceNameKey] = "hoge"
 	m[kCurrentTaskDefinitionArnKey] = "hoge"
-	m[kNextServiceDefinitionBase64Key] = "hoge"
-	m[kNextTaskDefinitionBase64Key] = "hoge"
+	m[kNextTaskDefinitionArnKey] = "hoge"
 	m[kClusterKey] = "hoge"
 	m[kServiceLoadBalancerArnKey] = "hoge"
 	return m
