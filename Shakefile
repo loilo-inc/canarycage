@@ -1,3 +1,5 @@
+cage:
+	go build -o cage
 build:
 	docker build -t canarycage .
 test: build
