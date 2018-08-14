@@ -146,6 +146,7 @@ func (ctx *MockContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutp
 func (ctx *MockContext) StopTask(input *ecs.StopTaskInput) (*ecs.StopTaskOutput, error) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
+	log.Debugf("%s", input)
 	ret := ctx.tasks[*input.Task]
 	delete(ctx.tasks, *input.Task)
 	reg := regexp.MustCompile("service:(.+?)$")
@@ -227,4 +228,19 @@ func (ctx *MockContext) WaitUntilTasksStopped(input *ecs.DescribeTasksInput) (er
 		}
 	}
 	return nil
+}
+func (ctx *MockContext) DescribeTasks(input *ecs.DescribeTasksInput) (*ecs.DescribeTasksOutput, error) {
+	ctx.mux.Lock()
+	defer ctx.mux.Unlock()
+	var ret []*ecs.Task
+	for _, task := range ctx.tasks {
+		for _, v := range input.Tasks {
+			if *task.TaskArn == *v {
+				ret = append(ret, task)
+			}
+		}
+	}
+	return &ecs.DescribeTasksOutput{
+		Tasks: ret,
+	}, nil
 }
