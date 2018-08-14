@@ -1,82 +1,30 @@
-locals {
-  container_name = "http-server"
-  container_port = 8000
-  task_family = "cage-test"
+output "test-server-healthy-td_arn" {
+  value = "${module.test-server-task-definition-healthy.task_arn}"
 }
-output "ff" {
+output "test-server-unhealthy-td-arn" {
+  value = "${module.test-server-task-definition-unhealthy.task_arn}"
+}
+output "test-server-up-but-buggy-td-arn" {
+  value = "${module.test-server-task-definition-up-but-buggy.task_arn}"
+}
+output "test-server-up-but-slow-td-arn" {
+  value = "${module.test-server-task-definition-up-but-slow.task_arn}"
+}
+output "task-server-up-and-exit-td-arn" {
+  value = "${module.test-server-task-definition-up-and-exit.task_arn}"
+}
+output "task-server-up-but-exit-td-arn" {
+  value = "${module.test-server-task-definition-up-but-exit.task_arn}"
+}
+output "cage.json" {
   value = <<-EOS
 {
-    "cluster": "${aws_ecs_cluster.test.name}",
-    "serviceName": "{{.ServiceName}}",
-    "taskDefinition": "{{.TaskDefinitionArn}}",
-    "loadBalancers": [
-        {
-            "targetGroupArn": "{{.TargetGroupArn}}",
-            "containerName": "${local.container_name}",
-            "containerPort": ${local.container_port}
-        }
-    ],
-    "desiredCount": 1,
-    "launchType": "FARGATE",
-    "deploymentConfiguration": {
-        "maximumPercent": 200,
-        "minimumHealthyPercent": 100
-    },
-    "networkConfiguration": {
-        "awsvpcConfiguration": {
-            "subnets": [
-                "${aws_subnet.private.id}"
-            ],
-            "securityGroups": [
-                "${aws_security_group.private.id}"
-            ],
-            "assignPublicIp": "ENABLED"
-        }
-    },
-    "healthCheckGracePeriodSeconds": 0
-}
-  EOS
-}
-
-output "fg" {
-  value = <<-EOS
-{
-    "family": "${local.task_family}",
-    "taskRoleArn": "arn:aws:iam::828165198279:role/lnsh-dev-ecs-task-role",
-    "executionRoleArn": "arn:aws:iam::828165198279:role/lnsh-dev-ecs-task-execution-role",
-    "networkMode": "awsvpc",
-    "containerDefinitions": [
-        {
-            "name": "${local.container_name}",
-            "image": "loilodev/canarycage:latest",
-            "cpu": 100,
-            "memory": 512,
-            "memoryReservation": 500,
-            "portMappings": [
-                {
-                    "containerPort": ${local.container_port},
-                    "hostPort": ${local.container_port}
-                }
-            ],
-            "essential": true,
-            "environment": [
-                {"name": "NODE_ENV", "value": "development"}
-            ],
-            "logConfiguration": {
-                "logDriver": "awslogs",
-                "options": {
-                    "awslogs-group": "${aws_cloudwatch_log_group.test.name}",
-                    "awslogs-stream-prefix": "cage",
-                    "awslogs-region": "us-west-2"
-                }
-            }
-        }
-    ],
-    "requiresCompatibilities": [
-        "EC2", "FARGATE"
-    ],
-    "cpu": "256",
-    "memory": "0.5GB"
+  "region": "us-east-2",
+  "cluster": "${aws_ecs_cluster.test.name}",
+  "loadBalancerArn": "${aws_alb.test.arn}",
+  "serviceName": "${aws_ecs_service.test.name}",
+  "currentTaskDefinitionArn": "{{.CurrentTaskDefinitionArn}}",
+  "nextTaskDefinitionArn": "{{.NextTaskDefinitionArn}}"
 }
   EOS
 }
