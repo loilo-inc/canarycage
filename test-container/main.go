@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"fmt"
 	"time"
+	"log"
 )
 
 func main() {
@@ -18,6 +19,15 @@ func main() {
 		BuggyServer()
 	case "up-but-slow":
 		SlowServer()
+	case "up-but-exit":
+		log.Fatalf("😱")
+	case "up-and-exit":
+		HealthyServer()
+		timer := time.NewTimer(time.Duration(1) * time.Minute)
+		go func () {
+			<-timer.C
+			log.Fatalf("😈")
+		} ()
 	}
 	http.ListenAndServe(":8000", nil)
 }
