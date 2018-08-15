@@ -45,6 +45,7 @@ func HealthyServer() {
 		writer.WriteHeader(200)
 	})
 }
+
 func UnHealthyServer() {
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		fmt.Fprintf(writer, "🐤")
