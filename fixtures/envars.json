@@ -2,10 +2,13 @@
   "region": "us-east-2",
   "cluster": "cluster",
   "loadBalancerArn": "arn://lb",
-  "serviceName": "service",
-  "currentTaskDefinitionArn": "arn://current",
-  "nextTaskDefinitionArn": "arn://next",
+  "currentServiceName": "service-current",
+  "nextServiceName": "service-next",
+  "nextTaskDefinitionBase64": "next-task",
+  "nextServiceDefinitionBase64": "next-service",
   "availabilityThreshold": 0.9999,
   "responseTimeThreshold": 1.2,
-  "rollOutPeriod": 100
+  "rollOutPeriod": 100,
+  "updateServicePeriod": 61,
+  "updateServiceTimeout": 301
 }

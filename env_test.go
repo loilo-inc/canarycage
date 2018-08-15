@@ -12,14 +12,15 @@ import (
 
 func TestEnsureEnvars(t *testing.T) {
 	e := &Envars{
-		Cluster:                  aws.String("cluster"),
-		ServiceName:              aws.String("service"),
-		CurrentTaskDefinitionArn: aws.String("current"),
-		NextTaskDefinitionArn:    aws.String("next"),
-		LoadBalancerArn:          aws.String("lb"),
-		AvailabilityThreshold:    aws.Float64(0.9),
-		ResponseTimeThreshold:    aws.Float64(0.5),
-		RollOutPeriod:            aws.Int64(60),
+		Cluster:                     aws.String("cluster"),
+		NextServiceName:             aws.String("service-next"),
+		CurrentServiceName:          aws.String("service-current"),
+		NextTaskDefinitionBase64:    aws.String("hoge"),
+		NextServiceDefinitionBase64: aws.String("next"),
+		LoadBalancerArn:             aws.String("lb"),
+		AvailabilityThreshold:       aws.Float64(0.9),
+		ResponseTimeThreshold:       aws.Float64(0.5),
+		RollOutPeriod:               aws.Int64(60),
 	}
 	if err := EnsureEnvars(e); err != nil {
 		t.Fatalf(err.Error())
@@ -29,9 +30,9 @@ func TestEnsureEnvars(t *testing.T) {
 func TestEnsureEnvars4(t *testing.T) {
 	e := &Envars{
 		Cluster:                  aws.String("cluster"),
-		ServiceName:              aws.String("service"),
-		CurrentTaskDefinitionArn: aws.String("current"),
-		NextTaskDefinitionArn:    aws.String("next"),
+		CurrentServiceName:       aws.String("service"),
+		NextTaskDefinitionBase64: aws.String("current"),
+		NextServiceName:          aws.String("next"),
 		LoadBalancerArn:          aws.String("lb"),
 	}
 	if err := EnsureEnvars(e); err != nil {
@@ -42,12 +43,18 @@ func TestEnsureEnvars4(t *testing.T) {
 func TestEnsureEnvars2(t *testing.T) {
 	// 必須環境変数がなければエラー
 	dummy := aws.String("aaa")
-	arr := []string{kServiceKey, kCurrentTaskDefinitionArnKey, kNextTaskDefinitionArnKey, kClusterKey, kLoadBalancerArnKey}
+	arr := []string{
+		kNextServiceNameKey,
+		kCurrentServiceNameKey,
+		kNextTaskDefinitionBase64Key,
+		kClusterKey,
+		kLoadBalancerArnKey,
+	}
 	for i, v := range arr {
 		m := make(map[string]*string)
-		m[kServiceKey] = dummy
-		m[kCurrentTaskDefinitionArnKey] = dummy
-		m[kNextTaskDefinitionArnKey] = dummy
+		m[kNextServiceNameKey] = dummy
+		m[kCurrentServiceNameKey] = dummy
+		m[kNextTaskDefinitionBase64Key] = dummy
 		m[kClusterKey] = dummy
 		m[kLoadBalancerArnKey] = dummy
 		for j, u := range arr {
@@ -56,9 +63,9 @@ func TestEnsureEnvars2(t *testing.T) {
 			}
 		}
 		e := &Envars{
-			ServiceName:              m[kServiceKey],
-			CurrentTaskDefinitionArn: m[kCurrentTaskDefinitionArnKey],
-			NextTaskDefinitionArn:    m[kNextTaskDefinitionArnKey],
+			CurrentServiceName:       m[kCurrentServiceNameKey],
+			NextServiceName:          m[kNextServiceNameKey],
+			NextTaskDefinitionBase64: m[kNextTaskDefinitionBase64Key],
 			Cluster:                  m[kClusterKey],
 			LoadBalancerArn:          m[kLoadBalancerArnKey],
 		}
@@ -72,9 +79,9 @@ func TestEnsureEnvars2(t *testing.T) {
 func dummyEnvs() *Envars {
 	dummy := aws.String("aaa")
 	return &Envars{
-		ServiceName:              dummy,
-		CurrentTaskDefinitionArn: dummy,
-		NextTaskDefinitionArn:    dummy,
+		CurrentServiceName:       dummy,
+		NextServiceName:          dummy,
+		NextTaskDefinitionBase64: dummy,
 		Cluster:                  dummy,
 		LoadBalancerArn:          dummy,
 	}
@@ -117,10 +124,13 @@ func TestUnmarshalEnvars(t *testing.T) {
 	assert.Equal(t, "us-east-2", *dest.Region)
 	assert.Equal(t, "cluster", *dest.Cluster)
 	assert.Equal(t, "arn://lb", *dest.LoadBalancerArn)
-	assert.Equal(t, "service", *dest.ServiceName)
-	assert.Equal(t, "arn://current", *dest.CurrentTaskDefinitionArn)
-	assert.Equal(t, "arn://next", *dest.NextTaskDefinitionArn)
+	assert.Equal(t, "service-next", *dest.NextServiceName)
+	assert.Equal(t, "service-current", *dest.CurrentServiceName)
+	assert.Equal(t, "next-task", *dest.NextTaskDefinitionBase64)
+	assert.Equal(t, "next-service", *dest.NextServiceDefinitionBase64)
 	assert.Equal(t, 0.9999, *dest.AvailabilityThreshold)
 	assert.Equal(t, 1.2, *dest.ResponseTimeThreshold)
 	assert.Equal(t, int64(100), *dest.RollOutPeriod)
+	assert.Equal(t, int64(61), *dest.UpdateServicePeriod)
+	assert.Equal(t, int64(301), *dest.UpdateServiceTimeout)
 }

@@ -37,22 +37,28 @@ func main() {
 			Destination: envars.LoadBalancerArn,
 		},
 		cli.StringFlag{
-			Name:        "serviceName",
-			EnvVar:      kServiceKey,
-			Usage:       "ecs service name",
-			Destination: envars.ServiceName,
+			Name:        "nextServiceName",
+			EnvVar:      kNextServiceNameKey,
+			Usage:       "next service name",
+			Destination: envars.NextServiceName,
 		},
 		cli.StringFlag{
-			Name:        "currentTaskDefinitionArn",
-			EnvVar:      kCurrentTaskDefinitionArnKey,
-			Usage:       "full arn identifier of tasks currently running",
-			Destination: envars.CurrentTaskDefinitionArn,
+			Name:        "currentServiceName",
+			EnvVar:      kCurrentServiceNameKey,
+			Usage:       "current service name",
+			Destination: envars.CurrentServiceName,
 		},
 		cli.StringFlag{
-			Name:        "nextTaskDefinitionArn",
-			EnvVar:      kNextTaskDefinitionArnKey,
-			Usage:       "full arn identifier of tasks to be roll out next",
-			Destination: envars.NextTaskDefinitionArn,
+			Name:        "nextServiceDefinitionBase64",
+			EnvVar:      kNextServiceDefinitionBase64Key,
+			Usage:       "base64 encoded service definition for next service",
+			Destination: envars.NextTaskDefinitionBase64,
+		},
+		cli.StringFlag{
+			Name:        "nextTaskDefinitionBase64",
+			EnvVar:      kNextTaskDefinitionBase64Key,
+			Usage:       "base64 encoded task definition for next task definition",
+			Destination: envars.NextTaskDefinitionBase64,
 		},
 		cli.Float64Flag{
 			Name:        "availabilityThreshold",
@@ -75,6 +81,21 @@ func main() {
 			Value:       300,
 			Destination: envars.RollOutPeriod,
 		},
+		cli.Int64Flag{
+			Name:        "updateServicePeriod",
+			EnvVar:      kUpdateServicePeriod,
+			Usage:       "period (sec) of waiting for update-service result",
+			Value:       60,
+			Destination: envars.RollOutPeriod,
+		},
+		cli.Int64Flag{
+			Name:        "updateServiceTimeout",
+			EnvVar:      kUpdateServiceTimeout,
+			Usage:       "timeout (sec) of waiting for update-service result",
+			Value:       300,
+			Destination: envars.RollOutPeriod,
+		},
+
 	}
 	app.Action = func(ctx *cli.Context) {
 		err := EnsureEnvars(envars)

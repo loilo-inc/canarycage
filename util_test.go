@@ -33,17 +33,17 @@ func TestExtractTargetGroupId(t *testing.T) {
 }
 
 func TestEstimateRollOutCount(t *testing.T) {
-	assert.Equal(t, 1, EstimateRollOutCount(1))
-	assert.Equal(t, 2, EstimateRollOutCount(2))
-	assert.Equal(t, 4, EstimateRollOutCount(10))
+	assert.Equal(t, int64(1), EstimateRollOutCount(1))
+	assert.Equal(t, int64(2), EstimateRollOutCount(2))
+	assert.Equal(t, int64(4), EstimateRollOutCount(10))
 }
 
 func TestEnsureReplaceCount(t *testing.T) {
 	// 2^0 = 1
-	assert.Equal(t, 1, EnsureReplaceCount(0, 0, 4))
+	assert.Equal(t, int64(1), EnsureReplaceCount(0, 0, 4))
 	// 2^1 = 2
-	assert.Equal(t, 2, EnsureReplaceCount(1, 1, 6))
+	assert.Equal(t, int64(2), EnsureReplaceCount(1, 1, 6))
 	// 2^2 = 4
-	assert.Equal(t, 4, EnsureReplaceCount(6, 2, 15))
-	assert.Equal(t, 1, EnsureReplaceCount(14, 3, 15))
+	assert.Equal(t, int64(4), EnsureReplaceCount(6, 2, 15))
+	assert.Equal(t, int64(1), EnsureReplaceCount(14, 3, 15))
 }
