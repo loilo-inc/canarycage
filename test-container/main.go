@@ -24,12 +24,17 @@ func main() {
 	case "up-and-exit":
 		HealthyServer()
 		timer := time.NewTimer(time.Duration(1) * time.Minute)
-		go func () {
+		go func() {
 			<-timer.C
 			log.Fatalf("😈")
-		} ()
+		}()
 	}
-	http.ListenAndServe(":8000", nil)
+	port := "8000"
+	if o, ok := os.LookupEnv("PORT"); ok {
+		port = o
+	}
+	http.ListenAndServe(":"+port, nil)
+	log.Printf("http-server is now runnin as %s mode", mode)
 }
 
 func HealthyServer() {

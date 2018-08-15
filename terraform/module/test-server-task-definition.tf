@@ -25,7 +25,7 @@ resource "aws_ecs_task_definition" "test" {
         ],
         "essential": true,
         "environment": [
-          {"name": "aa", "value": "vv"}
+          {"name": "PORT", "value": "${var.container_port}"}
         ],
         "command": [
           "${var.test_container_mode}"
@@ -46,7 +46,8 @@ resource "aws_ecs_task_definition" "test" {
   execution_role_arn = "${var.execution_role_arn}"
   network_mode = "awsvpc"
   requires_compatibilities = [
-    "EC2", "FARGATE"
+    "EC2",
+    "FARGATE"
   ]
   cpu = "256"
   memory = "0.5GB"

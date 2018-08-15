@@ -1,27 +1,60 @@
 resource "aws_vpc" "test" {
   cidr_block = "10.0.0.0/16"
   enable_dns_hostnames = true
+  tags {
+    Name = "cage-test-vpc"
+    Group = "canarycage"
+  }
 }
+resource "aws_main_route_table_association" "main" {
+  route_table_id = "${aws_route_table.main.id}"
+  vpc_id = "${aws_vpc.test.id}"
+}
+
+resource "aws_route_table" "main" {
+  vpc_id = "${aws_vpc.test.id}"
+  tags {
+    Name = "cage-test-rtb"
+    Group = "canarycage"
+  }
+}
+
+resource "aws_route" "main" {
+  route_table_id = "${aws_route_table.main.id}"
+  gateway_id = "${aws_internet_gateway.test.id}"
+  destination_cidr_block = "0.0.0.0/0"
+}
+
 resource "aws_internet_gateway" "test" {
   vpc_id = "${aws_vpc.test.id}"
   tags {
     Name = "cage-test-igw"
+    Group = "canarycage"
   }
 }
 resource "aws_network_acl" "test" {
   vpc_id = "${aws_vpc.test.id}"
   tags {
     Name = "cage-test-acl"
+    Group = "canarycage"
   }
 }
 resource "aws_subnet" "public_a" {
   cidr_block = "10.0.0.0/20"
   vpc_id = "${aws_vpc.test.id}"
   availability_zone = "us-west-2a"
+  tags {
+    Name = "cage-test-public-subnet-a"
+    Group = "canarycage"
+  }
 }
 resource "aws_subnet" "public_b" {
   cidr_block = "10.0.16.0/20"
   vpc_id = "${aws_vpc.test.id}"
+  tags {
+    Name = "cage-test-public-subnet-b"
+    Group = "canarycage"
+  }
 }
 
 resource "aws_security_group" "public" {
@@ -41,6 +74,9 @@ resource "aws_security_group" "public" {
     cidr_blocks = [
       "0.0.0.0/0"]
   }
+  tags {
+    Group = "canarycage"
+  }
 }
 resource "aws_ecs_cluster" "test" {
   name = "cage-test"
@@ -53,10 +89,13 @@ resource "aws_alb" "test" {
     "${aws_subnet.public_b.id}"]
   security_groups = [
     "${aws_security_group.public.id}"]
+  tags {
+    Group = "canarycage"
+  }
 }
 
 resource "aws_alb_target_group" "test" {
-  name = "cage-tg-test-blue"
+  name = "cage-tg-test"
   port = 80
   protocol = "HTTP"
   vpc_id = "${aws_vpc.test.id}"
@@ -68,6 +107,9 @@ resource "aws_alb_target_group" "test" {
     interval = 60
   }
   target_type = "ip"
+  tags {
+    Group = "canarycage"
+  }
 }
 
 resource "aws_alb_listener" "http" {
@@ -81,6 +123,9 @@ resource "aws_alb_listener" "http" {
 
 resource "aws_cloudwatch_log_group" "test" {
   name = "cage/test"
+  tags {
+    Group = "canarycage"
+  }
 }
 
 resource "aws_iam_role" "http_server_task_role" {
@@ -178,10 +223,17 @@ variable "test-image-tag" {
 variable "test-container-mode" {
   default = "healthy"
 }
+
+locals {
+  service_name = "test-http-server"
+  container_name = "http-server"
+  container_port = 80
+}
+
 module "test-server-task-definition-healthy" {
   source = "./module"
-  container_name = "http-server"
-  container_port = 8000
+  container_name = "${local.container_name}"
+  container_port = "${local.container_port}"
   task_family = "cage-test-server-healthy"
   log_group = "${aws_cloudwatch_log_group.test.name}"
   execution_role_arn = "${aws_iam_role.task_execution_role.arn}"
@@ -190,8 +242,8 @@ module "test-server-task-definition-healthy" {
 }
 module "test-server-task-definition-unhealthy" {
   source = "./module"
-  container_name = "http-server"
-  container_port = 8000
+  container_name = "${local.container_name}"
+  container_port = "${local.container_port}"
   task_family = "cage-test-server-unhealthy"
   log_group = "${aws_cloudwatch_log_group.test.name}"
   execution_role_arn = "${aws_iam_role.task_execution_role.arn}"
@@ -201,8 +253,8 @@ module "test-server-task-definition-unhealthy" {
 
 module "test-server-task-definition-up-but-buggy" {
   source = "./module"
-  container_name = "http-server"
-  container_port = 8000
+  container_name = "${local.container_name}"
+  container_port = "${local.container_port}"
   task_family = "cage-test-server-up-but-buggy"
   log_group = "${aws_cloudwatch_log_group.test.name}"
   execution_role_arn = "${aws_iam_role.task_execution_role.arn}"
@@ -212,8 +264,8 @@ module "test-server-task-definition-up-but-buggy" {
 
 module "test-server-task-definition-up-but-slow" {
   source = "./module"
-  container_name = "http-server"
-  container_port = 8000
+  container_name = "${local.container_name}"
+  container_port = "${local.container_port}"
   task_family = "cage-test-server-up-but-slow"
   log_group = "${aws_cloudwatch_log_group.test.name}"
   execution_role_arn = "${aws_iam_role.task_execution_role.arn}"
@@ -223,8 +275,8 @@ module "test-server-task-definition-up-but-slow" {
 
 module "test-server-task-definition-up-but-exit" {
   source = "./module"
-  container_name = "http-server"
-  container_port = 8000
+  container_name = "${local.container_name}"
+  container_port = "${local.container_port}"
   task_family = "cage-test-server-up-but-exit"
   log_group = "${aws_cloudwatch_log_group.test.name}"
   execution_role_arn = "${aws_iam_role.task_execution_role.arn}"
@@ -234,19 +286,13 @@ module "test-server-task-definition-up-but-exit" {
 
 module "test-server-task-definition-up-and-exit" {
   source = "./module"
-  container_name = "http-server"
-  container_port = 8000
+  container_name = "${local.container_name}"
+  container_port = "${local.container_port}"
   task_family = "cage-test-server-up-and-exit"
   log_group = "${aws_cloudwatch_log_group.test.name}"
   execution_role_arn = "${aws_iam_role.task_execution_role.arn}"
   test_container_mode = "up-and-exit"
   task_role_arn = "${aws_iam_role.http_server_task_role.arn}"
-}
-
-locals {
-  service_name = "test-http-server"
-  container_name = "http-server"
-  container_port = 8000
 }
 
 resource "aws_ecs_service" "test" {
