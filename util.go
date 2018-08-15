@@ -25,22 +25,21 @@ func ExtractTargetGroupId(arn string) (string, error) {
 	}
 }
 
-func EstimateRollOutCount(originalTaskCount int) int {
-	var i = 0
-	for ; int(math.Pow(2, float64(i)))-1 < originalTaskCount; i++ {
+func EstimateRollOutCount(originalTaskCount int64) int64 {
+	var i int64 = 0
+	for ; int64(math.Pow(2, float64(i)))-1 < originalTaskCount; i++ {
 	}
 	return i
 }
 
 func EnsureReplaceCount(
-	totalReplacedCount int,
-	totalRollOutCount int,
-	originalCount int,
-) int {
-	// DesiredCount以下のカナリア追加は意味がないので2回目以降はこの指数より上を使う
-	return int(math.Min(
+	totalReplacedCount int64,
+	totalRollOutCount int64,
+	originalCount int64,
+) (int64) {
+	// 初回はサービス作成時に追加されているので追加しない
+	return int64(math.Min(
 		math.Pow(2, float64(totalRollOutCount)),
 		float64(originalCount-totalReplacedCount)),
 	)
 }
-

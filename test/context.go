@@ -79,18 +79,19 @@ func (ctx *MockContext) CreateService(input *ecs.CreateServiceInput) (*ecs.Creat
 	lt := "FARGATE"
 	st := "ACTIVE"
 	ret := &ecs.Service{
-		ServiceName:   input.ServiceName,
-		RunningCount:  aws.Int64(0),
-		LaunchType:    &lt,
-		LoadBalancers: input.LoadBalancers,
-		DesiredCount:  input.DesiredCount,
-		Status:        &st,
-		ServiceArn:    &idstr,
+		ServiceName:    input.ServiceName,
+		RunningCount:   aws.Int64(0),
+		LaunchType:     &lt,
+		LoadBalancers:  input.LoadBalancers,
+		DesiredCount:   input.DesiredCount,
+		TaskDefinition: input.TaskDefinition,
+		Status:         &st,
+		ServiceArn:     &idstr,
 	}
 	ctx.mux.Lock()
 	ctx.services[*input.ServiceName] = ret
 	ctx.mux.Unlock()
-	log.Debugf("%s: %d, desired=%d", *input.ServiceName, *ret.RunningCount, *input.DesiredCount)
+	log.Debugf("%s: running=%d, desired=%d", *input.ServiceName, *ret.RunningCount, *input.DesiredCount)
 	for i := 0; i < int(*input.DesiredCount); i++ {
 		ctx.StartTask(&ecs.StartTaskInput{
 			Cluster:        input.Cluster,
@@ -98,11 +99,47 @@ func (ctx *MockContext) CreateService(input *ecs.CreateServiceInput) (*ecs.Creat
 			TaskDefinition: input.TaskDefinition,
 		})
 	}
-	log.Debugf("%s: %d", *input.ServiceName, *ret.RunningCount)
+	log.Debugf("%s: running=%d", *input.ServiceName, *ret.RunningCount)
 	return &ecs.CreateServiceOutput{
 		Service: ret,
 	}, nil
 }
+
+func (ctx *MockContext) UpdateService(input *ecs.UpdateServiceInput) (*ecs.UpdateServiceOutput, error) {
+	ctx.mux.Lock()
+	s := ctx.services[*input.Service]
+	ctx.mux.Unlock()
+	if diff := *input.DesiredCount - *s.DesiredCount; diff > 0 {
+		log.Debugf("diff=%d", diff)
+		// scale
+		for i := 0; i < int(diff); i++ {
+			ctx.StartTask(&ecs.StartTaskInput{
+				Cluster:        input.Cluster,
+				Group:          aws.String(fmt.Sprintf("service:%s", *input.Service)),
+				TaskDefinition: input.TaskDefinition,
+			})
+		}
+	} else if diff < 0 {
+		// descale
+		for i := diff; 0 <= diff; i-- {
+			for k := range ctx.tasks {
+				ctx.StopTask(&ecs.StopTaskInput{
+					Cluster: input.Cluster,
+					Task:    &k,
+				})
+			}
+		}
+	}
+	ctx.mux.Lock()
+	s.DesiredCount = input.DesiredCount
+	s.TaskDefinition = input.TaskDefinition
+	*s.RunningCount = *input.DesiredCount
+	ctx.mux.Unlock()
+	return &ecs.UpdateServiceOutput{
+		Service: s,
+	}, nil
+}
+
 func (ctx *MockContext) DeleteService(input *ecs.DeleteServiceInput) (*ecs.DeleteServiceOutput, error) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
