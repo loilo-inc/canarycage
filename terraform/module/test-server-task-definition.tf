@@ -50,7 +50,7 @@ resource "aws_ecs_task_definition" "test" {
     "FARGATE"
   ]
   cpu = "256"
-  memory = "0.5GB"
+  memory = "512"
 }
 
 output "task_arn" {

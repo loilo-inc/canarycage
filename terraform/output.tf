@@ -22,9 +22,7 @@ output "cage.json" {
   "region": "us-east-2",
   "cluster": "${aws_ecs_cluster.test.name}",
   "loadBalancerArn": "${aws_alb.test.arn}",
-  "serviceName": "${aws_ecs_service.test.name}",
-  "currentTaskDefinitionArn": "{{.CurrentTaskDefinitionArn}}",
-  "nextTaskDefinitionArn": "{{.NextTaskDefinitionArn}}"
+  "currentServiceName": "${aws_ecs_service.test.name}"
 }
   EOS
 }

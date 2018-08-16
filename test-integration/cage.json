@@ -1,0 +1,6 @@
+{
+  "region": "us-east-2",
+  "cluster": "cage-test",
+  "loadBalancerArn": "arn:aws:elasticloadbalancing:us-west-2:828165198279:loadbalancer/app/cage-alb-test/d9ecbd67c2a0bbcb",
+  "currentServiceName": "test-http-server"
+}
