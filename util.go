@@ -37,7 +37,6 @@ func EnsureReplaceCount(
 	totalRollOutCount int64,
 	originalCount int64,
 ) (int64) {
-	// 初回はサービス作成時に追加されているので追加しない
 	return int64(math.Min(
 		math.Pow(2, float64(totalRollOutCount)),
 		float64(originalCount-totalReplacedCount)),

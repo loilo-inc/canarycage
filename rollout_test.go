@@ -12,6 +12,9 @@ import (
 	"io/ioutil"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/stretchr/testify/assert"
+	"github.com/aws/aws-sdk-go/service/cloudwatch"
+	"sync"
 )
 
 const kCurrentServiceName = "service-current"
@@ -32,27 +35,6 @@ func DefaultEnvars() *Envars {
 		ResponseTimeThreshold:    aws.Float64(1),
 		UpdateServicePeriod:      aws.Int64(0),
 		UpdateServiceTimeout:     aws.Int64(1),
-	}
-}
-
-func TestStartGradualRollOut(t *testing.T) {
-	log.SetLevel(log.InfoLevel)
-	arr := []int64{1, 2, 15}
-	for _, v := range arr {
-		log.Debugf("====")
-		envars := DefaultEnvars()
-		ctrl := gomock.NewController(t)
-		ctx, ecsMock, cwMock := envars.Setup(ctrl, v)
-		if ctx.ServiceSize() != 1 {
-			t.Fatalf("current service not setup")
-		}
-		if taskCnt := ctx.TaskSize(); taskCnt != int(v) {
-			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
-		}
-		err := envars.StartGradualRollOut(ecsMock, cwMock)
-		if err != nil {
-			t.Fatalf("%s", err)
-		}
 	}
 }
 
@@ -92,6 +74,100 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64) (*t
 	}
 	_, _ = ctx.CreateService(a)
 	return ctx, ecsMock, cwMock
+}
+
+func TestEnvars_StartGradualRollOut(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	for _, v := range  []int64{1, 2, 15} {
+		log.Info("====")
+		envars := DefaultEnvars()
+		ctrl := gomock.NewController(t)
+		ctx, ecsMock, cwMock := envars.Setup(ctrl, v)
+		if ctx.ServiceSize() != 1 {
+			t.Fatalf("current service not setup")
+		}
+		if taskCnt := ctx.TaskSize(); taskCnt != v {
+			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
+		}
+		err := envars.StartGradualRollOut(ecsMock, cwMock)
+		if err != nil {
+			t.Fatalf("%s", err)
+		}
+		assert.Equal(t, int64(1), ctx.ServiceSize())
+		assert.Equal(t, v, ctx.TaskSize())
+	}
+}
+
+func TestEnvars_StartGradualRollOut2(t *testing.T) {
+	// service definitionのjsonから読み込む
+	log.SetLevel(log.InfoLevel)
+	envars := DefaultEnvars()
+	d, _ := ioutil.ReadFile("fixtures/service.json")
+	envars.NextServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
+	ctrl := gomock.NewController(t)
+	ctx, ecsMokc, cwMock := envars.Setup(ctrl, 2)
+	err := envars.StartGradualRollOut(ecsMokc, cwMock)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	assert.Equal(t, int64(1), ctx.ServiceSize())
+	assert.Equal(t, int64(2), ctx.TaskSize())
+}
+
+func TestEnvars_StartGradualRollOut3(t *testing.T) {
+	// カナリアテストに失敗した場合ロールバックすることを確かめる
+	log.SetLevel(log.DebugLevel)
+	envars := DefaultEnvars()
+	ctrl := gomock.NewController(t)
+	ctx, ecsMokc, _ := envars.Setup(ctrl, 4)
+	cwMock := mock_cloudwatch.NewMockCloudWatchAPI(ctrl)
+	m := make(map[string]int)
+	mux := sync.Mutex{}
+	cwMock.EXPECT().GetMetricStatistics(gomock.Any()).DoAndReturn(func(input *cloudwatch.GetMetricStatisticsInput) (*cloudwatch.GetMetricStatisticsOutput, error) {
+		o := func() *cloudwatch.GetMetricStatisticsOutput {
+			var ret = &cloudwatch.Datapoint{}
+			mux.Lock()
+			defer mux.Unlock()
+			cnt, ok := m[*input.MetricName]
+			if !ok {
+				cnt = 0
+			}
+			switch *input.MetricName {
+			case "RequestCount":
+				sum := 10000.0
+				ret.Sum = &sum
+			case "HTTPCode_ELB_5XX_Count":
+				sum := 1.0
+				ret.Sum = &sum
+			case "HTTPCode_Target_5XX_Count":
+				sum := 100.0
+				if cnt == 0 {
+					sum = 1.0
+				}
+				ret.Sum = &sum
+			case "TargetResponseTime":
+				average := 0.11
+				ret.Average = &average
+			}
+			m[*input.MetricName] = cnt + 1
+			return &cloudwatch.GetMetricStatisticsOutput{
+				Datapoints: []*cloudwatch.Datapoint{ret},
+			}
+		}()
+		return o, nil
+	}).AnyTimes()
+	err := envars.StartGradualRollOut(ecsMokc, cwMock)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	assert.Equal(t, int64(1), ctx.ServiceSize())
+	if _, ok := ctx.GetService("service-current"); !ok {
+		t.Fatalf("service-current doesn't exists")
+	}
+	if _, ok := ctx.GetService("service-next"); ok {
+		t.Fatalf("service-next still exists")
+	}
+	assert.Equal(t, int64(4), ctx.TaskSize())
 }
 
 func TestEnvars_Rollback(t *testing.T) {

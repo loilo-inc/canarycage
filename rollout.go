@@ -131,7 +131,7 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 		return err
 	}
 	// ロールバックのためのデプロイを始める前の現在のサービスのタスク数
-	var originalDesiredCount *int64
+	var originalDesiredCount int64
 	out, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
 		Cluster: envars.Cluster,
 		Services: []*string{
@@ -143,18 +143,18 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 		return err
 	}
 	service := out.Services[0]
-	originalDesiredCount = service.DesiredCount
+	originalDesiredCount = *service.DesiredCount
 	var (
 		// ロールアウトで置き換えられたタスクの数
 		totalReplacedCnt int64 = 0
 		// 総ロールアウト実行回数
 		totalRollOutCnt int64 = 0
 		// 推定ロールアウト施行回数
-		estimatedRollOutCount = EstimateRollOutCount(*originalDesiredCount)
+		estimatedRollOutCount = EstimateRollOutCount(originalDesiredCount)
 	)
 	log.Infof(
 		"currently %d tasks running on '%s', %d times roll out estimated",
-		*originalDesiredCount, *envars.CurrentServiceName, estimatedRollOutCount,
+		originalDesiredCount, *envars.CurrentServiceName, estimatedRollOutCount,
 	)
 	lb := service.LoadBalancers[0]
 	// next serviceのperiodic healthが安定し、current serviceのtaskの数が0になるまで繰り返す
@@ -171,10 +171,11 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 		startTime := time.Now()
 		endTime := startTime
 		endTime.Add(time.Duration(*envars.RollOutPeriod) * time.Second)
-		replaceCnt := int64(EnsureReplaceCount(totalRollOutCnt, totalReplacedCnt, *originalDesiredCount))
+		replaceCnt := int64(EnsureReplaceCount(totalReplacedCnt, totalRollOutCnt, originalDesiredCount))
 		scaleCnt := totalReplacedCnt + replaceCnt
 		// Phase1: service-nextにtask-nextを指定数配置
-		log.Infof("start adding of next tasks. this will add %d tasks to %s", &replaceCnt, *service.ServiceName)
+		log.Infof("%dth roll out starting: will replace %d tasks", totalRollOutCnt, replaceCnt)
+		log.Infof("start adding of next tasks. this will update '%s' desired count %d to %d", *service.ServiceName, totalReplacedCnt, scaleCnt)
 		err := envars.UpdateDesiredCount(awsEcs, envars.NextServiceName, &scaleCnt, true)
 		if err != nil {
 			log.Errorf("failed to add next tasks due to: %s", err)
@@ -195,15 +196,21 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 				"😢 %dth canary test has failed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
 				totalRollOutCnt, health.availability, *envars.AvailabilityThreshold, health.responseTime, *envars.ResponseTimeThreshold,
 			)
-			return envars.Rollback(awsEcs, originalDesiredCount)
+			err := envars.Rollback(awsEcs, &originalDesiredCount)
+			if err != nil {
+				log.Errorf("😱 failed to rollback service '%s' due to: %s", err)
+				return err
+			}
+			log.Infof("😓 service '%s' has successfully rolledback", *envars.CurrentServiceName)
+			return nil
 		}
 		log.Infof(
 			"😙 %dth canary test has passed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
 			totalRollOutCnt, health.availability, *envars.AvailabilityThreshold, health.responseTime, *envars.ResponseTimeThreshold,
 		)
 		// Phase3: service-currentからタスクを指定数消す
-		log.Infof("%dth roll out starting: will replace %d tasks", totalRollOutCnt, replaceCnt)
-		descaledCnt := *originalDesiredCount - totalReplacedCnt - replaceCnt
+		descaledCnt := originalDesiredCount - totalReplacedCnt - replaceCnt
+		log.Infof("updating service '%s' desired count to %d", *envars.CurrentServiceName, descaledCnt)
 		if err := envars.UpdateDesiredCount(awsEcs, envars.CurrentServiceName, &descaledCnt, false); err != nil {
 			log.Errorf("failed to roll out tasks due to: %s", err.Error())
 			return err
@@ -211,7 +218,7 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 		totalReplacedCnt += replaceCnt
 		log.Infof(
 			"%dth roll out successfully completed. %d/%d tasks roll outed",
-			totalRollOutCnt, totalReplacedCnt, *originalDesiredCount,
+			totalRollOutCnt, totalReplacedCnt, originalDesiredCount,
 		)
 		totalRollOutCnt += 1
 		// Phase4: ロールアウトが終わったかどうかを確認
@@ -232,8 +239,18 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 			oldTaskCount = *out.Services[0].DesiredCount
 			newTaskCount = *out.Services[1].DesiredCount
 		}
-		if newTaskCount >= *originalDesiredCount {
+		if oldTaskCount ==0 && newTaskCount >= originalDesiredCount {
 			log.Infof("☀️all tasks successfully have been roll outed!☀️")
+			// service-currentを消す
+			log.Infof("deleting service '%s'...", *envars.CurrentServiceName)
+			if _, err := awsEcs.DeleteService(&ecs.DeleteServiceInput{
+				Cluster: envars.Cluster,
+				Service: envars.CurrentServiceName,
+			}); err != nil {
+				log.Errorf("failed to delete service '%s due to: %s'", *envars.CurrentServiceName, err)
+				return err
+			}
+			log.Infof("service '%s' has been successfully deleted", *envars.CurrentServiceName)
 			return nil
 		} else {
 			log.Infof(
@@ -246,14 +263,15 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 }
 
 func (envars *Envars) CreateNextTaskDefinition(awsEcs ecsiface.ECSAPI) (*ecs.TaskDefinition, error) {
-	var td *ecs.RegisterTaskDefinitionInput
 	data, err := base64.StdEncoding.DecodeString(*envars.NextTaskDefinitionBase64)
 	if err != nil {
 		log.Errorf("failed to decode task definition base64 due to :%s", err)
 		return nil, err
 	}
+	td := &ecs.RegisterTaskDefinitionInput{}
 	if err := json.Unmarshal(data, td); err != nil {
 		log.Errorf("failed to unmarshal task definition due to: %s", err)
+		return nil, err
 	}
 	if out, err := awsEcs.RegisterTaskDefinition(td); err != nil {
 		return nil, err
@@ -263,7 +281,7 @@ func (envars *Envars) CreateNextTaskDefinition(awsEcs ecsiface.ECSAPI) (*ecs.Tas
 }
 
 func (envars *Envars) CreateNextService(awsEcs ecsiface.ECSAPI, nextTaskDefinitionArn *string) (error) {
-	var service *ecs.CreateServiceInput
+	service := &ecs.CreateServiceInput{}
 	if envars.NextServiceDefinitionBase64 == nil {
 		// サービス定義が与えられなかった場合はタスク定義と名前だけ変えたservice-currentのレプリカを作成する
 		out, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
@@ -295,11 +313,11 @@ func (envars *Envars) CreateNextService(awsEcs ecsiface.ECSAPI, nextTaskDefiniti
 	} else {
 		data, err := base64.StdEncoding.DecodeString(*envars.NextServiceDefinitionBase64)
 		if err != nil {
-			log.Errorf("failed to decode task definition base64 due to : %s", err)
+			log.Errorf("failed to decode service definition base64 due to : %s", err)
 			return err
 		}
 		if err := json.Unmarshal(data, service); err != nil {
-			log.Errorf("failed to unmarshal service base64 due to: %s", err)
+			log.Errorf("failed to unmarshal service definition base64 due to: %s", err)
 			return err
 		}
 		*service.DesiredCount = 1
@@ -366,17 +384,23 @@ func (envars *Envars) Rollback(
 	originalTaskCount *int64,
 ) error {
 	// service-currentをもとのdesiredCountに戻す
+	log.Infof("rollback '%s' desired count to %d", *envars.CurrentServiceName, *originalTaskCount)
 	if err := envars.UpdateDesiredCount(awsEcs, envars.CurrentServiceName, originalTaskCount, true); err != nil {
 		log.Errorf("failed to rollback desired count of %s due to: %s", *envars.CurrentServiceName, err)
 		return err
 	}
+	log.Infof("'%s' desired count is now %d", *envars.CurrentServiceName, *originalTaskCount)
 	// service-nextを消す
+	log.Infof("deleting service '%s'...", *envars.NextServiceName)
 	if _, err := awsEcs.DeleteService(&ecs.DeleteServiceInput{
 		Cluster: envars.Cluster,
 		Service: envars.NextServiceName,
 	}); err != nil {
 		log.Errorf("failed to delete service '%s' due to: %s", *envars.NextServiceName, err)
+		return err
 	}
+	log.Infof("service '%s' has successfully deleted", *envars.NextServiceName)
+	log.Infof("waiting for service become to be inactive...")
 	if err := awsEcs.WaitUntilServicesInactive(&ecs.DescribeServicesInput{
 		Cluster:  envars.Cluster,
 		Services: []*string{envars.NextServiceName},
@@ -384,5 +408,6 @@ func (envars *Envars) Rollback(
 		log.Errorf("deleted service '%s' hasn't reached INACTIVE state within maximum attempt windows due to: %s", err)
 		return err
 	}
+	log.Infof("service '%s' has been eliminated", *envars.NextServiceName)
 	return nil
 }
