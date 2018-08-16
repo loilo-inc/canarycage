@@ -42,3 +42,23 @@ func EnsureReplaceCount(
 		float64(originalCount-totalReplacedCount)),
 	)
 }
+
+type StringPtrWrap struct {
+	value *string
+	dummy *string
+}
+
+func NewStringPtrWrap() *StringPtrWrap {
+	dummy := ""
+	return &StringPtrWrap{
+		value: &dummy,
+		dummy: &dummy,
+	}
+}
+
+func (s *StringPtrWrap) Unwrap() *string {
+	if *s.dummy == *s.value {
+		return nil
+	}
+	return s.value
+}

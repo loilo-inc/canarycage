@@ -31,13 +31,14 @@ const kLoadBalancerArnKey = "CAGE_LB_ARN"
 const kNextTaskDefinitionBase64Key = "CAGE_NEXT_TASK_DEFINITION_BASE64"
 
 // optional
+const kConfigFileKey = "CAGE_CONFIG_FILE"
 const kNextServiceDefinitionBase64Key = "CAGE_NEXT_SERVICE_DEFINITION_BASE64"
 const kRegionKey = "CAGE_AWS_REGION"
 const kAvailabilityThresholdKey = "CAGE_AVAILABILITY_THRESHOLD"
 const kResponseTimeThresholdKey = "CAGE_RESPONSE_TIME_THRESHOLD"
 const kRollOutPeriodKey = "CAGE_ROLL_OUT_PERIOD"
-const kUpdateServicePeriod = "CAGE_UPDATE_SERVICE_PERIOD"
-const kUpdateServiceTimeout = "CAGE_UPDATE_SERVICE_TIMEOUT"
+const kUpdateServicePeriodKey = "CAGE_UPDATE_SERVICE_PERIOD"
+const kUpdateServiceTimeoutKey = "CAGE_UPDATE_SERVICE_TIMEOUT"
 
 const kAvailabilityThresholdDefaultValue = 0.9970
 const kResponseTimeThresholdDefaultValue = 1.0
@@ -46,18 +47,22 @@ const kUpdateServicePeriodDefaultValue = 60
 const kUpdateServiceTimeoutDefaultValue = 300
 const kDefaultRegion = "us-west-2"
 
+func isEmpty(o *string) bool {
+	return o == nil || *o == ""
+}
+
 func EnsureEnvars(
 	dest *Envars,
 ) (error) {
 	// required
-	if dest.Cluster == nil ||
-		dest.LoadBalancerArn == nil ||
-		dest.CurrentServiceName == nil ||
-		dest.NextServiceName == nil ||
-		dest.NextTaskDefinitionBase64 == nil {
+	if isEmpty(dest.Cluster) ||
+		isEmpty(dest.LoadBalancerArn) ||
+		isEmpty(dest.CurrentServiceName) ||
+		isEmpty(dest.NextServiceName) ||
+		isEmpty(dest.NextTaskDefinitionBase64) {
 		return errors.New(fmt.Sprintf("some required envars are not defined: %#v", *dest))
 	}
-	if dest.Region == nil {
+	if isEmpty(dest.Region) {
 		dest.Region = aws.String(kDefaultRegion)
 	}
 	if dest.AvailabilityThreshold == nil {
@@ -82,8 +87,17 @@ func EnsureEnvars(
 	if dest.UpdateServicePeriod == nil {
 		dest.UpdateServicePeriod = aws.Int64(kUpdateServicePeriodDefaultValue)
 	}
+	if *dest.UpdateServicePeriod < 60 {
+		return errors.New(fmt.Sprintf("%s must be greater than or equal to 60", kUpdateServicePeriodKey))
+	}
 	if dest.UpdateServiceTimeout == nil {
 		dest.UpdateServiceTimeout = aws.Int64(kUpdateServiceTimeoutDefaultValue)
+	}
+	if v := *dest.UpdateServiceTimeout; v < *dest.UpdateServicePeriod {
+		return errors.New(fmt.Sprintf(
+			"%s must be grater than %s: %d, %d",
+			kUpdateServiceTimeoutKey, kUpdateServicePeriodKey, v, *dest.UpdateServicePeriod,
+		))
 	}
 	return nil
 }

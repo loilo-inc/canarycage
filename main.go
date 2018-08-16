@@ -11,7 +11,20 @@ import (
 )
 
 func main() {
-	envars := &Envars{}
+	// cliのdestinationがnil pointerに代入してくれないので無効値を入れておく
+	envars := &Envars{
+		Region:                   aws.String(""),
+		Cluster:                  aws.String(""),
+		LoadBalancerArn:          aws.String(""),
+		NextServiceName:          aws.String(""),
+		CurrentServiceName:       aws.String(""),
+		NextTaskDefinitionBase64: aws.String(""),
+		AvailabilityThreshold:    aws.Float64(-1.0),
+		ResponseTimeThreshold:    aws.Float64(-1.0),
+		RollOutPeriod:            aws.Int64(-1),
+		UpdateServicePeriod:      aws.Int64(-1),
+		UpdateServiceTimeout:     aws.Int64(-1),
+	}
 	app := cli.NewApp()
 	app.Name = "canarycage"
 	app.Version = "0.0.1"
@@ -83,19 +96,18 @@ func main() {
 		},
 		cli.Int64Flag{
 			Name:        "updateServicePeriod",
-			EnvVar:      kUpdateServicePeriod,
+			EnvVar:      kUpdateServicePeriodKey,
 			Usage:       "period (sec) of waiting for update-service result",
 			Value:       60,
-			Destination: envars.RollOutPeriod,
+			Destination: envars.UpdateServicePeriod,
 		},
 		cli.Int64Flag{
 			Name:        "updateServiceTimeout",
-			EnvVar:      kUpdateServiceTimeout,
+			EnvVar:      kUpdateServiceTimeoutKey,
 			Usage:       "timeout (sec) of waiting for update-service result",
 			Value:       300,
-			Destination: envars.RollOutPeriod,
+			Destination: envars.UpdateServiceTimeout,
 		},
-
 	}
 	app.Action = func(ctx *cli.Context) {
 		err := EnsureEnvars(envars)

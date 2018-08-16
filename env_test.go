@@ -71,7 +71,7 @@ func TestEnsureEnvars2(t *testing.T) {
 		}
 		err := EnsureEnvars(e)
 		if err == nil {
-			t.Fatalf("should return error if %s is not defined: %s", v, m[v])
+			t.Fatalf("should return error if %s is not defined", v)
 		}
 	}
 }
@@ -109,6 +109,21 @@ func TestEnsureEnvars3(t *testing.T) {
 		e.RollOutPeriod = aws.Int64(v)
 		if err := EnsureEnvars(e); err == nil {
 			t.Fatalf("should return error if roll out period is invalid: %d", v)
+		}
+	}
+	for _, v := range []int64{-1, 0, 59} {
+		e := dummyEnvs()
+		e.UpdateServicePeriod = &v
+		if err := EnsureEnvars(e); err == nil {
+			t.Fatalf("should return err if updateServicePeriod is invalid: %d", v)
+		}
+	}
+	{
+		e := dummyEnvs()
+		e.UpdateServicePeriod = aws.Int64(60)
+		e.UpdateServiceTimeout = aws.Int64(59)
+		if err := EnsureEnvars(e); err == nil {
+			t.Fatalf("should return err if updateServiceTimeout is lesser than updateServicePeriod")
 		}
 	}
 }
