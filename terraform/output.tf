@@ -21,8 +21,44 @@ output "cage.json" {
 {
   "region": "us-east-2",
   "cluster": "${aws_ecs_cluster.test.name}",
-  "loadBalancerArn": "${aws_alb.test.arn}",
-  "currentServiceName": "${aws_ecs_service.test.name}"
+  "loadBalancerArn": "${aws_alb.test.arn}"
+}
+  EOS
+}
+
+output "service-template.json" {
+  value = <<-EOS
+{
+  "cluster": "${aws_ecs_cluster.test.name}",
+  "serviceName": "service-current",
+  "taskDefinition": "",
+  "loadBalancers": [
+    {
+      "targetGroupArn": "${aws_alb_target_group.test.arn}",
+      "containerName": "${local.container_name}",
+      "containerPort": ${local.container_port}
+    }
+  ],
+  "desiredCount": 2,
+  "launchType": "FARGATE",
+  "deploymentConfiguration": {
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 100
+  },
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [
+        "${aws_subnet.public_a.id}",
+        "${aws_subnet.public_b.id}"
+      ],
+      "securityGroups": [
+        "${aws_security_group.public.id}"
+      ],
+      "assignPublicIp": "ENABLED"
+    }
+  },
+  "healthCheckGracePeriodSeconds": 0,
+  "schedulingStrategy": "REPLICA"
 }
   EOS
 }

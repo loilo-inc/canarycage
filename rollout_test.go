@@ -1,4 +1,4 @@
-package main
+package cage
 
 import (
 	"github.com/aws/aws-sdk-go/service/ecs"
@@ -64,7 +64,7 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64) (*t
 		ServiceName: envars.CurrentServiceName,
 		LoadBalancers: []*ecs.LoadBalancer{
 			{
-				TargetGroupArn: aws.String("arn://tg"),
+				TargetGroupArn: aws.String("arn://aaa/hoge/targetgroup/aaa/bbb"),
 				ContainerName:  aws.String("container"),
 				ContainerPort:  aws.Int64(80),
 			},

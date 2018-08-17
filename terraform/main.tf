@@ -294,28 +294,3 @@ module "test-server-task-definition-up-and-exit" {
   test_container_mode = "up-and-exit"
   task_role_arn = "${aws_iam_role.http_server_task_role.arn}"
 }
-
-resource "aws_ecs_service" "test" {
-  name = "${local.service_name}"
-  task_definition = "${module.test-server-task-definition-healthy.task_arn}"
-  cluster = "${aws_ecs_cluster.test.id}"
-  load_balancer {
-    target_group_arn = "${aws_alb_target_group.test.arn}"
-    container_name = "${local.container_name}"
-    container_port = "${local.container_port}"
-  }
-  desired_count = 2,
-  launch_type = "FARGATE"
-  deployment_maximum_percent = 200
-  deployment_minimum_healthy_percent = 100
-  network_configuration {
-    subnets = [
-      "${aws_subnet.public_a.id }",
-      "${aws_subnet.public_b.id }"
-    ]
-    security_groups = [
-      "${aws_security_group.public.id}"]
-    assign_public_ip = true
-  }
-  health_check_grace_period_seconds = 0
-}

@@ -1,8 +1,9 @@
-package main
+package cage
 
 import (
 	"testing"
 	"github.com/stretchr/testify/assert"
+	"time"
 )
 
 func TestExtractAlbId(t *testing.T) {
@@ -46,4 +47,12 @@ func TestEnsureReplaceCount(t *testing.T) {
 	// 2^2 = 4
 	assert.Equal(t, int64(4), EnsureReplaceCount(6, 2, 15))
 	assert.Equal(t, int64(1), EnsureReplaceCount(14, 3, 15))
+}
+
+func TestTimeAdd(t *testing.T) {
+	now := time.Now()
+	after5min := now
+	after5min = now.Add(time.Duration(5) * time.Minute)
+	assert.Equal(t, after5min.After(now), true)
+	assert.NotEqual(t, now.Unix(), after5min.Unix())
 }

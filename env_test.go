@@ -1,4 +1,4 @@
-package main
+package cage
 
 import (
 	"testing"
@@ -44,30 +44,30 @@ func TestEnsureEnvars2(t *testing.T) {
 	// 必須環境変数がなければエラー
 	dummy := aws.String("aaa")
 	arr := []string{
-		kNextServiceNameKey,
-		kCurrentServiceNameKey,
-		kNextTaskDefinitionBase64Key,
-		kClusterKey,
-		kLoadBalancerArnKey,
+		NextServiceNameKey,
+		CurrentServiceNameKey,
+		NextTaskDefinitionBase64Key,
+		ClusterKey,
+		LoadBalancerArnKey,
 	}
 	for i, v := range arr {
 		m := make(map[string]*string)
-		m[kNextServiceNameKey] = dummy
-		m[kCurrentServiceNameKey] = dummy
-		m[kNextTaskDefinitionBase64Key] = dummy
-		m[kClusterKey] = dummy
-		m[kLoadBalancerArnKey] = dummy
+		m[NextServiceNameKey] = dummy
+		m[CurrentServiceNameKey] = dummy
+		m[NextTaskDefinitionBase64Key] = dummy
+		m[ClusterKey] = dummy
+		m[LoadBalancerArnKey] = dummy
 		for j, u := range arr {
 			if i == j {
 				m[u] = nil
 			}
 		}
 		e := &Envars{
-			CurrentServiceName:       m[kCurrentServiceNameKey],
-			NextServiceName:          m[kNextServiceNameKey],
-			NextTaskDefinitionBase64: m[kNextTaskDefinitionBase64Key],
-			Cluster:                  m[kClusterKey],
-			LoadBalancerArn:          m[kLoadBalancerArnKey],
+			CurrentServiceName:       m[CurrentServiceNameKey],
+			NextServiceName:          m[NextServiceNameKey],
+			NextTaskDefinitionBase64: m[NextTaskDefinitionBase64Key],
+			Cluster:                  m[ClusterKey],
+			LoadBalancerArn:          m[LoadBalancerArnKey],
 		}
 		err := EnsureEnvars(e)
 		if err == nil {
