@@ -27,17 +27,17 @@ const ClusterKey = "CAGE_ECS_CLUSTER"
 const NextServiceNameKey = "CAGE_NEXT_SERVICE_NAME"
 const CurrentServiceNameKey = "CAGE_CURRENT_SERVICE_NAME"
 const LoadBalancerArnKey = "CAGE_LB_ARN"
+
 // either required
 const NextTaskDefinitionBase64Key = "CAGE_NEXT_TASK_DEFINITION_BASE64"
 const NextTaskDefinitionArnKey = "CAGE_NEXT_TASK_DEFINITION_ARN"
+
 // optional
 const NextServiceDefinitionBase64Key = "CAGE_NEXT_SERVICE_DEFINITION_BASE64"
 const RegionKey = "CAGE_AWS_REGION"
 const AvailabilityThresholdKey = "CAGE_AVAILABILITY_THRESHOLD"
 const ResponseTimeThresholdKey = "CAGE_RESPONSE_TIME_THRESHOLD"
 const RollOutPeriodKey = "CAGE_ROLL_OUT_PERIOD"
-const UpdateServicePeriodKey = "CAGE_UPDATE_SERVICE_PERIOD"
-const UpdateServiceTimeoutKey = "CAGE_UPDATE_SERVICE_TIMEOUT"
 
 const kAvailabilityThresholdDefaultValue = 0.9970
 const kResponseTimeThresholdDefaultValue = 1.0

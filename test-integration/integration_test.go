@@ -11,6 +11,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
+	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
+	"github.com/aws/aws-sdk-go/service/elbv2"
+	"net/http"
+	"time"
+	"golang.org/x/sync/errgroup"
 )
 
 const kCurrentServiceName = "itg-test-service-current"
@@ -22,16 +27,20 @@ const kUpButSlowTDArn = "cage-test-server-up-but-slow:16"
 const kUpAndExitTDArn = "cage-test-server-up-and-exit:16"
 const kUpButExitTDArn = "cage-test-server-up-but-exit:16"
 
-func SetupAws() (*ecs.ECS, *cloudwatch.CloudWatch) {
+func SetupAws() (*ecs.ECS, *cloudwatch.CloudWatch, *elbv2.ELBV2) {
 	ses, _ := session.NewSession(&aws.Config{
 		Region: aws.String("us-west-2"),
 	})
-	return ecs.New(ses), cloudwatch.New(ses)
+	return ecs.New(ses), cloudwatch.New(ses), elbv2.New(ses)
 }
 
 func ensureCurrentService(awsEcs ecsiface.ECSAPI, envars *cage.Envars) (error) {
 	d, err := ioutil.ReadFile("service-template.json")
 	if err != nil {
+		return err
+	}
+	input := &ecs.CreateServiceInput{}
+	if err := json.Unmarshal(d, input); err != nil {
 		return err
 	}
 	log.Infof("checking if service %s exists", *envars.CurrentServiceName)
@@ -43,14 +52,19 @@ func ensureCurrentService(awsEcs ecsiface.ECSAPI, envars *cage.Envars) (error) {
 	} else if len(o.Services) == 0 {
 		log.Infof("%s", o.Failures)
 		log.Infof("service %s doesn't exist", *envars.CurrentServiceName)
-		input := &ecs.CreateServiceInput{}
-		if err := json.Unmarshal(d, input); err != nil {
-			return err
-		}
 		input.ServiceName = aws.String(kCurrentServiceName)
 		input.TaskDefinition = aws.String(kHealthyTDArn)
 		log.Infof("creating service '%s'", *input.ServiceName)
 		if _, err := awsEcs.CreateService(input); err != nil {
+			return err
+		}
+	} else {
+		log.Infof("service '%s' exists. ensure desiredCount=%d", *envars.CurrentServiceName, *input.DesiredCount)
+		if _, err := awsEcs.UpdateService(&ecs.UpdateServiceInput{
+			Cluster:      envars.Cluster,
+			Service:      o.Services[0].ServiceName,
+			DesiredCount: input.DesiredCount,
+		}); err != nil {
 			return err
 		}
 	}
@@ -91,6 +105,54 @@ func setupEnvars(envars *cage.Envars) {
 	}
 }
 
+func GetAlbDNS(alb elbv2iface.ELBV2API, arn *string) (*string, error) {
+	out, err := alb.DescribeLoadBalancers(&elbv2.DescribeLoadBalancersInput{
+		LoadBalancerArns: []*string{arn},
+	})
+	if err != nil {
+		log.Errorf("failed to get alb info due to: %s", err)
+		return nil, err
+	}
+	lb := out.LoadBalancers[0]
+	return lb.DNSName, nil
+}
+
+func PollLoadBalancer(
+	envars *cage.Envars,
+	alb *elbv2.ELBV2,
+	interval time.Duration,
+	stop chan bool,
+) error {
+	dns, err := GetAlbDNS(alb, envars.LoadBalancerArn)
+	if err != nil {
+		log.Errorf(err.Error())
+		return err
+	}
+	for {
+		log.Infof("polling...")
+		select {
+		case <-stop:
+			log.Infof("stop polling")
+			return nil
+		default:
+			url := "http://" + *dns
+			log.Infof("GET: " + url)
+			err := func() error {
+				resp, err := http.Get(url)
+				defer resp.Body.Close()
+				return err
+			}()
+			if err != nil {
+				log.Error(err.Error())
+				return err
+			}
+			timer := time.NewTimer(interval)
+			<-timer.C
+		}
+	}
+	return nil
+}
+
 func TestHealthyToHealthy(t *testing.T) {
 	log.SetLevel(log.InfoLevel)
 	envars := &cage.Envars{}
@@ -101,14 +163,21 @@ func TestHealthyToHealthy(t *testing.T) {
 	if err := cage.EnsureEnvars(envars); err != nil {
 		t.Fatalf(err.Error())
 	}
-	ec, cw := SetupAws()
+	ec, cw, alb := SetupAws()
 	if err := ensureCurrentService(ec, envars); err != nil {
 		t.Fatalf(err.Error())
 	}
-	var err error
-	err = envars.StartGradualRollOut(ec, cw)
-	if err := cleanupCurrentService(ec, envars); err != nil {
-		t.Fatalf(err.Error())
+	stop := make(chan bool)
+	eg := errgroup.Group{}
+	eg.Go(func() error {
+		return envars.StartGradualRollOut(ec, cw)
+	})
+	eg.Go(func() error {
+		return PollLoadBalancer(envars, alb, time.Duration(10)*time.Second, stop)
+	})
+	err := eg.Wait()
+	select {
+	case stop <- true:
 	}
 	if err != nil {
 		t.Fatalf(err.Error())

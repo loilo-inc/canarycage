@@ -106,6 +106,7 @@ resource "aws_alb_target_group" "test" {
     path = "/health_check"
     interval = 60
   }
+  deregistration_delay = 0
   target_type = "ip"
   tags {
     Group = "canarycage"

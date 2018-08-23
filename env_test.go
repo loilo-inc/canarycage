@@ -111,21 +111,6 @@ func TestEnsureEnvars3(t *testing.T) {
 			t.Fatalf("should return error if roll out period is invalid: %d", v)
 		}
 	}
-	for _, v := range []int64{-1, 0, 59} {
-		e := dummyEnvs()
-		e.UpdateServicePeriod = &v
-		if err := EnsureEnvars(e); err == nil {
-			t.Fatalf("should return err if updateServicePeriod is invalid: %d", v)
-		}
-	}
-	{
-		e := dummyEnvs()
-		e.UpdateServicePeriod = aws.Int64(60)
-		e.UpdateServiceTimeout = aws.Int64(59)
-		if err := EnsureEnvars(e); err == nil {
-			t.Fatalf("should return err if updateServiceTimeout is lesser than updateServicePeriod")
-		}
-	}
 }
 
 func TestUnmarshalEnvars(t *testing.T) {
@@ -146,6 +131,4 @@ func TestUnmarshalEnvars(t *testing.T) {
 	assert.Equal(t, 0.9999, *dest.AvailabilityThreshold)
 	assert.Equal(t, 1.2, *dest.ResponseTimeThreshold)
 	assert.Equal(t, int64(100), *dest.RollOutPeriod)
-	assert.Equal(t, int64(61), *dest.UpdateServicePeriod)
-	assert.Equal(t, int64(301), *dest.UpdateServiceTimeout)
 }

@@ -33,8 +33,6 @@ func DefaultEnvars() *Envars {
 		NextTaskDefinitionBase64: aws.String(o),
 		AvailabilityThreshold:    aws.Float64(0.9970),
 		ResponseTimeThreshold:    aws.Float64(1),
-		UpdateServicePeriod:      aws.Int64(0),
-		UpdateServiceTimeout:     aws.Int64(1),
 	}
 }
 
