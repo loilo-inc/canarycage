@@ -21,107 +21,141 @@ type ServiceHealth struct {
 	responseTime float64
 }
 
+type NoDataPointsFoundError struct {
+	Input *cloudwatch.GetMetricStatisticsInput
+}
+
+func (v *NoDataPointsFoundError) Error() string {
+	return ""
+}
+
+func (envars *Envars) GetServiceMetricStatistics(
+	cw cloudwatchiface.CloudWatchAPI,
+	lbId string,
+	tgId string,
+	metricName string,
+	unit string,
+	startTime time.Time,
+	endTime time.Time,
+) (float64, error) {
+	log.Infof(
+		"getStatistics: LoadBalancer=%s, TargetGroup=%s, metricName=%s, unit=%s",
+		lbId, tgId, metricName, unit,
+	)
+	input := &cloudwatch.GetMetricStatisticsInput{
+		Namespace: aws.String("AWS/ApplicationELB"),
+		Dimensions: []*cloudwatch.Dimension{
+			{
+				Name:  aws.String("LoadBalancer"),
+				Value: aws.String(lbId),
+			}, {
+				Name:  aws.String("TargetGroup"),
+				Value: aws.String(tgId),
+			},
+		},
+		Statistics: []*string{&unit},
+		MetricName: &metricName,
+		StartTime:  &startTime,
+		EndTime:    &endTime,
+		Period:     envars.RollOutPeriod,
+	}
+	out, err := cw.GetMetricStatistics(input)
+	if err != nil {
+		log.Errorf("failed to get CloudWatch's '%s' metric statistics due to: %s", metricName, err.Error())
+		return 0, err
+	}
+	if len(out.Datapoints) == 0 {
+		return 0, &NoDataPointsFoundError{Input: input}
+	}
+	var ret float64 = 0
+	switch unit {
+	case "Sum":
+		for _, v := range out.Datapoints {
+			ret += *v.Sum
+		}
+	case "Average":
+		for _, v := range out.Datapoints {
+			ret += *v.Average
+		}
+		ret /= float64(len(out.Datapoints))
+	default:
+		err = errors.New(fmt.Sprintf("unsuported unit type: %s", unit))
+	}
+	return ret, err
+}
 func (envars *Envars) AccumulatePeriodicServiceHealth(
 	cw cloudwatchiface.CloudWatchAPI,
-	loadBalancerArn string,
 	targetGroupArn string,
 	startTime time.Time,
 	endTime time.Time,
 ) (*ServiceHealth, error) {
+	// ロールアウトの検証期間待つ
+	log.Infof("waiting for roll out period (%d sec)", *envars.RollOutPeriod)
+	<-time.NewTimer(time.Duration(*envars.RollOutPeriod) * time.Second).C
+	log.Infof("start accumulating periodic service health...")
 	var (
 		lbId string
 		tgId string
 		err  error
 	)
-	if lbId, err = ExtractAlbId(loadBalancerArn); err != nil {
+	if lbId, err = ExtractAlbId(*envars.LoadBalancerArn); err != nil {
 		return nil, err
 	}
 	if tgId, err = ExtractTargetGroupId(targetGroupArn); err != nil {
 		return nil, err
 	}
-	// ロールアウトの検証期間だけ待つ
-	timer := time.NewTimer(time.Duration(*envars.RollOutPeriod) * time.Second)
-	<-timer.C
-	getStatics := func(metricName string, unit string) (float64, error) {
-		log.Debugf("getStatics: metricName=%s, unit=%s", metricName, unit)
-		out, err := cw.GetMetricStatistics(&cloudwatch.GetMetricStatisticsInput{
-			Namespace: aws.String("ApplicationELB"),
-			Dimensions: []*cloudwatch.Dimension{
-				{
-					Name:  aws.String("LoadBalancer"),
-					Value: aws.String(lbId),
-				}, {
-					Name:  aws.String("TargetGroup"),
-					Value: aws.String(tgId),
-				},
-			},
-			Statistics: []*string{&unit},
-			MetricName: &metricName,
-			StartTime:  &startTime,
-			EndTime:    &endTime,
-			Period:     envars.RollOutPeriod,
-		})
+	timeout := time.Now().Add(time.Duration(*envars.RollOutPeriod) * time.Second)
+	for time.Now().Before(timeout) {
+		eg := errgroup.Group{}
+		requestCnt := 0.0
+		elb5xxCnt := 0.0
+		target5xxCnt := 0.0
+		responseTime := 0.0
+		accumulate := func(metricName string, unit string, dest *float64) func() (error) {
+			return func() (error) {
+				if v, err := envars.GetServiceMetricStatistics(cw, lbId, tgId, metricName, unit, startTime, endTime); err != nil {
+					log.Errorf("failed to accumulate CloudWatch's '%s' metric value due to: %s", metricName, err.Error())
+					return err
+				} else {
+					log.Debugf("%s(%s)=%f", metricName, unit, v)
+					*dest = v
+					return nil
+				}
+			}
+		}
+		eg.Go(accumulate("RequestCount", "Sum", &requestCnt))
+		eg.Go(accumulate("HTTPCode_ELB_5XX_Count", "Sum", &elb5xxCnt))
+		eg.Go(accumulate("HTTPCode_Target_5XX_Count", "Sum", &target5xxCnt))
+		eg.Go(accumulate("TargetResponseTime", "Average", &responseTime))
+		err := eg.Wait()
 		if err != nil {
-			log.Errorf("failed to get CloudWatch's '%s' metric statistics due to: %s", metricName, err.Error())
-			return 0, err
-		}
-		var ret float64 = 0
-		switch unit {
-		case "Sum":
-			for _, v := range out.Datapoints {
-				ret += *v.Sum
+			switch err.(type) {
+			case *NoDataPointsFoundError:
+				// タイミングによってCloudWatchのメトリクスデータポイントがまだ存在しない場合がある
+				log.Warnf(
+					"no data points found on CloudWatch Metrics between %s ~ %s. will retry after %d seconds",
+					startTime.String(), endTime.String(), 15,
+				)
+				<-time.NewTimer(time.Duration(15) * time.Second).C
+				continue
+			default:
+				log.Errorf("failed to accumulate periodic service health due to: %s", err.Error())
+				return nil, err
 			}
-		case "Average":
-			for _, v := range out.Datapoints {
-				ret += *v.Average
-			}
-			if l := len(out.Datapoints); l > 0 {
-				ret /= float64(l)
-			} else {
-				err = errors.New("no data points found")
-			}
-		default:
-			err = errors.New(fmt.Sprintf("unsuported unit type: %s", unit))
-		}
-		return ret, err
-
-	}
-	eg := errgroup.Group{}
-	requestCnt := 0.0
-	elb5xxCnt := 0.0
-	target5xxCnt := 0.0
-	responseTime := 0.0
-	accumulate := func(metricName string, unit string, dest *float64) func() (error) {
-		return func() (error) {
-			if v, err := getStatics(metricName, unit); err != nil {
-				log.Errorf("failed to accumulate CloudWatch's '%s' metric value due to: %s", metricName, err.Error())
-				return err
-			} else {
-				log.Debugf("%s(%s)=%f", metricName, unit, v)
-				*dest = v
-				return nil
-			}
-		}
-	}
-	eg.Go(accumulate("RequestCount", "Sum", &requestCnt))
-	eg.Go(accumulate("HTTPCode_ELB_5XX_Count", "Sum", &elb5xxCnt))
-	eg.Go(accumulate("HTTPCode_Target_5XX_Count", "Sum", &target5xxCnt))
-	eg.Go(accumulate("TargetResponseTime", "Average", &responseTime))
-	if err := eg.Wait(); err != nil {
-		log.Errorf("failed to accumulate periodic service health due to: %s", err.Error())
-		return nil, err
-	} else {
-		if requestCnt == 0 && elb5xxCnt == 0 {
-			return nil, errors.New("failed to get precise metric data")
 		} else {
-			avl := (requestCnt - target5xxCnt) / (requestCnt + elb5xxCnt)
-			avl = math.Max(0, math.Min(1, avl))
-			return &ServiceHealth{
-				availability: avl,
-				responseTime: responseTime,
-			}, nil
+			if requestCnt == 0 && elb5xxCnt == 0 {
+				return nil, errors.New("failed to get precise metric data")
+			} else {
+				avl := (requestCnt - target5xxCnt) / (requestCnt + elb5xxCnt)
+				avl = math.Max(0, math.Min(1, avl))
+				return &ServiceHealth{
+					availability: avl,
+					responseTime: responseTime,
+				}, nil
+			}
 		}
 	}
+	return nil, errors.New("unknown error occurred while accumulating periodic service health")
 }
 
 func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchiface.CloudWatchAPI) (error) {
@@ -150,8 +184,15 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 	}
 	service := out.Services[0]
 	originalDesiredCount = *service.DesiredCount
+	log.Infof("service '%s' ensured. start rolling out", *envars.NextServiceName)
 	if err := envars.RollOut(awsEcs, cw, service, originalDesiredCount); err != nil {
-		return envars.Rollback(awsEcs, &originalDesiredCount)
+		log.Errorf("failed to roll out due to: %s", err)
+		err := envars.Rollback(awsEcs, &originalDesiredCount)
+		if err != nil {
+			log.Errorf("😱 failed to rollback service '%s' due to: %s", err)
+			return err
+		}
+		log.Infof("😓 service '%s' has successfully rolledback", *envars.CurrentServiceName)
 	}
 	return nil
 }
@@ -186,8 +227,6 @@ func (envars *Envars) RollOut(
 				),
 			)
 		}
-		startTime := time.Now()
-		endTime := startTime.Add(time.Duration(*envars.RollOutPeriod) * time.Second)
 		replaceCnt := int64(EnsureReplaceCount(totalReplacedCnt, totalRollOutCnt, originalDesiredCount))
 		scaleCnt := totalReplacedCnt + replaceCnt
 		// Phase1: service-nextにtask-nextを指定数配置
@@ -198,28 +237,23 @@ func (envars *Envars) RollOut(
 			log.Errorf("failed to add next tasks due to: %s", err)
 			return err
 		}
+		// Phase2: service-nextのperiodic healthを計測
+		startTime := time.Now()
+		endTime := startTime.Add(time.Duration(*envars.RollOutPeriod) * time.Second)
 		log.Infof(
 			"start accumulating periodic service health of '%s' during %s ~ %s",
 			*nextService.ServiceName, startTime.String(), endTime.String(),
 		)
-		// Phase2: service-nextのperiodic healthを計測
-		health, err := envars.AccumulatePeriodicServiceHealth(cw, *envars.LoadBalancerArn, *lb.TargetGroupArn, startTime, endTime)
-		if err != nil {
+		health, err := envars.AccumulatePeriodicServiceHealth(cw, *lb.TargetGroupArn, startTime, endTime)
+		if health == nil {
 			return err
 		}
 		log.Infof("periodic health accumulated: availability=%f, responseTime=%f", health.availability, health.responseTime)
 		if *envars.AvailabilityThreshold > health.availability || health.responseTime > *envars.ResponseTimeThreshold {
-			log.Warnf(
+			return errors.New(fmt.Sprintf(
 				"😢 %dth canary test has failed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
 				totalRollOutCnt, health.availability, *envars.AvailabilityThreshold, health.responseTime, *envars.ResponseTimeThreshold,
-			)
-			err := envars.Rollback(awsEcs, &originalDesiredCount)
-			if err != nil {
-				log.Errorf("😱 failed to rollback service '%s' due to: %s", err)
-				return err
-			}
-			log.Infof("😓 service '%s' has successfully rolledback", *envars.CurrentServiceName)
-			return nil
+			))
 		}
 		log.Infof(
 			"😙 %dth canary test has passed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
@@ -365,6 +399,7 @@ func (envars *Envars) CreateNextService(awsEcs ecsiface.ECSAPI, nextTaskDefiniti
 		log.Errorf("'%s' hasn't reached STABLE state within maximum attempt windows due to: %s", err)
 		return err
 	}
+	log.Infof("service '%s' has reached STABLE state", *envars.NextServiceName)
 	return nil
 }
 
@@ -387,8 +422,8 @@ func (envars *Envars) UpdateDesiredCount(
 		*count, *serviceName,
 	)
 	if err := awsEcs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
-		Cluster: envars.Cluster,
-		Services: []*string { serviceName },
+		Cluster:  envars.Cluster,
+		Services: []*string{serviceName},
 	}); err != nil {
 		log.Errorf("failed to wait service-stable due to: %s", err)
 		return err
