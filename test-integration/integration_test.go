@@ -17,6 +17,7 @@ import (
 	"time"
 	"golang.org/x/sync/errgroup"
 	"github.com/stretchr/testify/assert"
+	"fmt"
 )
 
 const kCurrentServiceName = "itg-test-service-current"
@@ -53,7 +54,7 @@ func ensureCurrentService(awsEcs ecsiface.ECSAPI, envars *cage.Envars) (error) {
 	} else if len(o.Services) == 0 || *o.Services[0].Status == "INACTIVE" {
 		log.Infof("%s", o.Failures)
 		log.Infof("service %s doesn't exist", *envars.CurrentServiceName)
-		input.ServiceName = aws.String(kCurrentServiceName)
+		input.ServiceName = envars.CurrentServiceName
 		input.TaskDefinition = aws.String(kHealthyTDArn)
 		log.Infof("creating service '%s'", *input.ServiceName)
 		if _, err := awsEcs.CreateService(input); err != nil {
@@ -162,7 +163,11 @@ func PollLoadBalancer(
 			log.Infof("GET: " + url)
 			err := func() error {
 				resp, err := http.Get(url)
-				defer resp.Body.Close()
+				defer func() {
+					if resp != nil {
+						resp.Body.Close()
+					}
+				}()
 				return err
 			}()
 			if err != nil {
@@ -176,6 +181,31 @@ func PollLoadBalancer(
 	return nil
 }
 
+func testInternal(t *testing.T, envars *cage.Envars) error {
+	if err := cage.EnsureEnvars(envars); err != nil {
+		t.Fatalf(err.Error())
+	}
+	ec, cw, alb := SetupAws()
+	if err := ensureCurrentService(ec, envars); err != nil {
+		t.Fatalf(err.Error())
+	}
+	defer cleanupService(ec, envars, envars.CurrentServiceName)
+	if err := cleanupService(ec, envars, envars.NextServiceName); err != nil {
+		t.Fatalf(err.Error())
+	}
+	stop := make(chan bool)
+	eg := errgroup.Group{}
+	eg.Go(func() error {
+		ret := envars.StartGradualRollOut(ec, cw)
+		stop <- true
+		return ret
+	})
+	eg.Go(func() error {
+		return PollLoadBalancer(envars, alb, time.Duration(10)*time.Second, stop)
+	})
+	return eg.Wait()
+}
+
 func TestHealthyToHealthy(t *testing.T) {
 	log.SetLevel(log.InfoLevel)
 	envars := &cage.Envars{}
@@ -183,69 +213,38 @@ func TestHealthyToHealthy(t *testing.T) {
 	envars.NextTaskDefinitionArn = aws.String(kHealthyTDArn)
 	envars.CurrentServiceName = aws.String(kCurrentServiceName)
 	envars.NextServiceName = aws.String(kNextServiceName)
-	if err := cage.EnsureEnvars(envars); err != nil {
-		t.Fatalf(err.Error())
-	}
-	ec, cw, alb := SetupAws()
-	if err := ensureCurrentService(ec, envars); err != nil {
-		t.Fatalf(err.Error())
-	}
-	defer cleanupService(ec, envars, envars.CurrentServiceName)
-	if err := cleanupService(ec, envars, envars.NextServiceName); err != nil {
-		t.Fatalf(err.Error())
-	}
-	stop := make(chan bool)
-	eg := errgroup.Group{}
-	eg.Go(func() error {
-		ret := envars.StartGradualRollOut(ec, cw)
-		stop <- true
-		return ret
-	})
-	eg.Go(func() error {
-		return PollLoadBalancer(envars, alb, time.Duration(10)*time.Second, stop)
-	})
-	err := eg.Wait()
-	if err != nil {
+	if err := testInternal(t, envars); err != nil {
 		t.Fatalf(err.Error())
 	}
 }
 
-func TestHealthyToBuggy(t *testing.T) {
+func testAbnormal(t *testing.T, tdarn string, servicePostfix string) error {
 	log.SetLevel(log.InfoLevel)
 	envars := &cage.Envars{}
 	setupEnvars(envars)
-	envars.NextTaskDefinitionArn = aws.String(kUpButBuggyTDArn)
-	envars.CurrentServiceName = aws.String(kCurrentServiceName)
-	envars.NextServiceName = aws.String(kNextServiceName)
-	if err := cage.EnsureEnvars(envars); err != nil {
-		t.Fatalf(err.Error())
+	envars.NextTaskDefinitionArn = aws.String(tdarn)
+	envars.CurrentServiceName = aws.String(fmt.Sprintf("%s-%s", kCurrentServiceName, servicePostfix))
+	envars.NextServiceName = aws.String(fmt.Sprintf("%s-%s", kNextServiceName, servicePostfix))
+	if err := testInternal(t, envars); err != nil {
+		return err
 	}
-	ec, cw, alb := SetupAws()
-	if err := ensureCurrentService(ec, envars); err != nil {
-		t.Fatalf(err.Error())
-	}
-	defer cleanupService(ec, envars, envars.CurrentServiceName)
-	if err := cleanupService(ec, envars, envars.NextServiceName); err != nil {
-		t.Fatalf(err.Error())
-	}
-	stop := make(chan bool)
-	eg := errgroup.Group{}
-	eg.Go(func() error {
-		ret := envars.StartGradualRollOut(ec, cw)
-		stop <- true
-		return ret
-	})
-	eg.Go(func() error {
-		return PollLoadBalancer(envars, alb, time.Duration(10)*time.Second, stop)
-	})
-	err := eg.Wait()
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
+	ec, _, _ := SetupAws()
 	o, _ := ec.DescribeServices(&ecs.DescribeServicesInput{
 		Cluster:  envars.Cluster,
 		Services: []*string{envars.CurrentServiceName, envars.NextServiceName},
 	})
 	assert.Equal(t, int64(2), *o.Services[0].DesiredCount)
 	assert.Equal(t, "INACTIVE", *o.Services[1].Status)
+	return nil
 }
+
+func TestHealthyToBuggy(t *testing.T) {
+	err := testAbnormal(t, kUpButBuggyTDArn, "healthy-buggy")
+	assert.Nil(t, err)
+}
+
+func TestHealthyToSlow(t *testing.T) {
+	err := testAbnormal(t, kUpButSlowTDArn, "healthy-slow")
+	assert.Nil(t, err)
+}
+
