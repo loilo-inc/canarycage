@@ -76,7 +76,7 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64) (*t
 
 func TestEnvars_StartGradualRollOut(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
-	for _, v := range  []int64{1, 2, 15} {
+	for _, v := range []int64{1, 2, 15} {
 		log.Info("====")
 		envars := DefaultEnvars()
 		ctrl := gomock.NewController(t)
@@ -193,4 +193,41 @@ func TestEnvars_Rollback(t *testing.T) {
 	if l := len(o.TaskArns); l != 10 {
 		t.Fatalf("next service was not rollbacked: E: %d, A: %d", 10, l)
 	}
+}
+
+func TestEnvars_CreateNextTaskDefinition(t *testing.T) {
+	envars := &Envars{
+		NextTaskDefinitionArn: aws.String("arn://task"),
+	}
+	ctrl := gomock.NewController(t)
+	e := mock_ecs.NewMockECSAPI(ctrl)
+	e.EXPECT().DescribeTaskDefinition(gomock.Any()).Return(
+		&ecs.DescribeTaskDefinitionOutput{
+			TaskDefinition: &ecs.TaskDefinition{TaskDefinitionArn: aws.String("arn://task"),},
+		}, nil)
+	// nextTaskDefinitionArnがある場合はdescribeTaskDefinitionから返す
+	o, err := envars.CreateNextTaskDefinition(e)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	assert.Equal(t, *envars.NextTaskDefinitionArn, *o.TaskDefinitionArn)
+}
+
+func TestEnvars_CreateNextTaskDefinition2(t *testing.T) {
+	d, _ := ioutil.ReadFile("fixtures/service.json")
+	j := base64.StdEncoding.EncodeToString(d)
+	envars := &Envars{
+		NextTaskDefinitionBase64: aws.String(j),
+	}
+	ctrl := gomock.NewController(t)
+	e := mock_ecs.NewMockECSAPI(ctrl)
+	e.EXPECT().RegisterTaskDefinition(gomock.Any()).Return(&ecs.RegisterTaskDefinitionOutput{
+		TaskDefinition: &ecs.TaskDefinition{TaskDefinitionArn: aws.String("arn://next")},
+	},nil)
+	// nextTaskDefinitionBase64がある場合は新規作成
+	o, err := envars.CreateNextTaskDefinition(e)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	assert.Equal(t, "arn://next", *o.TaskDefinitionArn)
 }
