@@ -95,10 +95,10 @@ func (envars *Envars) RollOut(
 		}
 		// Phase2: service-nextのperiodic healthを計測
 		// ロールアウトの検証期間待つ
-		log.Infof("waiting for roll out period (%d sec)", *envars.RollOutPeriod)
-		<-newTimer(time.Duration(*envars.RollOutPeriod) * time.Second).C
 		startTime := now()
 		endTime := startTime.Add(time.Duration(*envars.RollOutPeriod) * time.Second)
+		log.Infof("waiting for roll out period (%d sec)", *envars.RollOutPeriod)
+		<-newTimer(time.Duration(*envars.RollOutPeriod) * time.Second).C
 		log.Infof(
 			"start accumulating periodic service health of '%s' during %s ~ %s",
 			*nextService.ServiceName, startTime.String(), endTime.String(),

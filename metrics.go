@@ -59,7 +59,7 @@ func (envars *Envars) GetServiceMetricStatistics(
 		log.Errorf("failed to get CloudWatch's '%s' metric statistics due to: %s", metricName, err.Error())
 		return 0, err
 	}
-	if len(out.Datapoints) == 0 {
+	if (metricName == "RequestCount" || metricName ==  "TargetResponseTime") && len(out.Datapoints) == 0 {
 		return 0, &NoDataPointsFoundError{Input: input}
 	}
 	var ret float64 = 0
