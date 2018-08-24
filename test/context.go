@@ -10,6 +10,7 @@ import (
 	"errors"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go/service/elbv2"
 )
 
 type MockContext struct {
@@ -122,7 +123,7 @@ func (ctx *MockContext) UpdateService(input *ecs.UpdateServiceInput) (*ecs.Updat
 		var i int64 = 0
 		max := -diff
 		for k, v := range ctx.Tasks {
-			reg := regexp.MustCompile("service:"+*s.ServiceName)
+			reg := regexp.MustCompile("service:" + *s.ServiceName)
 			if reg.MatchString(*v.Group) {
 				ctx.StopTask(&ecs.StopTaskInput{
 					Cluster: input.Cluster,
@@ -298,5 +299,19 @@ func (ctx *MockContext) DescribeTasks(input *ecs.DescribeTasksInput) (*ecs.Descr
 	}
 	return &ecs.DescribeTasksOutput{
 		Tasks: ret,
+	}, nil
+}
+
+//
+
+func (ctx *MockContext) DescribeTargetGroups(input *elbv2.DescribeTargetGroupsInput) (*elbv2.DescribeTargetGroupsOutput, error) {
+	return &elbv2.DescribeTargetGroupsOutput{
+		TargetGroups: []*elbv2.TargetGroup{
+			{
+				TargetGroupName: aws.String("tgname"),
+				HealthyThresholdCount:      aws.Int64(1),
+				HealthCheckIntervalSeconds: aws.Int64(0),
+			},
+		},
 	}, nil
 }

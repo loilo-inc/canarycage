@@ -102,9 +102,9 @@ resource "aws_alb_target_group" "test" {
   health_check {
     healthy_threshold = 2
     unhealthy_threshold = 2
-    timeout = 45
+    timeout = 10
     path = "/health_check"
-    interval = 60
+    interval = 15
   }
   deregistration_delay = 0
   target_type = "ip"

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"sync"
+	"github.com/loilo-inc/canarycage/mock/mock_elbv2"
 )
 
 const kCurrentServiceName = "service-current"
@@ -36,28 +37,30 @@ func DefaultEnvars() *Envars {
 	}
 }
 
-func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64) (*test.MockContext, *mock_ecs.MockECSAPI, *mock_cloudwatch.MockCloudWatchAPI) {
+func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64) (*test.MockContext, *Context) {
 	ecsMock := mock_ecs.NewMockECSAPI(ctrl)
 	cwMock := mock_cloudwatch.NewMockCloudWatchAPI(ctrl)
-	ctx := test.NewMockContext()
-	ecsMock.EXPECT().CreateService(gomock.Any()).DoAndReturn(ctx.CreateService).AnyTimes()
-	ecsMock.EXPECT().UpdateService(gomock.Any()).DoAndReturn(ctx.UpdateService).AnyTimes()
-	ecsMock.EXPECT().DeleteService(gomock.Any()).DoAndReturn(ctx.DeleteService).AnyTimes()
-	ecsMock.EXPECT().StartTask(gomock.Any()).DoAndReturn(ctx.StartTask).AnyTimes()
-	ecsMock.EXPECT().StopTask(gomock.Any()).DoAndReturn(ctx.StopTask).AnyTimes()
-	ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any()).DoAndReturn(ctx.RegisterTaskDefinition).AnyTimes()
-	ecsMock.EXPECT().WaitUntilServicesStable(gomock.Any()).DoAndReturn(ctx.WaitUntilServicesStable).AnyTimes()
-	ecsMock.EXPECT().WaitUntilServicesInactive(gomock.Any()).DoAndReturn(ctx.WaitUntilServicesInactive).AnyTimes()
-	ecsMock.EXPECT().DescribeServices(gomock.Any()).DoAndReturn(ctx.DescribeServices).AnyTimes()
-	ecsMock.EXPECT().DescribeTasks(gomock.Any()).DoAndReturn(ctx.DescribeTasks).AnyTimes()
-	ecsMock.EXPECT().WaitUntilTasksRunning(gomock.Any()).DoAndReturn(ctx.WaitUntilTasksRunning).AnyTimes()
-	ecsMock.EXPECT().WaitUntilTasksStopped(gomock.Any()).DoAndReturn(ctx.WaitUntilTasksStopped).AnyTimes()
-	ecsMock.EXPECT().ListTasks(gomock.Any()).DoAndReturn(ctx.ListTasks).AnyTimes()
-	cwMock.EXPECT().GetMetricStatistics(gomock.Any()).DoAndReturn(ctx.GetMetricStatics).AnyTimes()
+	albMock := mock_elbv2.NewMockELBV2API(ctrl)
+	mocker := test.NewMockContext()
+	ecsMock.EXPECT().CreateService(gomock.Any()).DoAndReturn(mocker.CreateService).AnyTimes()
+	ecsMock.EXPECT().UpdateService(gomock.Any()).DoAndReturn(mocker.UpdateService).AnyTimes()
+	ecsMock.EXPECT().DeleteService(gomock.Any()).DoAndReturn(mocker.DeleteService).AnyTimes()
+	ecsMock.EXPECT().StartTask(gomock.Any()).DoAndReturn(mocker.StartTask).AnyTimes()
+	ecsMock.EXPECT().StopTask(gomock.Any()).DoAndReturn(mocker.StopTask).AnyTimes()
+	ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any()).DoAndReturn(mocker.RegisterTaskDefinition).AnyTimes()
+	ecsMock.EXPECT().WaitUntilServicesStable(gomock.Any()).DoAndReturn(mocker.WaitUntilServicesStable).AnyTimes()
+	ecsMock.EXPECT().WaitUntilServicesInactive(gomock.Any()).DoAndReturn(mocker.WaitUntilServicesInactive).AnyTimes()
+	ecsMock.EXPECT().DescribeServices(gomock.Any()).DoAndReturn(mocker.DescribeServices).AnyTimes()
+	ecsMock.EXPECT().DescribeTasks(gomock.Any()).DoAndReturn(mocker.DescribeTasks).AnyTimes()
+	ecsMock.EXPECT().WaitUntilTasksRunning(gomock.Any()).DoAndReturn(mocker.WaitUntilTasksRunning).AnyTimes()
+	ecsMock.EXPECT().WaitUntilTasksStopped(gomock.Any()).DoAndReturn(mocker.WaitUntilTasksStopped).AnyTimes()
+	ecsMock.EXPECT().ListTasks(gomock.Any()).DoAndReturn(mocker.ListTasks).AnyTimes()
+	cwMock.EXPECT().GetMetricStatistics(gomock.Any()).DoAndReturn(mocker.GetMetricStatics).AnyTimes()
+	albMock.EXPECT().DescribeTargetGroups(gomock.Any()).DoAndReturn(mocker.DescribeTargetGroups).AnyTimes()
 	o, _ := base64.StdEncoding.DecodeString(*envars.NextTaskDefinitionBase64)
 	var register *ecs.RegisterTaskDefinitionInput
 	_ = json.Unmarshal(o, register)
-	td, _ := ctx.RegisterTaskDefinition(register)
+	td, _ := mocker.RegisterTaskDefinition(register)
 	a := &ecs.CreateServiceInput{
 		ServiceName: envars.CurrentServiceName,
 		LoadBalancers: []*ecs.LoadBalancer{
@@ -70,55 +73,66 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64) (*t
 		TaskDefinition: td.TaskDefinition.TaskDefinitionArn,
 		DesiredCount:   aws.Int64(currentTaskCount),
 	}
-	_, _ = ctx.CreateService(a)
-	return ctx, ecsMock, cwMock
+	_, _ = mocker.CreateService(a)
+	return mocker, &Context{
+		Ecs: ecsMock,
+		Cw:  cwMock,
+		Alb: albMock,
+	}
 }
 
 func TestEnvars_StartGradualRollOut(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
+	newTimer = fakeTimer
+	defer recoverTimer()
 	for _, v := range []int64{1, 2, 15} {
 		log.Info("====")
 		envars := DefaultEnvars()
 		ctrl := gomock.NewController(t)
-		ctx, ecsMock, cwMock := envars.Setup(ctrl, v)
-		if ctx.ServiceSize() != 1 {
+		mctx, ctx := envars.Setup(ctrl, v)
+		if mctx.ServiceSize() != 1 {
 			t.Fatalf("current service not setup")
 		}
-		if taskCnt := ctx.TaskSize(); taskCnt != v {
+		if taskCnt := mctx.TaskSize(); taskCnt != v {
 			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
 		}
-		err := envars.StartGradualRollOut(ecsMock, cwMock)
+		err := envars.StartGradualRollOut(ctx)
 		if err != nil {
 			t.Fatalf("%s", err)
 		}
-		assert.Equal(t, int64(1), ctx.ServiceSize())
-		assert.Equal(t, v, ctx.TaskSize())
+		assert.Equal(t, int64(1), mctx.ServiceSize())
+		assert.Equal(t, v, mctx.TaskSize())
 	}
 }
 
 func TestEnvars_StartGradualRollOut2(t *testing.T) {
 	// service definitionのjsonから読み込む
 	log.SetLevel(log.InfoLevel)
+	newTimer = fakeTimer
+	defer recoverTimer()
 	envars := DefaultEnvars()
 	d, _ := ioutil.ReadFile("fixtures/service.json")
 	envars.NextServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
 	ctrl := gomock.NewController(t)
-	ctx, ecsMokc, cwMock := envars.Setup(ctrl, 2)
-	err := envars.StartGradualRollOut(ecsMokc, cwMock)
+	mocker, ctx := envars.Setup(ctrl, 2)
+	err := envars.StartGradualRollOut(ctx)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	assert.Equal(t, int64(1), ctx.ServiceSize())
-	assert.Equal(t, int64(2), ctx.TaskSize())
+	assert.Equal(t, int64(1), mocker.ServiceSize())
+	assert.Equal(t, int64(2), mocker.TaskSize())
 }
 
 func TestEnvars_StartGradualRollOut3(t *testing.T) {
 	// カナリアテストに失敗した場合ロールバックすることを確かめる
 	log.SetLevel(log.DebugLevel)
+	newTimer = fakeTimer
+	defer recoverTimer()
 	envars := DefaultEnvars()
 	ctrl := gomock.NewController(t)
-	ctx, ecsMokc, _ := envars.Setup(ctrl, 4)
+	mocker, ctx := envars.Setup(ctrl, 4)
 	cwMock := mock_cloudwatch.NewMockCloudWatchAPI(ctrl)
+	ctx.Cw = cwMock
 	m := make(map[string]int)
 	mux := sync.Mutex{}
 	cwMock.EXPECT().GetMetricStatistics(gomock.Any()).DoAndReturn(func(input *cloudwatch.GetMetricStatisticsInput) (*cloudwatch.GetMetricStatisticsOutput, error) {
@@ -154,40 +168,42 @@ func TestEnvars_StartGradualRollOut3(t *testing.T) {
 		}()
 		return o, nil
 	}).AnyTimes()
-	err := envars.StartGradualRollOut(ecsMokc, cwMock)
+	err := envars.StartGradualRollOut(ctx)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	assert.Equal(t, int64(1), ctx.ServiceSize())
-	if _, ok := ctx.GetService("service-current"); !ok {
+	assert.Equal(t, int64(1), mocker.ServiceSize())
+	if _, ok := mocker.GetService("service-current"); !ok {
 		t.Fatalf("service-current doesn't exists")
 	}
-	if _, ok := ctx.GetService("service-next"); ok {
+	if _, ok := mocker.GetService("service-next"); ok {
 		t.Fatalf("service-next still exists")
 	}
-	assert.Equal(t, int64(4), ctx.TaskSize())
+	assert.Equal(t, int64(4), mocker.TaskSize())
 }
 
 func TestEnvars_Rollback(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
+	newTimer = fakeTimer
+	defer recoverTimer()
 	envars := DefaultEnvars()
 	ctrl := gomock.NewController(t)
-	ctx, e, _ := envars.Setup(ctrl, 2)
-	ctx.CreateService(&ecs.CreateServiceInput{
+	mocker, ctx := envars.Setup(ctrl, 2)
+	mocker.CreateService(&ecs.CreateServiceInput{
 		Cluster:        envars.Cluster,
 		ServiceName:    envars.NextServiceName,
 		TaskDefinition: aws.String("arn://current"),
 		DesiredCount:   aws.Int64(12),
 	})
-	log.Debugf("%d", ctx.ServiceSize())
-	err := envars.Rollback(e, aws.Int64(10))
+	log.Debugf("%d", mocker.ServiceSize())
+	err := envars.Rollback(ctx.Ecs, aws.Int64(10))
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	if ctx.ServiceSize() != 1 {
+	if mocker.ServiceSize() != 1 {
 		t.Fatal("next service still exists")
 	}
-	o, _ := e.ListTasks(&ecs.ListTasksInput{
+	o, _ := ctx.Ecs.ListTasks(&ecs.ListTasksInput{
 		ServiceName: envars.CurrentServiceName,
 	})
 	if l := len(o.TaskArns); l != 10 {
@@ -223,7 +239,7 @@ func TestEnvars_CreateNextTaskDefinition2(t *testing.T) {
 	e := mock_ecs.NewMockECSAPI(ctrl)
 	e.EXPECT().RegisterTaskDefinition(gomock.Any()).Return(&ecs.RegisterTaskDefinitionOutput{
 		TaskDefinition: &ecs.TaskDefinition{TaskDefinitionArn: aws.String("arn://next")},
-	},nil)
+	}, nil)
 	// nextTaskDefinitionBase64がある場合は新規作成
 	o, err := envars.CreateNextTaskDefinition(e)
 	if err != nil {

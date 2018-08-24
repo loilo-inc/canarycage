@@ -74,14 +74,14 @@ func (envars *Envars) GetServiceMetricStatistics(
 		}
 		ret /= float64(len(out.Datapoints))
 	default:
-		err = NewErrorf("unsuported unit type: %s", unit)
+		err = NewErrorf("unsupported unit type: %s", unit)
 	}
 	return ret, err
 }
 
 func (envars *Envars) AccumulatePeriodicServiceHealth(
 	cw cloudwatchiface.CloudWatchAPI,
-	targetGroupArn string,
+	targetGroupArn *string,
 	startTime time.Time,
 	endTime time.Time,
 ) (*ServiceHealth, error) {
@@ -93,7 +93,7 @@ func (envars *Envars) AccumulatePeriodicServiceHealth(
 	if lbId, err = ExtractAlbId(*envars.LoadBalancerArn); err != nil {
 		return nil, err
 	}
-	if tgId, err = ExtractTargetGroupId(targetGroupArn); err != nil {
+	if tgId, err = ExtractTargetGroupId(*targetGroupArn); err != nil {
 		return nil, err
 	}
 	maxRetryCnt := 20 // 15sec x 20 = 5min
