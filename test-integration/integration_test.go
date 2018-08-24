@@ -29,11 +29,15 @@ const kUpButSlowTDArn = "cage-test-server-up-but-slow:15"
 const kUpAndExitTDArn = "cage-test-server-up-and-exit:15"
 const kUpButExitTDArn = "cage-test-server-up-but-exit:15"
 
-func SetupAws() (*ecs.ECS, *cloudwatch.CloudWatch, *elbv2.ELBV2) {
+func setup() (*cage.Context) {
 	ses, _ := session.NewSession(&aws.Config{
 		Region: aws.String("us-west-2"),
 	})
-	return ecs.New(ses), cloudwatch.New(ses), elbv2.New(ses)
+	return &cage.Context{
+		Ecs: ecs.New(ses),
+		Cw:  cloudwatch.New(ses),
+		Alb: elbv2.New(ses),
+	}
 }
 
 func ensureCurrentService(awsEcs ecsiface.ECSAPI, envars *cage.Envars) (error) {
@@ -121,12 +125,14 @@ func cleanupService(awsEcs ecsiface.ECSAPI, envars *cage.Envars, serviceName *st
 	return nil
 }
 
-func setupEnvars(envars *cage.Envars) {
+func setupEnvars() *cage.Envars {
+	envars := &cage.Envars{}
 	if d, err := ioutil.ReadFile("cage.json"); err != nil {
 		log.Fatalf(err.Error())
 	} else if err := json.Unmarshal(d, envars); err != nil {
 		log.Fatalf(err.Error())
 	}
+	return envars
 }
 
 func GetAlbDNS(alb elbv2iface.ELBV2API, arn *string) (*string, error) {
@@ -143,7 +149,7 @@ func GetAlbDNS(alb elbv2iface.ELBV2API, arn *string) (*string, error) {
 
 func PollLoadBalancer(
 	envars *cage.Envars,
-	alb *elbv2.ELBV2,
+	alb elbv2iface.ELBV2API,
 	interval time.Duration,
 	stop chan bool,
 ) error {
@@ -185,34 +191,33 @@ func testInternal(t *testing.T, envars *cage.Envars) error {
 	if err := cage.EnsureEnvars(envars); err != nil {
 		t.Fatalf(err.Error())
 	}
-	ec, cw, alb := SetupAws()
-	if err := ensureCurrentService(ec, envars); err != nil {
+	ctx := setup()
+	if err := ensureCurrentService(ctx.Ecs, envars); err != nil {
 		t.Fatalf(err.Error())
 	}
-	defer cleanupService(ec, envars, envars.CurrentServiceName)
-	if err := cleanupService(ec, envars, envars.NextServiceName); err != nil {
+	if err := cleanupService(ctx.Ecs, envars, envars.NextServiceName); err != nil {
 		t.Fatalf(err.Error())
 	}
 	stop := make(chan bool)
 	eg := errgroup.Group{}
 	eg.Go(func() error {
-		ret := envars.StartGradualRollOut(ec, cw)
+		ret := envars.StartGradualRollOut(ctx)
 		stop <- true
 		return ret
 	})
 	eg.Go(func() error {
-		return PollLoadBalancer(envars, alb, time.Duration(10)*time.Second, stop)
+		return PollLoadBalancer(envars, ctx.Alb, time.Duration(10)*time.Second, stop)
 	})
 	return eg.Wait()
 }
 
 func TestHealthyToHealthy(t *testing.T) {
-	log.SetLevel(log.InfoLevel)
-	envars := &cage.Envars{}
-	setupEnvars(envars)
+	ctx := setup()
+	envars := setupEnvars()
 	envars.NextTaskDefinitionArn = aws.String(kHealthyTDArn)
 	envars.CurrentServiceName = aws.String(kCurrentServiceName)
 	envars.NextServiceName = aws.String(kNextServiceName)
+	defer cleanupService(ctx.Ecs, envars, envars.CurrentServiceName)
 	if err := testInternal(t, envars); err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -220,16 +225,16 @@ func TestHealthyToHealthy(t *testing.T) {
 
 func testAbnormal(t *testing.T, tdarn string, servicePostfix string) error {
 	log.SetLevel(log.InfoLevel)
-	envars := &cage.Envars{}
-	setupEnvars(envars)
+	ctx := setup()
+	envars := setupEnvars()
 	envars.NextTaskDefinitionArn = aws.String(tdarn)
 	envars.CurrentServiceName = aws.String(fmt.Sprintf("%s-%s", kCurrentServiceName, servicePostfix))
 	envars.NextServiceName = aws.String(fmt.Sprintf("%s-%s", kNextServiceName, servicePostfix))
+	defer cleanupService(ctx.Ecs, envars, envars.CurrentServiceName)
 	if err := testInternal(t, envars); err != nil {
 		return err
 	}
-	ec, _, _ := SetupAws()
-	o, _ := ec.DescribeServices(&ecs.DescribeServicesInput{
+	o, _ := ctx.Ecs.DescribeServices(&ecs.DescribeServicesInput{
 		Cluster:  envars.Cluster,
 		Services: []*string{envars.CurrentServiceName, envars.NextServiceName},
 	})
@@ -247,4 +252,3 @@ func TestHealthyToSlow(t *testing.T) {
 	err := testAbnormal(t, kUpButSlowTDArn, "healthy-slow")
 	assert.Nil(t, err)
 }
-

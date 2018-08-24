@@ -1,34 +1,42 @@
 package cage
 
 import (
-	"fmt"
 	"github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface"
 	"time"
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"github.com/aws/aws-sdk-go/service/ecs"
-	"errors"
 	"encoding/json"
 	"encoding/base64"
 	"github.com/aws/aws-sdk-go/aws"
+	"math"
+	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
+	"github.com/aws/aws-sdk-go/service/elbv2"
 )
 
+type Context struct {
+	Ecs ecsiface.ECSAPI
+	Cw  cloudwatchiface.CloudWatchAPI
+	Alb elbv2iface.ELBV2API
+}
 
-func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchiface.CloudWatchAPI) (error) {
+func (envars *Envars) StartGradualRollOut(
+	ctx *Context,
+) (error) {
 	log.Infof("ensuring next task definition...")
-	nextTaskDefinition, err := envars.CreateNextTaskDefinition(awsEcs)
+	nextTaskDefinition, err := envars.CreateNextTaskDefinition(ctx.Ecs)
 	if err != nil {
 		log.Errorf("failed to register next task definition due to: %s", err)
 		return err
 	}
 	log.Infof("ensuring next service '%s'...", *envars.NextServiceName)
-	if err := envars.CreateNextService(awsEcs, nextTaskDefinition.TaskDefinitionArn); err != nil {
+	if err := envars.CreateNextService(ctx.Ecs, nextTaskDefinition.TaskDefinitionArn); err != nil {
 		log.Errorf("failed to create next service due to: %s", err)
 		return err
 	}
 	// ロールバックのためのデプロイを始める前の現在のサービスのタスク数
 	var originalDesiredCount int64
-	out, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
+	out, err := ctx.Ecs.DescribeServices(&ecs.DescribeServicesInput{
 		Cluster: envars.Cluster,
 		Services: []*string{
 			envars.CurrentServiceName,
@@ -41,9 +49,9 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 	service := out.Services[0]
 	originalDesiredCount = *service.DesiredCount
 	log.Infof("service '%s' ensured. start rolling out", *envars.NextServiceName)
-	if err := envars.RollOut(awsEcs, cw, service, originalDesiredCount); err != nil {
+	if err := envars.RollOut(ctx, service, originalDesiredCount); err != nil {
 		log.Errorf("failed to roll out due to: %s", err)
-		err := envars.Rollback(awsEcs, &originalDesiredCount)
+		err := envars.Rollback(ctx.Ecs, &originalDesiredCount)
 		if err != nil {
 			log.Errorf("😱 failed to rollback service '%s' due to: %s", err)
 			return err
@@ -53,9 +61,44 @@ func (envars *Envars) StartGradualRollOut(awsEcs ecsiface.ECSAPI, cw cloudwatchi
 	return nil
 }
 
-func (envars *Envars) RollOut(
-	awsEcs ecsiface.ECSAPI,
+func (envars *Envars) CanaryTest(
 	cw cloudwatchiface.CloudWatchAPI,
+	targetGroupArn *string,
+	totalRollOutCnt int64,
+) error {
+	startTime := now()
+	endTime := startTime.Add(time.Duration(*envars.RollOutPeriod) * time.Second)
+	standBy := time.Duration(60-math.Floor(float64(startTime.Second()))) * time.Second
+	// ロールアウトの検証期間待つ
+	log.Infof(
+		"waiting for roll out period (%d sec) and stand by for CloudWatch (%f sec)",
+		*envars.RollOutPeriod, standBy.Seconds(),
+	)
+	<-newTimer(time.Duration(*envars.RollOutPeriod)*time.Second + standBy).C
+	log.Infof(
+		"start accumulating periodic service health of '%s' during %s ~ %s",
+		*envars.NextServiceName, startTime.String(), endTime.String(),
+	)
+	health, err := envars.AccumulatePeriodicServiceHealth(cw, targetGroupArn, startTime, endTime)
+	if err != nil {
+		return err
+	}
+	log.Infof("periodic health accumulated: availability=%f, responseTime=%f", health.availability, health.responseTime)
+	if *envars.AvailabilityThreshold > health.availability || health.responseTime > *envars.ResponseTimeThreshold {
+		return NewErrorf(
+			"😢 %dth canary test has failed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
+			totalRollOutCnt, health.availability, *envars.AvailabilityThreshold, health.responseTime, *envars.ResponseTimeThreshold,
+		)
+	}
+	log.Infof(
+		"😙 %dth canary test has passed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
+		totalRollOutCnt, health.availability, *envars.AvailabilityThreshold, health.responseTime, *envars.ResponseTimeThreshold,
+	)
+	return nil
+}
+
+func (envars *Envars) RollOut(
+	ctx *Context,
 	nextService *ecs.Service,
 	originalDesiredCount int64,
 ) (error) {
@@ -72,15 +115,21 @@ func (envars *Envars) RollOut(
 		originalDesiredCount, *envars.CurrentServiceName, estimatedRollOutCount,
 	)
 	lb := nextService.LoadBalancers[0]
+	o, err := ctx.Alb.DescribeTargetGroups(&elbv2.DescribeTargetGroupsInput{
+		TargetGroupArns: []*string{lb.TargetGroupArn},
+	})
+	if err != nil {
+		log.Errorf("failed to describe target groups due to: %s", err)
+		return err
+	}
+	tg := o.TargetGroups[0]
 	// next serviceのperiodic healthが安定し、current serviceのtaskの数が0になるまで繰り返す
 	for {
 		log.Infof("=== preparing for %dth roll out ===", totalRollOutCnt)
 		if estimatedRollOutCount <= totalRollOutCnt {
-			return errors.New(
-				fmt.Sprintf(
-					"estimated roll out attempts count exceeded: estimated=%d, rollouted=%d, replaced=%d/%d",
-					estimatedRollOutCount, totalRollOutCnt, totalReplacedCnt, originalDesiredCount,
-				),
+			return NewErrorf(
+				"estimated roll out attempts count exceeded: estimated=%d, rolledOut=%d, replaced=%d/%d",
+				estimatedRollOutCount, totalRollOutCnt, totalReplacedCnt, originalDesiredCount,
 			)
 		}
 		replaceCnt := int64(EnsureReplaceCount(totalReplacedCnt, totalRollOutCnt, originalDesiredCount))
@@ -88,40 +137,26 @@ func (envars *Envars) RollOut(
 		// Phase1: service-nextにtask-nextを指定数配置
 		log.Infof("%dth roll out starting: will replace %d tasks", totalRollOutCnt, replaceCnt)
 		log.Infof("start adding of next tasks. this will update '%s' desired count %d to %d", *nextService.ServiceName, totalReplacedCnt, scaleCnt)
-		err := envars.UpdateDesiredCount(awsEcs, envars.NextServiceName, &scaleCnt, true)
+		err := envars.UpdateDesiredCount(ctx.Ecs, envars.NextServiceName, &scaleCnt, true)
 		if err != nil {
 			log.Errorf("failed to add next tasks due to: %s", err)
 			return err
 		}
-		// Phase2: service-nextのperiodic healthを計測
-		// ロールアウトの検証期間待つ
-		startTime := now()
-		endTime := startTime.Add(time.Duration(*envars.RollOutPeriod) * time.Second)
-		log.Infof("waiting for roll out period (%d sec)", *envars.RollOutPeriod)
-		<-newTimer(time.Duration(*envars.RollOutPeriod) * time.Second).C
+		// TargetGroupに新しいタスクが登録されるまで待つ
+		standBy := time.Duration(*tg.HealthCheckIntervalSeconds*(*tg.HealthyThresholdCount)) * time.Second
 		log.Infof(
-			"start accumulating periodic service health of '%s' during %s ~ %s",
-			*nextService.ServiceName, startTime.String(), endTime.String(),
+			"waiting for %f seconds until new tasks are registered target group '%s'",
+			 standBy.Seconds(), *tg.TargetGroupName,
 		)
-		health, err := envars.AccumulatePeriodicServiceHealth(cw, *lb.TargetGroupArn, startTime, endTime)
-		if err != nil {
+		<-newTimer(standBy).C
+		// Phase2: service-nextのperiodic healthを計測
+		if err := envars.CanaryTest(ctx.Cw, lb.TargetGroupArn, totalRollOutCnt); err != nil {
 			return err
 		}
-		log.Infof("periodic health accumulated: availability=%f, responseTime=%f", health.availability, health.responseTime)
-		if *envars.AvailabilityThreshold > health.availability || health.responseTime > *envars.ResponseTimeThreshold {
-			return errors.New(fmt.Sprintf(
-				"😢 %dth canary test has failed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
-				totalRollOutCnt, health.availability, *envars.AvailabilityThreshold, health.responseTime, *envars.ResponseTimeThreshold,
-			))
-		}
-		log.Infof(
-			"😙 %dth canary test has passed: availability=%f (thresh: %f), responseTime=%f (thresh: %f)",
-			totalRollOutCnt, health.availability, *envars.AvailabilityThreshold, health.responseTime, *envars.ResponseTimeThreshold,
-		)
 		// Phase3: service-currentからタスクを指定数消す
 		descaledCnt := originalDesiredCount - totalReplacedCnt - replaceCnt
 		log.Infof("updating service '%s' desired count to %d", *envars.CurrentServiceName, descaledCnt)
-		if err := envars.UpdateDesiredCount(awsEcs, envars.CurrentServiceName, &descaledCnt, false); err != nil {
+		if err := envars.UpdateDesiredCount(ctx.Ecs, envars.CurrentServiceName, &descaledCnt, false); err != nil {
 			log.Errorf("failed to roll out tasks due to: %s", err.Error())
 			return err
 		}
@@ -136,7 +171,7 @@ func (envars *Envars) RollOut(
 			oldTaskCount int64
 			newTaskCount int64
 		)
-		if out, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
+		if out, err := ctx.Ecs.DescribeServices(&ecs.DescribeServicesInput{
 			Cluster: envars.Cluster,
 			Services: []*string{
 				envars.CurrentServiceName,
@@ -150,10 +185,16 @@ func (envars *Envars) RollOut(
 			newTaskCount = *out.Services[1].DesiredCount
 		}
 		if oldTaskCount == 0 && newTaskCount >= originalDesiredCount {
+			// ロールアウトが終わったら最終検証を行う
+			log.Infof("estimated roll out completed. Do final canary test...")
+			if err := envars.CanaryTest(ctx.Cw, lb.TargetGroupArn, totalRollOutCnt); err != nil {
+				log.Errorf("final canary test has failed due to: %s", err)
+				return err
+			}
 			log.Infof("☀️all tasks successfully have been roll outed!☀️")
 			// service-currentを消す
 			log.Infof("deleting service '%s'...", *envars.CurrentServiceName)
-			if _, err := awsEcs.DeleteService(&ecs.DeleteServiceInput{
+			if _, err := ctx.Ecs.DeleteService(&ecs.DeleteServiceInput{
 				Cluster: envars.Cluster,
 				Service: envars.CurrentServiceName,
 			}); err != nil {
@@ -324,5 +365,6 @@ func (envars *Envars) Rollback(
 		return err
 	}
 	log.Infof("service '%s' has been eliminated", *envars.NextServiceName)
+	// TODO: 2018/08/24 ロールバック後もカナリアテストを行うべきか？ by sakurai
 	return nil
 }
