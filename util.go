@@ -42,3 +42,7 @@ func EnsureReplaceCount(
 		float64(originalCount-totalReplacedCount)),
 	)
 }
+
+func NewErrorf(f string, args ...interface{}) error {
+	return errors.New(fmt.Sprintf(f, args...))
+}

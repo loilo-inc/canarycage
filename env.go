@@ -58,8 +58,8 @@ func EnsureEnvars(
 		isEmpty(dest.NextServiceName) {
 		return errors.New(fmt.Sprintf("some required envars are not defined: %#v", *dest))
 	}
-	if isEmpty(dest.NextTaskDefinitionArn) && isEmpty(dest.NextServiceDefinitionBase64) {
-		return errors.New(fmt.Sprintf("nextTaskDefinitionArn or nextServiceDefinitionBase64 must be provided"))
+	if isEmpty(dest.NextTaskDefinitionArn) && isEmpty(dest.NextTaskDefinitionBase64) {
+		return errors.New(fmt.Sprintf("nextTaskDefinitionArn or nextTaskDefinitionBase64 must be provided"))
 	}
 	if isEmpty(dest.Region) {
 		dest.Region = aws.String(kDefaultRegion)
