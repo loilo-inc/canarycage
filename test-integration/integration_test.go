@@ -49,7 +49,7 @@ func ensureCurrentService(awsEcs ecsiface.ECSAPI, envars *cage.Envars) (error) {
 		Services: []*string{envars.CurrentServiceName},
 	}); err != nil {
 		return err
-	} else if len(o.Services) == 0 {
+	} else if len(o.Services) == 0 || *o.Services[0].Status == "INACTIVE" {
 		log.Infof("%s", o.Failures)
 		log.Infof("service %s doesn't exist", *envars.CurrentServiceName)
 		input.ServiceName = aws.String(kCurrentServiceName)
@@ -79,17 +79,39 @@ func ensureCurrentService(awsEcs ecsiface.ECSAPI, envars *cage.Envars) (error) {
 	return nil
 }
 
-func cleanupCurrentService(awsEcs ecsiface.ECSAPI, envars *cage.Envars) (error) {
-	log.Infof("cleaning up service '%s'...", kCurrentServiceName)
+func cleanupService(awsEcs ecsiface.ECSAPI, envars *cage.Envars, serviceName *string) (error) {
+	log.Infof("cleaning up service '%s'...", *serviceName)
+	if o, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
+		Cluster:  envars.Cluster,
+		Services: []*string{serviceName},
+	}); err != nil {
+		return err
+	} else if len(o.Services) == 0 || *o.Services[0].Status == "INACTIVE" {
+		return nil
+	}
+	if _, err := awsEcs.UpdateService(&ecs.UpdateServiceInput{
+		Cluster:      envars.Cluster,
+		Service:      serviceName,
+		DesiredCount: aws.Int64(0),
+	}); err != nil {
+		return err
+	}
+	if err := awsEcs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
+		Cluster:  envars.Cluster,
+		Services: []*string{serviceName},
+	}); err != nil {
+		return err
+	}
 	if _, err := awsEcs.DeleteService(&ecs.DeleteServiceInput{
 		Cluster: envars.Cluster,
-		Service: aws.String(kCurrentServiceName),
+		Service: serviceName,
+		Force:   aws.Bool(true),
 	}); err != nil {
 		return err
 	}
 	if err := awsEcs.WaitUntilServicesInactive(&ecs.DescribeServicesInput{
 		Cluster:  envars.Cluster,
-		Services: []*string{aws.String(kCurrentServiceName)},
+		Services: []*string{serviceName},
 	}); err != nil {
 		return err
 	}
@@ -167,18 +189,21 @@ func TestHealthyToHealthy(t *testing.T) {
 	if err := ensureCurrentService(ec, envars); err != nil {
 		t.Fatalf(err.Error())
 	}
+	defer cleanupService(ec, envars, envars.CurrentServiceName)
+	if err := cleanupService(ec, envars, envars.NextServiceName); err != nil {
+		t.Fatalf(err.Error())
+	}
 	stop := make(chan bool)
 	eg := errgroup.Group{}
 	eg.Go(func() error {
-		return envars.StartGradualRollOut(ec, cw)
+		ret := envars.StartGradualRollOut(ec, cw)
+		stop <- true
+		return ret
 	})
 	eg.Go(func() error {
 		return PollLoadBalancer(envars, alb, time.Duration(10)*time.Second, stop)
 	})
 	err := eg.Wait()
-	select {
-	case stop <- true:
-	}
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
