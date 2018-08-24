@@ -16,16 +16,17 @@ import (
 	"net/http"
 	"time"
 	"golang.org/x/sync/errgroup"
+	"github.com/stretchr/testify/assert"
 )
 
 const kCurrentServiceName = "itg-test-service-current"
 const kNextServiceName = "itg-test-service-next"
 const kHealthyTDArn = "cage-test-server-healthy:16"
-const kUnhealthyTDArn = "cage-test-server-unhealthy:16"
-const kUpButBuggyTDArn = "cage-test-server-up-but-buggy:16"
-const kUpButSlowTDArn = "cage-test-server-up-but-slow:16"
-const kUpAndExitTDArn = "cage-test-server-up-and-exit:16"
-const kUpButExitTDArn = "cage-test-server-up-but-exit:16"
+const kUnhealthyTDArn = "cage-test-server-unhealthy:15"
+const kUpButBuggyTDArn = "cage-test-server-up-but-buggy:15"
+const kUpButSlowTDArn = "cage-test-server-up-but-slow:15"
+const kUpAndExitTDArn = "cage-test-server-up-and-exit:15"
+const kUpButExitTDArn = "cage-test-server-up-but-exit:15"
 
 func SetupAws() (*ecs.ECS, *cloudwatch.CloudWatch, *elbv2.ELBV2) {
 	ses, _ := session.NewSession(&aws.Config{
@@ -207,4 +208,44 @@ func TestHealthyToHealthy(t *testing.T) {
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
+}
+
+func TestHealthyToBuggy(t *testing.T) {
+	log.SetLevel(log.InfoLevel)
+	envars := &cage.Envars{}
+	setupEnvars(envars)
+	envars.NextTaskDefinitionArn = aws.String(kUpButBuggyTDArn)
+	envars.CurrentServiceName = aws.String(kCurrentServiceName)
+	envars.NextServiceName = aws.String(kNextServiceName)
+	if err := cage.EnsureEnvars(envars); err != nil {
+		t.Fatalf(err.Error())
+	}
+	ec, cw, alb := SetupAws()
+	if err := ensureCurrentService(ec, envars); err != nil {
+		t.Fatalf(err.Error())
+	}
+	defer cleanupService(ec, envars, envars.CurrentServiceName)
+	if err := cleanupService(ec, envars, envars.NextServiceName); err != nil {
+		t.Fatalf(err.Error())
+	}
+	stop := make(chan bool)
+	eg := errgroup.Group{}
+	eg.Go(func() error {
+		ret := envars.StartGradualRollOut(ec, cw)
+		stop <- true
+		return ret
+	})
+	eg.Go(func() error {
+		return PollLoadBalancer(envars, alb, time.Duration(10)*time.Second, stop)
+	})
+	err := eg.Wait()
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	o, _ := ec.DescribeServices(&ecs.DescribeServicesInput{
+		Cluster:  envars.Cluster,
+		Services: []*string{envars.CurrentServiceName, envars.NextServiceName},
+	})
+	assert.Equal(t, int64(2), *o.Services[0].DesiredCount)
+	assert.Equal(t, "INACTIVE", *o.Services[1].Status)
 }
