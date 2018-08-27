@@ -57,6 +57,7 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64) (*t
 	ecsMock.EXPECT().ListTasks(gomock.Any()).DoAndReturn(mocker.ListTasks).AnyTimes()
 	cwMock.EXPECT().GetMetricStatistics(gomock.Any()).DoAndReturn(mocker.GetMetricStatics).AnyTimes()
 	albMock.EXPECT().DescribeTargetGroups(gomock.Any()).DoAndReturn(mocker.DescribeTargetGroups).AnyTimes()
+	albMock.EXPECT().DescribeTargetHealth(gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes()
 	o, _ := base64.StdEncoding.DecodeString(*envars.NextTaskDefinitionBase64)
 	var register *ecs.RegisterTaskDefinitionInput
 	_ = json.Unmarshal(o, register)
@@ -96,10 +97,12 @@ func TestEnvars_StartGradualRollOut(t *testing.T) {
 		if taskCnt := mctx.TaskSize(); taskCnt != v {
 			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
 		}
-		err := envars.StartGradualRollOut(ctx)
+		result, err := envars.StartGradualRollOut(ctx)
 		if err != nil {
 			t.Fatalf("%s", err)
 		}
+		assert.Nil(t, result.HandledError)
+		assert.False(t,  *result.Rolledback)
 		assert.Equal(t, int64(1), mctx.ServiceSize())
 		assert.Equal(t, v, mctx.TaskSize())
 	}
@@ -115,10 +118,12 @@ func TestEnvars_StartGradualRollOut2(t *testing.T) {
 	envars.NextServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
 	ctrl := gomock.NewController(t)
 	mocker, ctx := envars.Setup(ctrl, 2)
-	err := envars.StartGradualRollOut(ctx)
+	result, err := envars.StartGradualRollOut(ctx)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
+	assert.Nil(t, result.HandledError)
+	assert.False(t, *result.Rolledback)
 	assert.Equal(t, int64(1), mocker.ServiceSize())
 	assert.Equal(t, int64(2), mocker.TaskSize())
 }
@@ -168,10 +173,12 @@ func TestEnvars_StartGradualRollOut3(t *testing.T) {
 		}()
 		return o, nil
 	}).AnyTimes()
-	err := envars.StartGradualRollOut(ctx)
+	result, err := envars.StartGradualRollOut(ctx)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
+	assert.NotNil(t, result.HandledError)
+	assert.True(t, *result.Rolledback)
 	assert.Equal(t, int64(1), mocker.ServiceSize())
 	if _, ok := mocker.GetService("service-current"); !ok {
 		t.Fatalf("service-current doesn't exists")
@@ -196,7 +203,7 @@ func TestEnvars_Rollback(t *testing.T) {
 		DesiredCount:   aws.Int64(12),
 	})
 	log.Debugf("%d", mocker.ServiceSize())
-	err := envars.Rollback(ctx.Ecs, aws.Int64(10))
+	err := envars.Rollback(ctx, aws.Int64(10), aws.String("hoge"))
 	if err != nil {
 		t.Fatal(err.Error())
 	}

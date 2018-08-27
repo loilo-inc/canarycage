@@ -308,10 +308,24 @@ func (ctx *MockContext) DescribeTargetGroups(input *elbv2.DescribeTargetGroupsIn
 	return &elbv2.DescribeTargetGroupsOutput{
 		TargetGroups: []*elbv2.TargetGroup{
 			{
-				TargetGroupName: aws.String("tgname"),
+				TargetGroupName:            aws.String("tgname"),
 				HealthyThresholdCount:      aws.Int64(1),
 				HealthCheckIntervalSeconds: aws.Int64(0),
 			},
 		},
+	}, nil
+}
+
+func (ctx *MockContext) DescribeTargetHealth(input *elbv2.DescribeTargetHealthInput) (*elbv2.DescribeTargetHealthOutput, error) {
+	var ret []*elbv2.TargetHealthDescription
+	for i := int64(0); i < ctx.TaskSize(); i++ {
+		ret = append(ret, &elbv2.TargetHealthDescription{
+			TargetHealth: &elbv2.TargetHealth{
+				State: aws.String("healthy"),
+			},
+		})
+	}
+	return &elbv2.DescribeTargetHealthOutput{
+		TargetHealthDescriptions: ret,
 	}, nil
 }
