@@ -50,7 +50,9 @@ func UnHealthyServer() {
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		fmt.Fprintf(writer, "🐤")
 	})
-
+	http.HandleFunc("/health_check", func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(500)
+	})
 }
 
 func BuggyServer() {

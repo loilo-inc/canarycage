@@ -187,7 +187,7 @@ func PollLoadBalancer(
 	return nil
 }
 
-func testInternal(t *testing.T, envars *cage.Envars) error {
+func testInternal(t *testing.T, envars *cage.Envars) (*cage.RollOutResult, error) {
 	if err := cage.EnsureEnvars(envars); err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -200,15 +200,17 @@ func testInternal(t *testing.T, envars *cage.Envars) error {
 	}
 	stop := make(chan bool)
 	eg := errgroup.Group{}
+	var result *cage.RollOutResult
 	eg.Go(func() error {
-		ret := envars.StartGradualRollOut(ctx)
+		r, err := envars.StartGradualRollOut(ctx)
+		result = r
 		stop <- true
-		return ret
+		return err
 	})
 	eg.Go(func() error {
 		return PollLoadBalancer(envars, ctx.Alb, time.Duration(10)*time.Second, stop)
 	})
-	return eg.Wait()
+	return result, eg.Wait()
 }
 
 func TestHealthyToHealthy(t *testing.T) {
@@ -218,9 +220,12 @@ func TestHealthyToHealthy(t *testing.T) {
 	envars.CurrentServiceName = aws.String(kCurrentServiceName)
 	envars.NextServiceName = aws.String(kNextServiceName)
 	defer cleanupService(ctx.Ecs, envars, envars.CurrentServiceName)
-	if err := testInternal(t, envars); err != nil {
+	result, err := testInternal(t, envars);
+	if err != nil {
 		t.Fatalf(err.Error())
 	}
+	assert.Nil(t, result.HandledError)
+	assert.False(t, *result.Rolledback)
 }
 
 func testAbnormal(t *testing.T, tdarn string, servicePostfix string) error {
@@ -231,9 +236,12 @@ func testAbnormal(t *testing.T, tdarn string, servicePostfix string) error {
 	envars.CurrentServiceName = aws.String(fmt.Sprintf("%s-%s", kCurrentServiceName, servicePostfix))
 	envars.NextServiceName = aws.String(fmt.Sprintf("%s-%s", kNextServiceName, servicePostfix))
 	defer cleanupService(ctx.Ecs, envars, envars.CurrentServiceName)
-	if err := testInternal(t, envars); err != nil {
+	result, err := testInternal(t, envars)
+	if err != nil {
 		return err
 	}
+	assert.True(t, *result.Rolledback)
+	assert.NotNil(t, result.HandledError)
 	o, _ := ctx.Ecs.DescribeServices(&ecs.DescribeServicesInput{
 		Cluster:  envars.Cluster,
 		Services: []*string{envars.CurrentServiceName, envars.NextServiceName},
@@ -244,11 +252,26 @@ func testAbnormal(t *testing.T, tdarn string, servicePostfix string) error {
 }
 
 func TestHealthyToBuggy(t *testing.T) {
-	err := testAbnormal(t, kUpButBuggyTDArn, "healthy-buggy")
+	// 新規サービスの5xxエラーが多すぎる場合ロールバックされること
+	err := testAbnormal(t, kUpButBuggyTDArn, "healthy2buggy")
 	assert.Nil(t, err)
 }
 
 func TestHealthyToSlow(t *testing.T) {
-	err := testAbnormal(t, kUpButSlowTDArn, "healthy-slow")
+	// 新規サービスのタスクが遅い場合ロールバックされること
+	err := testAbnormal(t, kUpButSlowTDArn, "healthy2slow")
+	assert.Nil(t, err)
+}
+
+func TestHealthyToNotUp(t *testing.T) {
+	// 新規サービスのタスクが起動しない場合もロールバックされること
+	// waitServicesStableを使いきるので600*2sec程度かかる
+	err := testAbnormal(t, kUpButExitTDArn, "healthy2exit")
+	assert.Nil(t, err)
+}
+
+func TestHealthyToUnHealthy(t *testing.T) {
+	// 新規サービスのタスクがALBヘルスチェック通らない場合ロールバックされること
+	err := testAbnormal(t, kUnhealthyTDArn, "healthy2unhealthy")
 	assert.Nil(t, err)
 }
