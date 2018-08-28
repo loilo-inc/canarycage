@@ -17,7 +17,6 @@ func TestEnsureEnvars(t *testing.T) {
 		CurrentServiceName:          aws.String("service-current"),
 		NextTaskDefinitionBase64:    aws.String("hoge"),
 		NextServiceDefinitionBase64: aws.String("next"),
-		LoadBalancerArn:             aws.String("lb"),
 		AvailabilityThreshold:       aws.Float64(0.9),
 		ResponseTimeThreshold:       aws.Float64(0.5),
 		RollOutPeriod:               aws.Int64(60),
@@ -33,7 +32,6 @@ func TestEnsureEnvars4(t *testing.T) {
 		CurrentServiceName:       aws.String("service"),
 		NextTaskDefinitionBase64: aws.String("current"),
 		NextServiceName:          aws.String("next"),
-		LoadBalancerArn:          aws.String("lb"),
 	}
 	if err := EnsureEnvars(e); err != nil {
 		t.Fatalf(err.Error())
@@ -48,7 +46,6 @@ func TestEnsureEnvars2(t *testing.T) {
 		CurrentServiceNameKey,
 		NextTaskDefinitionBase64Key,
 		ClusterKey,
-		LoadBalancerArnKey,
 	}
 	for i, v := range arr {
 		m := make(map[string]*string)
@@ -56,7 +53,6 @@ func TestEnsureEnvars2(t *testing.T) {
 		m[CurrentServiceNameKey] = dummy
 		m[NextTaskDefinitionBase64Key] = dummy
 		m[ClusterKey] = dummy
-		m[LoadBalancerArnKey] = dummy
 		for j, u := range arr {
 			if i == j {
 				m[u] = nil
@@ -67,7 +63,6 @@ func TestEnsureEnvars2(t *testing.T) {
 			NextServiceName:          m[NextServiceNameKey],
 			NextTaskDefinitionBase64: m[NextTaskDefinitionBase64Key],
 			Cluster:                  m[ClusterKey],
-			LoadBalancerArn:          m[LoadBalancerArnKey],
 		}
 		err := EnsureEnvars(e)
 		if err == nil {
@@ -83,7 +78,6 @@ func dummyEnvs() *Envars {
 		NextServiceName:          dummy,
 		NextTaskDefinitionBase64: dummy,
 		Cluster:                  dummy,
-		LoadBalancerArn:          dummy,
 	}
 }
 func TestEnsureEnvars3(t *testing.T) {
@@ -123,7 +117,6 @@ func TestUnmarshalEnvars(t *testing.T) {
 	}
 	assert.Equal(t, "us-east-2", *dest.Region)
 	assert.Equal(t, "cluster", *dest.Cluster)
-	assert.Equal(t, "arn://lb", *dest.LoadBalancerArn)
 	assert.Equal(t, "service-next", *dest.NextServiceName)
 	assert.Equal(t, "service-current", *dest.CurrentServiceName)
 	assert.Equal(t, "next-task", *dest.NextTaskDefinitionBase64)

@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
-	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"net/http"
 	"time"
@@ -135,9 +134,16 @@ func setupEnvars() *cage.Envars {
 	return envars
 }
 
-func GetAlbDNS(alb elbv2iface.ELBV2API, arn *string) (*string, error) {
-	out, err := alb.DescribeLoadBalancers(&elbv2.DescribeLoadBalancersInput{
-		LoadBalancerArns: []*string{arn},
+func GetAlbDNS(ctx *cage.Context, envars *cage.Envars) (*string, error) {
+	o, _ := ctx.Ecs.DescribeServices(&ecs.DescribeServicesInput{
+		Cluster:  envars.Cluster,
+		Services: []*string{envars.CurrentServiceName},
+	})
+	o2, _ := ctx.Alb.DescribeTargetGroups(&elbv2.DescribeTargetGroupsInput{
+		TargetGroupArns: []*string{o.Services[0].LoadBalancers[0].TargetGroupArn},
+	})
+	out, err := ctx.Alb.DescribeLoadBalancers(&elbv2.DescribeLoadBalancersInput{
+		LoadBalancerArns: []*string{o2.TargetGroups[0].LoadBalancerArns[0]},
 	})
 	if err != nil {
 		log.Errorf("failed to get alb info due to: %s", err)
@@ -149,11 +155,11 @@ func GetAlbDNS(alb elbv2iface.ELBV2API, arn *string) (*string, error) {
 
 func PollLoadBalancer(
 	envars *cage.Envars,
-	alb elbv2iface.ELBV2API,
+	ctx *cage.Context,
 	interval time.Duration,
 	stop chan bool,
 ) error {
-	dns, err := GetAlbDNS(alb, envars.LoadBalancerArn)
+	dns, err := GetAlbDNS(ctx, envars)
 	if err != nil {
 		log.Errorf(err.Error())
 		return err
@@ -208,7 +214,7 @@ func testInternal(t *testing.T, envars *cage.Envars) (*cage.RollOutResult, error
 		return err
 	})
 	eg.Go(func() error {
-		return PollLoadBalancer(envars, ctx.Alb, time.Duration(10)*time.Second, stop)
+		return PollLoadBalancer(envars, ctx, time.Duration(10)*time.Second, stop)
 	})
 	return result, eg.Wait()
 }

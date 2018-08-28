@@ -81,6 +81,7 @@ func (envars *Envars) GetServiceMetricStatistics(
 
 func (envars *Envars) AccumulatePeriodicServiceHealth(
 	cw cloudwatchiface.CloudWatchAPI,
+	loadBalancerArn *string,
 	targetGroupArn *string,
 	startTime time.Time,
 	endTime time.Time,
@@ -90,7 +91,7 @@ func (envars *Envars) AccumulatePeriodicServiceHealth(
 		tgId string
 		err  error
 	)
-	if lbId, err = ExtractAlbId(*envars.LoadBalancerArn); err != nil {
+	if lbId, err = ExtractAlbId(*loadBalancerArn); err != nil {
 		return nil, err
 	}
 	if tgId, err = ExtractTargetGroupId(*targetGroupArn); err != nil {

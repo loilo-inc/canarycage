@@ -9,7 +9,6 @@ type Envars struct {
 	_                           struct{} `type:"struct"`
 	Region                      *string  `json:"region" type:"string"`
 	Cluster                     *string  `json:"cluster" type:"string" required:"true"`
-	LoadBalancerArn             *string  `json:"loadBalancerArn" type:"string" required:"true"`
 	NextServiceName             *string  `json:"nextServiceName" type:"string" required:"true"`
 	CurrentServiceName          *string  `json:"currentServiceName" type:"string" required:"true"`
 	NextServiceDefinitionBase64 *string  `json:"nextServiceDefinitionBase64" type:"string"`
@@ -24,7 +23,6 @@ type Envars struct {
 const ClusterKey = "CAGE_ECS_CLUSTER"
 const NextServiceNameKey = "CAGE_NEXT_SERVICE_NAME"
 const CurrentServiceNameKey = "CAGE_CURRENT_SERVICE_NAME"
-const LoadBalancerArnKey = "CAGE_LB_ARN"
 
 // either required
 const NextTaskDefinitionBase64Key = "CAGE_NEXT_TASK_DEFINITION_BASE64"
@@ -53,8 +51,6 @@ func EnsureEnvars(
 	// required
 	if isEmpty(dest.Cluster) {
 		return NewErrorf("--cluster [%s] is required", ClusterKey)
-	} else if isEmpty(dest.LoadBalancerArn) {
-		return NewErrorf("--loadBalancerArn [%s] is required", LoadBalancerArnKey)
 	} else if isEmpty(dest.CurrentServiceName) {
 		return NewErrorf("--currentServiceName [%s] is required", CurrentServiceNameKey)
 	} else if isEmpty(dest.NextServiceName) {

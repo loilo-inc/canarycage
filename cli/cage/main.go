@@ -20,7 +20,6 @@ func main() {
 	envars := &cage.Envars{
 		Region:                      aws.String(""),
 		Cluster:                     aws.String(""),
-		LoadBalancerArn:             aws.String(""),
 		NextServiceName:             aws.String(""),
 		NextServiceDefinitionBase64: aws.String(""),
 		CurrentServiceName:          aws.String(""),
@@ -47,7 +46,7 @@ func main() {
 			Usage: "generate config file skeleton json",
 		},
 		cli.BoolFlag{
-			Name: "dry-run",
+			Name: "dryRun",
 			Usage: "describe roll out plan without affecting any resources",
 		},
 		cli.StringFlag{
@@ -62,12 +61,6 @@ func main() {
 			EnvVar:      cage.ClusterKey,
 			Usage:       "ecs cluster name",
 			Destination: envars.Cluster,
-		},
-		cli.StringFlag{
-			Name:        "loadBalancerArn",
-			EnvVar:      cage.LoadBalancerArnKey,
-			Usage:       "full arn of service load balancer",
-			Destination: envars.LoadBalancerArn,
 		},
 		cli.StringFlag{
 			Name:        "nextServiceName",
@@ -143,7 +136,7 @@ func main() {
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
-		if ctx.Bool("dry-run") {
+		if ctx.Bool("dryRun") {
 			DryRun(envars)
 		} else {
 			if err := Action(envars); err != nil {

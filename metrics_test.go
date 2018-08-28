@@ -49,7 +49,6 @@ func TestEnvars_AccumulatePeriodicServiceHealth2(t *testing.T) {
 	defer func() { newTimer = time.NewTimer }()
 	newTimer = fakeTimer
 	envars := &Envars{
-		LoadBalancerArn: aws.String("arn://hoge/app/aaa/bbb"),
 	}
 	ctrl := gomock.NewController(t)
 	cw := mock_cloudwatch.NewMockCloudWatchAPI(ctrl)
@@ -78,7 +77,7 @@ func TestEnvars_AccumulatePeriodicServiceHealth2(t *testing.T) {
 	}).AnyTimes()
 	// cwがdata pointsを返さなくても指定範囲内でリトライする
 	o, err := envars.AccumulatePeriodicServiceHealth(
-		cw, aws.String("hoge/targetgroup/aa/bb"), time.Now(), time.Now(),
+		cw, aws.String("hoge/app/aa/bb"), aws.String("hoge/targetgroup/aa/bb"), time.Now(), time.Now(),
 	)
 	assert.Nil(t, err)
 	assert.Equal(t, 1.0, o.availability)
@@ -86,7 +85,7 @@ func TestEnvars_AccumulatePeriodicServiceHealth2(t *testing.T) {
 }
 
 func TestEnvars_AccumulatePeriodicServiceHealth(t *testing.T) {
-	envars := &Envars{LoadBalancerArn: aws.String("ff/app/aa/bb")}
+	envars := &Envars{}
 	ctrl := gomock.NewController(t)
 	cw := mock_cloudwatch.NewMockCloudWatchAPI(ctrl)
 	cw.EXPECT().GetMetricStatistics(gomock.Any()).Return(&cloudwatch.GetMetricStatisticsOutput{
@@ -101,7 +100,7 @@ func TestEnvars_AccumulatePeriodicServiceHealth(t *testing.T) {
 		return fakeTimer(d)
 	}
 	_, err := envars.AccumulatePeriodicServiceHealth(
-		cw, aws.String("hoge/targetgroup/aa/bb"), time.Now(), time.Now(),
+		cw, aws.String("hoge/app/aa/bb"), aws.String("hoge/targetgroup/aa/bb"), time.Now(), time.Now(),
 	)
 	assert.NotNil(t, err)
 	assert.Equal(t, 20, callCnt)
