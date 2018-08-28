@@ -27,7 +27,6 @@ func DefaultEnvars() *Envars {
 	return &Envars{
 		Region:                   aws.String("us-west-2"),
 		RollOutPeriod:            aws.Int64(0),
-		LoadBalancerArn:          aws.String("hoge/app/1111/hoge"),
 		Cluster:                  aws.String("cage-test"),
 		CurrentServiceName:       aws.String(kCurrentServiceName),
 		NextServiceName:          aws.String(kNextServiceName),

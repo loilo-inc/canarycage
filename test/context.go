@@ -309,8 +309,10 @@ func (ctx *MockContext) DescribeTargetGroups(input *elbv2.DescribeTargetGroupsIn
 		TargetGroups: []*elbv2.TargetGroup{
 			{
 				TargetGroupName:            aws.String("tgname"),
+				TargetGroupArn: input.TargetGroupArns[0],
 				HealthyThresholdCount:      aws.Int64(1),
 				HealthCheckIntervalSeconds: aws.Int64(0),
+				LoadBalancerArns: []*string { aws.String("arn://hoge/app/aa/bb") },
 			},
 		},
 	}, nil
