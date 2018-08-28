@@ -1,25 +1,23 @@
 package cage
 
 import (
-	"github.com/pkg/errors"
-	"fmt"
 	"math"
 	"github.com/aws/aws-sdk-go/aws"
 )
 
 type Envars struct {
 	_                           struct{} `type:"struct"`
-	Region                      *string  `locationName:"region" type:"string"`
-	Cluster                     *string  `locationName:"cluster" type:"string" required:"true"`
-	LoadBalancerArn             *string  `locationName:"loadBalancerArn" type:"string" required:"true"`
-	NextServiceName             *string  `locationName:"nextServiceName" type:"string" required:"true"`
-	CurrentServiceName          *string  `locationName:"currentServiceName" type:"string" required:"true"`
-	NextServiceDefinitionBase64 *string  `locationName:"nextServiceDefinitionBase64" type:"string"`
-	NextTaskDefinitionBase64    *string  `locationName:"nextTaskDefinitionBase64" type:"string"`
-	NextTaskDefinitionArn       *string  `locationName:"nextTaskDefinitionArn" type:"string"`
-	AvailabilityThreshold       *float64 `locationName:"availabilityThreshold" type:"double"`
-	ResponseTimeThreshold       *float64 `locationName:"responseTimeThreshold" type:"double"`
-	RollOutPeriod               *int64   `locationName:"rollOutPeriod" type:"integer"`
+	Region                      *string  `json:"region" type:"string"`
+	Cluster                     *string  `json:"cluster" type:"string" required:"true"`
+	LoadBalancerArn             *string  `json:"loadBalancerArn" type:"string" required:"true"`
+	NextServiceName             *string  `json:"nextServiceName" type:"string" required:"true"`
+	CurrentServiceName          *string  `json:"currentServiceName" type:"string" required:"true"`
+	NextServiceDefinitionBase64 *string  `json:"nextServiceDefinitionBase64" type:"string"`
+	NextTaskDefinitionBase64    *string  `json:"nextTaskDefinitionBase64" type:"string"`
+	NextTaskDefinitionArn       *string  `json:"nextTaskDefinitionArn" type:"string"`
+	AvailabilityThreshold       *float64 `json:"availabilityThreshold" type:"double"`
+	ResponseTimeThreshold       *float64 `json:"responseTimeThreshold" type:"double"`
+	RollOutPeriod               *int64   `json:"rollOutPeriod" type:"integer"`
 }
 
 // required
@@ -33,6 +31,7 @@ const NextTaskDefinitionBase64Key = "CAGE_NEXT_TASK_DEFINITION_BASE64"
 const NextTaskDefinitionArnKey = "CAGE_NEXT_TASK_DEFINITION_ARN"
 
 // optional
+const ConfigKey = "CAGE_CONFIG"
 const NextServiceDefinitionBase64Key = "CAGE_NEXT_SERVICE_DEFINITION_BASE64"
 const RegionKey = "CAGE_AWS_REGION"
 const AvailabilityThresholdKey = "CAGE_AVAILABILITY_THRESHOLD"
@@ -52,14 +51,17 @@ func EnsureEnvars(
 	dest *Envars,
 ) (error) {
 	// required
-	if isEmpty(dest.Cluster) ||
-		isEmpty(dest.LoadBalancerArn) ||
-		isEmpty(dest.CurrentServiceName) ||
-		isEmpty(dest.NextServiceName) {
-		return errors.New(fmt.Sprintf("some required envars are not defined: %#v", *dest))
+	if isEmpty(dest.Cluster) {
+		return NewErrorf("--cluster [%s] is required", ClusterKey)
+	} else if isEmpty(dest.LoadBalancerArn) {
+		return NewErrorf("--loadBalancerArn [%s] is required", LoadBalancerArnKey)
+	} else if isEmpty(dest.CurrentServiceName) {
+		return NewErrorf("--currentServiceName [%s] is required", CurrentServiceNameKey)
+	} else if isEmpty(dest.NextServiceName) {
+		return NewErrorf("--nextServiceName [%s] is required", NextServiceNameKey)
 	}
 	if isEmpty(dest.NextTaskDefinitionArn) && isEmpty(dest.NextTaskDefinitionBase64) {
-		return errors.New(fmt.Sprintf("nextTaskDefinitionArn or nextTaskDefinitionBase64 must be provided"))
+		return NewErrorf("--nextTaskDefinitionArn or --nextTaskDefinitionBase64 must be provided")
 	}
 	if isEmpty(dest.Region) {
 		dest.Region = aws.String(kDefaultRegion)
@@ -68,20 +70,20 @@ func EnsureEnvars(
 		dest.AvailabilityThreshold = aws.Float64(kAvailabilityThresholdDefaultValue)
 	}
 	if avl := *dest.AvailabilityThreshold; !(0.0 <= avl && avl <= 1.0) {
-		return errors.New(fmt.Sprintf("CAGE_AVAILABILITY_THRESHOLD must be between 0 and 1, but got '%f'", avl))
+		return NewErrorf("--availabilityThreshold [%s] must be between 0 and 1, but got '%f'", AvailabilityThresholdKey, avl)
 	}
 	if dest.ResponseTimeThreshold == nil {
 		dest.ResponseTimeThreshold = aws.Float64(kResponseTimeThresholdDefaultValue)
 	}
 	if rsp := *dest.ResponseTimeThreshold; !(0 < rsp && rsp <= 300) {
-		return errors.New(fmt.Sprintf("CAGE_RESPONSE_TIME_THRESHOLD must be greater than 0, but got '%f'", rsp))
+		return NewErrorf("--responseTimeThreshold [%s] must be greater than 0, but got '%f'", ResponseTimeThresholdKey, rsp)
 	}
 	// sec
 	if dest.RollOutPeriod == nil {
 		dest.RollOutPeriod = aws.Int64(kRollOutPeriodDefaultValue)
 	}
 	if period := *dest.RollOutPeriod; !(60 <= period && float64(period) != math.NaN() && float64(period) != math.Inf(0)) {
-		return errors.New(fmt.Sprintf("CAGE_ROLLOUT_PERIOD must be lesser than 60, but got '%d'", period))
+		return NewErrorf("--rollOutPeriod [%s] must be lesser than 60, but got '%d'", RollOutPeriodKey, period)
 	}
 	return nil
 }
