@@ -32,7 +32,7 @@ func main() {
 	configPath := ""
 	app := cli.NewApp()
 	app.Name = "canarycage"
-	app.Version = "0.0.1"
+	app.Version = "1.0.0-alpha"
 	app.Description = "A gradual roll-out deployment tool for AWS ECS"
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
