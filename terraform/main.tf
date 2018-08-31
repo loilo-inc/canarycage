@@ -175,6 +175,7 @@ resource "aws_iam_role_policy_attachment" "task_execution_role_policy" {
 }
 
 resource "aws_iam_role" "cage" {
+  name = "canarycage-role"
   assume_role_policy = <<-EOS
   {
   "Version": "2012-10-17",
@@ -191,23 +192,28 @@ resource "aws_iam_role" "cage" {
   EOS
 }
 
-resource "aws_iam_role_policy_attachment" "cage_policy_ecs" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonECS_FullAccess"
+resource "aws_iam_role_policy_attachment" "cage" {
+  policy_arn = "${aws_iam_policy.cage_policy.arn}"
   role = "${aws_iam_role.cage.id}"
 }
-resource "aws_iam_role_policy_attachment" "cage_policy_ec2" {
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
-  role = "${aws_iam_role.cage.id}"
-}
-resource "aws_iam_role_policy" "cage_policy" {
+
+resource "aws_iam_policy" "cage_policy" {
+  name = "canarycage-policy"
   policy = <<-EOS
 {
    "Version":"2012-10-17",
    "Statement":[
       {
          "Action":[
-            "cloudwatch:GetMetricStatistics",
-            "logs:*"
+            "ecs:RegisterTaskDefinition",
+            "ecs:DescribeTaskDefinition",
+            "ecs:CreateService",
+            "ecs:UpdateService",
+            "ecs:DescribeServices",
+            "ecs:DeleteService",
+            "elbv2:DescribeTargetGroups",
+            "elbv2:DescribeTargetHealth",
+            "cloudwatch:GetMetricStatistics"
          ],
          "Effect":"Allow",
          "Resource":"*"
@@ -215,7 +221,6 @@ resource "aws_iam_role_policy" "cage_policy" {
    ]
 }
   EOS
-  role = "${aws_iam_role.cage.id}"
 }
 
 variable "test-image-tag" {

@@ -12,6 +12,7 @@ import (
 	"math"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
+	"strconv"
 )
 
 type Context struct {
@@ -21,17 +22,17 @@ type Context struct {
 }
 
 type RollOutResult struct {
-	StartTime *time.Time
-	EndTime *time.Time
+	StartTime    *time.Time
+	EndTime      *time.Time
 	HandledError error
-	Rolledback *bool
+	Rolledback   *bool
 }
 
 func (envars *Envars) StartGradualRollOut(
 	ctx *Context,
 ) (*RollOutResult, error) {
 	ret := &RollOutResult{
-		StartTime: aws.Time(now()),
+		StartTime:  aws.Time(now()),
 		Rolledback: aws.Bool(false),
 	}
 	log.Infof("ensuring next task definition...")
@@ -357,13 +358,16 @@ func (envars *Envars) UpdateDesiredCount(
 	increase bool,
 ) error {
 	log.Infof("start ensuring healthy targets...")
-	if _, err := ctx.Ecs.UpdateService(&ecs.UpdateServiceInput{
+	var service *ecs.Service
+	if o, err := ctx.Ecs.UpdateService(&ecs.UpdateServiceInput{
 		Cluster:      envars.Cluster,
 		Service:      serviceName,
 		DesiredCount: count,
 	}); err != nil {
 		log.Errorf("failed to update '%s' desired count to %d due to: %s", *serviceName, *count, err)
 		return err
+	} else {
+		service = o.Service
 	}
 	log.Infof(
 		"waiting until %d tasks running on service '%s'...",
@@ -384,12 +388,41 @@ func (envars *Envars) UpdateDesiredCount(
 		return err
 	}
 	tg := o.TargetGroups[0]
-	// TargetGroupに新しいタスクが登録されるまで待つ
-	standBy := time.Duration(*tg.HealthCheckIntervalSeconds*(*tg.HealthyThresholdCount)) * time.Second
-	log.Infof(
-		"waiting for %f seconds until new tasks are registered target group '%s'",
-		standBy.Seconds(), *tg.TargetGroupName,
-	)
+	var standBy time.Duration
+	if increase {
+		// TargetGroupに新しいタスクが登録されるまで　待つ
+		standBy = time.Duration(
+			*service.HealthCheckGracePeriodSeconds+*tg.HealthCheckIntervalSeconds*(*tg.HealthyThresholdCount),
+		) * time.Second
+		log.Infof(
+			"waiting for %f seconds until new tasks are registered to target group '%s'",
+			standBy.Seconds(), *tg.TargetGroupName,
+		)
+	} else {
+		// target groupのderegistration delayだけ待つ
+		var delay int64
+		if o, err := ctx.Alb.DescribeTargetGroupAttributes(&elbv2.DescribeTargetGroupAttributesInput{
+			TargetGroupArn: targetGroupArn,
+		}); err != nil {
+			return err
+		} else {
+			for _, v := range o.Attributes {
+				if *v.Key == "deregistration_delay.timeout_seconds" {
+					o, err := strconv.ParseInt(*v.Value, 10, 64)
+					if err != nil {
+						log.Warnf("failed to parse deregistration_delay.timeout_seconds due to: %s", err)
+					} else {
+						delay = o
+					}
+				}
+			}
+		}
+		standBy = time.Duration(delay) * time.Second
+		log.Infof(
+			"waiting for %f seconds until old tasks are deregistered from target group '%s'",
+			standBy.Seconds(), *tg.TargetGroupName,
+		)
+	}
 	<-newTimer(standBy).C
 	if err := envars.EnsureHealthyTargets(ctx.Alb, targetGroupArn, originalCount, 0); err != nil {
 		log.Errorf("failed to ensure healthy target due to: %s", err)
