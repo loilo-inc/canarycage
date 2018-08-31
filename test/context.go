@@ -78,14 +78,15 @@ func (ctx *MockContext) CreateService(input *ecs.CreateServiceInput) (*ecs.Creat
 	lt := "FARGATE"
 	st := "ACTIVE"
 	ret := &ecs.Service{
-		ServiceName:    input.ServiceName,
-		RunningCount:   aws.Int64(0),
-		LaunchType:     &lt,
-		LoadBalancers:  input.LoadBalancers,
-		DesiredCount:   input.DesiredCount,
-		TaskDefinition: input.TaskDefinition,
-		Status:         &st,
-		ServiceArn:     &idstr,
+		ServiceName:                   input.ServiceName,
+		RunningCount:                  aws.Int64(0),
+		LaunchType:                    &lt,
+		LoadBalancers:                 input.LoadBalancers,
+		DesiredCount:                  input.DesiredCount,
+		TaskDefinition:                input.TaskDefinition,
+		HealthCheckGracePeriodSeconds: aws.Int64(0),
+		Status:                        &st,
+		ServiceArn:                    &idstr,
 	}
 	ctx.mux.Lock()
 	ctx.Services[*input.ServiceName] = ret
@@ -309,15 +310,24 @@ func (ctx *MockContext) DescribeTargetGroups(input *elbv2.DescribeTargetGroupsIn
 		TargetGroups: []*elbv2.TargetGroup{
 			{
 				TargetGroupName:            aws.String("tgname"),
-				TargetGroupArn: input.TargetGroupArns[0],
+				TargetGroupArn:             input.TargetGroupArns[0],
 				HealthyThresholdCount:      aws.Int64(1),
 				HealthCheckIntervalSeconds: aws.Int64(0),
-				LoadBalancerArns: []*string { aws.String("arn://hoge/app/aa/bb") },
+				LoadBalancerArns:           []*string{aws.String("arn://hoge/app/aa/bb")},
 			},
 		},
 	}, nil
 }
-
+func (ctx *MockContext) DescribeTargetGroupAttibutes(input *elbv2.DescribeTargetGroupAttributesInput) (*elbv2.DescribeTargetGroupAttributesOutput, error) {
+	return &elbv2.DescribeTargetGroupAttributesOutput{
+		Attributes: []*elbv2.TargetGroupAttribute{
+			{
+				Key:   aws.String("deregistration_delay.timeout_seconds"),
+				Value: aws.String("0"),
+			},
+		},
+	}, nil
+}
 func (ctx *MockContext) DescribeTargetHealth(input *elbv2.DescribeTargetHealthInput) (*elbv2.DescribeTargetHealthOutput, error) {
 	var ret []*elbv2.TargetHealthDescription
 	for i := int64(0); i < ctx.TaskSize(); i++ {

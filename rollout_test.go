@@ -57,6 +57,7 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64) (*t
 	cwMock.EXPECT().GetMetricStatistics(gomock.Any()).DoAndReturn(mocker.GetMetricStatics).AnyTimes()
 	albMock.EXPECT().DescribeTargetGroups(gomock.Any()).DoAndReturn(mocker.DescribeTargetGroups).AnyTimes()
 	albMock.EXPECT().DescribeTargetHealth(gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes()
+	albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any()).DoAndReturn(mocker.DescribeTargetGroupAttibutes).AnyTimes()
 	o, _ := base64.StdEncoding.DecodeString(*envars.NextTaskDefinitionBase64)
 	var register *ecs.RegisterTaskDefinitionInput
 	_ = json.Unmarshal(o, register)
