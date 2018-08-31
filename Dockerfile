@@ -12,7 +12,8 @@ ENV WORK_DIR /go/src/github.com/loilo-inc/canarycage
 RUN apk update --no-cache \
     && apk add git bash curl make \
     && go get -u github.com/keroxp/shake \
-    && go get -u github.com/golang/dep/cmd/dep
+    && go get -u github.com/golang/dep/cmd/dep \
+    && go get -u github.com/goreleaser/goreleaser
 WORKDIR ${WORK_DIR}
 COPY . ${WORK_DIR}
 COPY --from=dep ${WORK_DIR}/vendor ${WORK_DIR}/vendor

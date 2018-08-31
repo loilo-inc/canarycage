@@ -1,4 +1,5 @@
 vendor
 .idea
 dist
+*.enc
 terraform/.terraform
