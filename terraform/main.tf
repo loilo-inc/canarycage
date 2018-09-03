@@ -211,9 +211,9 @@ resource "aws_iam_policy" "cage_policy" {
             "ecs:UpdateService",
             "ecs:DescribeServices",
             "ecs:DeleteService",
-            "elbv2:DescribeTargetGroups",
-            "elbv2:DescribeTargetGroupAttributes",
-            "elbv2:DescribeTargetHealth",
+            "elasticloadbalancing:DescribeTargetGroups",
+            "elasticloadbalancing:DescribeTargetGroupAttributes",
+            "elasticloadbalancing:DescribeTargetHealth",
             "cloudwatch:GetMetricStatistics"
          ],
          "Effect":"Allow",
