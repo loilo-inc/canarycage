@@ -212,6 +212,7 @@ resource "aws_iam_policy" "cage_policy" {
             "ecs:DescribeServices",
             "ecs:DeleteService",
             "elbv2:DescribeTargetGroups",
+            "elbv2:DescribeTargetGroupAttributes",
             "elbv2:DescribeTargetHealth",
             "cloudwatch:GetMetricStatistics"
          ],
