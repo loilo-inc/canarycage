@@ -17,6 +17,7 @@ type Envars struct {
 	AvailabilityThreshold       *float64 `json:"availabilityThreshold" type:"double"`
 	ResponseTimeThreshold       *float64 `json:"responseTimeThreshold" type:"double"`
 	RollOutPeriod               *int64   `json:"rollOutPeriod" type:"integer"`
+	SkipCanary                  *bool    `json:"skipCanary" type:"bool"`
 }
 
 // required
@@ -35,6 +36,7 @@ const RegionKey = "CAGE_AWS_REGION"
 const AvailabilityThresholdKey = "CAGE_AVAILABILITY_THRESHOLD"
 const ResponseTimeThresholdKey = "CAGE_RESPONSE_TIME_THRESHOLD"
 const RollOutPeriodKey = "CAGE_ROLL_OUT_PERIOD"
+const SkipCanaryKey = "CAGE_SKIP_CANARY"
 
 const kAvailabilityThresholdDefaultValue = 0.9970
 const kResponseTimeThresholdDefaultValue = 1.0
@@ -80,6 +82,9 @@ func EnsureEnvars(
 	}
 	if period := *dest.RollOutPeriod; !(60 <= period && float64(period) != math.NaN() && float64(period) != math.Inf(0)) {
 		return NewErrorf("--rollOutPeriod [%s] must be lesser than 60, but got '%d'", RollOutPeriodKey, period)
+	}
+	if dest.SkipCanary == nil {
+		dest.SkipCanary = aws.Bool(false)
 	}
 	return nil
 }
