@@ -102,7 +102,7 @@ func TestEnvars_StartGradualRollOut(t *testing.T) {
 			t.Fatalf("%s", err)
 		}
 		assert.Nil(t, result.HandledError)
-		assert.False(t,  *result.Rolledback)
+		assert.False(t, *result.Rolledback)
 		assert.Equal(t, int64(1), mctx.ServiceSize())
 		assert.Equal(t, v, mctx.TaskSize())
 	}
@@ -187,6 +187,22 @@ func TestEnvars_StartGradualRollOut3(t *testing.T) {
 		t.Fatalf("service-next still exists")
 	}
 	assert.Equal(t, int64(4), mocker.TaskSize())
+}
+
+func TestEnvars_StartGradualRollOut4(t *testing.T) {
+	// skipCanaryオプションを追加した場合canaryTestは行わない
+	envars := DefaultEnvars()
+	envars.SkipCanary = aws.Bool(true)
+	ctrl := gomock.NewController(t)
+	_, ctx := envars.Setup(ctrl, 2)
+	cwMock := mock_cloudwatch.NewMockCloudWatchAPI(ctrl)
+	cwMock.EXPECT().GetMetricStatistics(gomock.Any()).Times(0)
+	ctx.Cw = cwMock
+	if res, err := envars.StartGradualRollOut(ctx); err != nil {
+		t.Fatalf(err.Error())
+	} else if res.HandledError != nil {
+		t.Fatalf(err.Error())
+	}
 }
 
 func TestEnvars_Rollback(t *testing.T) {
