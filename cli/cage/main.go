@@ -79,7 +79,7 @@ func main() {
 			Name:        "nextServiceDefinitionBase64",
 			EnvVar:      cage.NextServiceDefinitionBase64Key,
 			Usage:       "base64 encoded service definition for next service",
-			Destination: envars.NextTaskDefinitionBase64,
+			Destination: envars.NextServiceDefinitionBase64,
 		},
 		cli.StringFlag{
 			Name:        "nextTaskDefinitionBase64",
