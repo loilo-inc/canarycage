@@ -296,6 +296,7 @@ func (envars *Envars) CreateNextService(awsEcs ecsiface.ECSAPI, nextTaskDefiniti
 			log.Errorf("failed to unmarshal service definition base64 due to: %s", err)
 			return err
 		}
+		service.ServiceName = envars.NextServiceName
 		service.TaskDefinition = nextTaskDefinitionArn
 		*service.DesiredCount = 1
 	}
