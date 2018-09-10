@@ -192,11 +192,17 @@ resource "aws_iam_role" "cage" {
   EOS
 }
 
+resource "aws_iam_role_policy_attachment" "cage_ecs" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonECS_FullAccess"
+  role = "${aws_iam_role.cage.id}"
+}
+
 resource "aws_iam_role_policy_attachment" "cage" {
   policy_arn = "${aws_iam_policy.cage_policy.arn}"
   role = "${aws_iam_role.cage.id}"
 }
 
+# 実質的にAmazonECS_FullAccessが必要になるのであまり意味がない
 resource "aws_iam_policy" "cage_policy" {
   name = "canarycage-policy"
   policy = <<-EOS

@@ -1,0 +1,3 @@
+HOGE=${HOGE}
+FUGA=${FUGA}
+${FUGA}=${HOGE}
