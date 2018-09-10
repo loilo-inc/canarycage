@@ -234,6 +234,25 @@ func TestHealthyToHealthy(t *testing.T) {
 	assert.False(t, *result.Rolledback)
 }
 
+func TestHealthyToHealthySkipCanary(t *testing.T) {
+	ctx := setup()
+	envars := setupEnvars()
+	envars.SkipCanary = aws.Bool(true)
+	envars.NextTaskDefinitionArn = aws.String(kHealthyTDArn)
+	envars.CurrentServiceName = aws.String(kCurrentServiceName)
+	envars.NextServiceName = aws.String(kNextServiceName)
+	defer func() {
+		cleanupService(ctx.Ecs, envars, envars.CurrentServiceName)
+		cleanupService(ctx.Ecs, envars, envars.NextServiceName)
+	}()
+	result, err := testInternal(t, envars)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	assert.Nil(t, result.HandledError)
+	assert.False(t, *result.Rolledback)
+}
+
 func testAbnormal(t *testing.T, tdarn string, servicePostfix string) error {
 	log.SetLevel(log.InfoLevel)
 	ctx := setup()

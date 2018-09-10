@@ -158,7 +158,9 @@ func (envars *Envars) RollOut(
 			return err
 		}
 		// Phase2: service-nextのperiodic healthを計測
-		if err := envars.CanaryTest(ctx.Cw, tg.LoadBalancerArns[0], tg.TargetGroupArn, totalRollOutCnt); err != nil {
+		if *envars.SkipCanary {
+			log.Infof("🤫 %dth canary test skipped.", totalRollOutCnt)
+		} else if err := envars.CanaryTest(ctx.Cw, tg.LoadBalancerArns[0], tg.TargetGroupArn, totalRollOutCnt); err != nil {
 			return err
 		}
 		// Phase3: service-currentからタスクを指定数消す
@@ -195,7 +197,9 @@ func (envars *Envars) RollOut(
 		if oldTaskCount == 0 && newTaskCount >= originalDesiredCount {
 			// ロールアウトが終わったら最終検証を行う
 			log.Infof("estimated roll out completed. Do final canary test...")
-			if err := envars.CanaryTest(ctx.Cw, tg.LoadBalancerArns[0], tg.TargetGroupArn, totalRollOutCnt); err != nil {
+			if *envars.SkipCanary {
+				log.Infof("😑 final canary test skipped...")
+			} else if err := envars.CanaryTest(ctx.Cw, tg.LoadBalancerArns[0], tg.TargetGroupArn, totalRollOutCnt); err != nil {
 				log.Errorf("final canary test has failed due to: %s", err)
 				return err
 			}
@@ -292,6 +296,8 @@ func (envars *Envars) CreateNextService(awsEcs ecsiface.ECSAPI, nextTaskDefiniti
 			log.Errorf("failed to unmarshal service definition base64 due to: %s", err)
 			return err
 		}
+		service.ServiceName = envars.NextServiceName
+		service.TaskDefinition = nextTaskDefinitionArn
 		*service.DesiredCount = 1
 	}
 	log.Infof("creating next service '%s' with desiredCount=1", *envars.NextServiceName)

@@ -28,11 +28,12 @@ func main() {
 		AvailabilityThreshold:       aws.Float64(-1.0),
 		ResponseTimeThreshold:       aws.Float64(-1.0),
 		RollOutPeriod:               aws.Int64(-1),
+		SkipCanary:                  aws.Bool(false),
 	}
 	configPath := ""
 	app := cli.NewApp()
 	app.Name = "canarycage"
-	app.Version = "1.0.0-alpha2"
+	app.Version = "1.1.0-alpha"
 	app.Description = "A gradual roll-out deployment tool for AWS ECS"
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
@@ -46,7 +47,7 @@ func main() {
 			Usage: "generate config file skeleton json",
 		},
 		cli.BoolFlag{
-			Name: "dryRun",
+			Name:  "dryRun",
 			Usage: "describe roll out plan without affecting any resources",
 		},
 		cli.StringFlag{
@@ -78,7 +79,7 @@ func main() {
 			Name:        "nextServiceDefinitionBase64",
 			EnvVar:      cage.NextServiceDefinitionBase64Key,
 			Usage:       "base64 encoded service definition for next service",
-			Destination: envars.NextTaskDefinitionBase64,
+			Destination: envars.NextServiceDefinitionBase64,
 		},
 		cli.StringFlag{
 			Name:        "nextTaskDefinitionBase64",
@@ -113,10 +114,16 @@ func main() {
 			Value:       300,
 			Destination: envars.RollOutPeriod,
 		},
+		cli.BoolFlag{
+			Name:        "skipCanary",
+			EnvVar:      cage.SkipCanaryKey,
+			Usage:       "skip canary test. ensuring only healthy tasks.",
+			Destination: envars.SkipCanary,
+		},
 	}
 	app.Action = func(ctx *cli.Context) {
 		if ctx.Bool("skeleton") {
-			d, err := json.MarshalIndent(envars,"","\t")
+			d, err := json.MarshalIndent(envars, "", "\t")
 			if err != nil {
 				log.Fatalf("failed to marshal json due to: %s", err)
 			}
@@ -151,7 +158,7 @@ func DryRun(envars *cage.Envars) {
 	log.Infof("== [DRY RUN] ==")
 	d, _ := json.MarshalIndent(envars, "", "\t")
 	log.Infof("envars = \n%s", string(d))
-	if envars.NextTaskDefinitionArn == nil{
+	if envars.NextTaskDefinitionArn == nil {
 		log.Info("create NEXT task definition with provided json")
 	}
 	log.Infof("create NEXT service '%s' with desiredCount=1", *envars.NextServiceName)
