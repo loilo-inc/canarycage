@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"math"
 	"errors"
+	"io/ioutil"
+	"github.com/apex/log"
+	"os"
+	"strings"
 )
 
 func ExtractAlbId(arn string) (string, error) {
@@ -41,6 +45,24 @@ func EnsureReplaceCount(
 		math.Pow(2, float64(totalRollOutCount)),
 		float64(originalCount-totalReplacedCount)),
 	)
+}
+
+func ReadFileAndApplyEnvars(path string) ([]byte, error) {
+	if d, err := ioutil.ReadFile(path); err != nil {
+		return nil, err
+	} else {
+		str := string(d)
+		reg := regexp.MustCompile("\\${(.+?)}")
+		submatches := reg.FindAllStringSubmatch(str, -1)
+		for _, m := range submatches {
+			if envar, ok := os.LookupEnv(m[1]); ok {
+				str = strings.Replace(str, m[0], envar, -1)
+			} else {
+				log.Warnf("envar literal '%s' found in %s but was not defined", str, path)
+			}
+		}
+		return []byte(str), nil
+	}
 }
 
 func NewErrorf(f string, args ...interface{}) error {
