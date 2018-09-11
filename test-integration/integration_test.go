@@ -225,7 +225,10 @@ func TestHealthyToHealthy(t *testing.T) {
 	envars.NextTaskDefinitionArn = aws.String(kHealthyTDArn)
 	envars.CurrentServiceName = aws.String(kCurrentServiceName)
 	envars.NextServiceName = aws.String(kNextServiceName)
-	defer cleanupService(ctx.Ecs, envars, envars.CurrentServiceName)
+	defer func() {
+		cleanupService(ctx.Ecs, envars, envars.CurrentServiceName)
+		cleanupService(ctx.Ecs, envars, envars.NextServiceName)
+	}()
 	result, err := testInternal(t, envars);
 	if err != nil {
 		t.Fatalf(err.Error())
