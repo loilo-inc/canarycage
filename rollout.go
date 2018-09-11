@@ -52,18 +52,26 @@ func (envars *Envars) StartGradualRollOut(
 		Cluster: envars.Cluster,
 		Services: []*string{
 			envars.CurrentServiceName,
+			envars.NextServiceName,
 		},
 	})
 	if err != nil {
 		log.Errorf("failed to describe current service due to: %s", err.Error())
 		return nil, err
 	}
-	service := out.Services[0]
-	originalDesiredCount = *service.DesiredCount
+	currentService := out.Services[0]
+	nextService := out.Services[1]
+	originalDesiredCount = *currentService.DesiredCount
+	var (
+		targetGroupArn *string
+	)
+	if len(nextService.LoadBalancers) > 0 {
+		targetGroupArn = nextService.LoadBalancers[0].TargetGroupArn
+	}
 	log.Infof("service '%s' ensured. start rolling out", *envars.NextServiceName)
-	if err := envars.RollOut(ctx, service, originalDesiredCount); err != nil {
+	if err := envars.RollOut(ctx, targetGroupArn, originalDesiredCount); err != nil {
 		log.Errorf("failed to roll out due to: %s", err)
-		if err := envars.Rollback(ctx, &originalDesiredCount, service.LoadBalancers[0].TargetGroupArn); err != nil {
+		if err := envars.Rollback(ctx, &originalDesiredCount, targetGroupArn); err != nil {
 			log.Errorf("😱 failed to rollback service '%s' due to: %s", err)
 			return nil, err
 		}
@@ -114,7 +122,7 @@ func (envars *Envars) CanaryTest(
 
 func (envars *Envars) RollOut(
 	ctx *Context,
-	nextService *ecs.Service,
+	targetGroupArn *string,
 	originalDesiredCount int64,
 ) (error) {
 	var (
@@ -129,15 +137,23 @@ func (envars *Envars) RollOut(
 		"currently %d tasks running on '%s', %d times roll out estimated",
 		originalDesiredCount, *envars.CurrentServiceName, estimatedRollOutCount,
 	)
-	lb := nextService.LoadBalancers[0]
-	o, err := ctx.Alb.DescribeTargetGroups(&elbv2.DescribeTargetGroupsInput{
-		TargetGroupArns: []*string{lb.TargetGroupArn},
-	})
-	if err != nil {
-		log.Errorf("failed to describe target groups due to: %s", err)
-		return err
+	var (
+		loadBalancerArn *string
+	)
+	if targetGroupArn != nil {
+		o, err := ctx.Alb.DescribeTargetGroups(&elbv2.DescribeTargetGroupsInput{
+			TargetGroupArns: []*string{targetGroupArn},
+		})
+		if err != nil {
+			log.Errorf("failed to describe target groups due to: %s", err)
+			return err
+		}
+		loadBalancerArn = o.TargetGroups[0].LoadBalancerArns[0]
+	} else {
+		// LBがないサービスはCanaryTestは行わない
+		log.Infof("service '%s' has no load balancer. will skip canary tests", *envars.NextServiceName)
+		envars.SkipCanary = aws.Bool(true)
 	}
-	tg := o.TargetGroups[0]
 	// next serviceのperiodic healthが安定し、current serviceのtaskの数が0になるまで繰り返す
 	for {
 		log.Infof("=== preparing for %dth roll out ===", totalRollOutCnt)
@@ -151,8 +167,8 @@ func (envars *Envars) RollOut(
 		scaleCnt := totalReplacedCnt + replaceCnt
 		// Phase1: service-nextにtask-nextを指定数配置
 		log.Infof("%dth roll out starting: will replace %d tasks", totalRollOutCnt, replaceCnt)
-		log.Infof("start adding of next tasks. this will update '%s' desired count %d to %d", *nextService.ServiceName, totalReplacedCnt, scaleCnt)
-		err := envars.UpdateDesiredCount(ctx, envars.NextServiceName, tg.TargetGroupArn, &originalDesiredCount, &scaleCnt, true)
+		log.Infof("start adding of next tasks. this will update '%s' desired count %d to %d", *envars.NextServiceName, totalReplacedCnt, scaleCnt)
+		err := envars.UpdateDesiredCount(ctx, envars.NextServiceName, targetGroupArn, &originalDesiredCount, &scaleCnt, true)
 		if err != nil {
 			log.Errorf("failed to add next tasks due to: %s", err)
 			return err
@@ -160,13 +176,13 @@ func (envars *Envars) RollOut(
 		// Phase2: service-nextのperiodic healthを計測
 		if *envars.SkipCanary {
 			log.Infof("🤫 %dth canary test skipped.", totalRollOutCnt)
-		} else if err := envars.CanaryTest(ctx.Cw, tg.LoadBalancerArns[0], tg.TargetGroupArn, totalRollOutCnt); err != nil {
+		} else if err := envars.CanaryTest(ctx.Cw, loadBalancerArn, targetGroupArn, totalRollOutCnt); err != nil {
 			return err
 		}
 		// Phase3: service-currentからタスクを指定数消す
 		descaledCnt := originalDesiredCount - totalReplacedCnt - replaceCnt
 		log.Infof("updating service '%s' desired count to %d", *envars.CurrentServiceName, descaledCnt)
-		if err := envars.UpdateDesiredCount(ctx, envars.CurrentServiceName, tg.TargetGroupArn, &originalDesiredCount, &descaledCnt, false); err != nil {
+		if err := envars.UpdateDesiredCount(ctx, envars.CurrentServiceName, targetGroupArn, &originalDesiredCount, &descaledCnt, false); err != nil {
 			log.Errorf("failed to roll out tasks due to: %s", err.Error())
 			return err
 		}
@@ -199,7 +215,7 @@ func (envars *Envars) RollOut(
 			log.Infof("estimated roll out completed. Do final canary test...")
 			if *envars.SkipCanary {
 				log.Infof("😑 final canary test skipped...")
-			} else if err := envars.CanaryTest(ctx.Cw, tg.LoadBalancerArns[0], tg.TargetGroupArn, totalRollOutCnt); err != nil {
+			} else if err := envars.CanaryTest(ctx.Cw, loadBalancerArn, targetGroupArn, totalRollOutCnt); err != nil {
 				log.Errorf("final canary test has failed due to: %s", err)
 				return err
 			}
@@ -385,6 +401,10 @@ func (envars *Envars) UpdateDesiredCount(
 	}); err != nil {
 		log.Errorf("failed to wait service-stable due to: %s", err)
 		return err
+	}
+	// LBがないサービスはここで終わり
+	if targetGroupArn == nil {
+		return nil
 	}
 	o, err := ctx.Alb.DescribeTargetGroups(&elbv2.DescribeTargetGroupsInput{
 		TargetGroupArns: []*string{targetGroupArn},
