@@ -1,14 +1,14 @@
 package main
 
 import (
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/urfave/cli"
-	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
-	"path/filepath"
 	"encoding/json"
-	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ecs"
+	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"github.com/loilo-inc/canarycage"
+	"github.com/urfave/cli"
+	"path/filepath"
 )
 
 func UpCommand(ses *session.Session) cli.Command {

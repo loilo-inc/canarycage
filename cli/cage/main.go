@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/urfave/cli"
-	"os"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/urfave/cli"
 	"log"
+	"os"
 )
 
 func main() {

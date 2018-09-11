@@ -1,6 +1,6 @@
 builds:
   - binary: cage
-    main: ./cli/cage/main.go
+    main: ./cli/cage/*.go
     goos:
       - darwin
       - linux
