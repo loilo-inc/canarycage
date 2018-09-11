@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/loilo-inc/canarycage/cli/cage/commands"
 	"github.com/urfave/cli"
 	"log"
 	"os"
@@ -21,8 +22,8 @@ func main() {
 	app.Version = "1.2.1"
 	app.Description = "A gradual roll-out deployment tool for AWS ECS"
 	app.Commands = cli.Commands{
-		RollOutCommand(),
-		UpCommand(ses),
+		commands.RollOutCommand(),
+		commands.UpCommand(ses),
 	}
 	app.Run(os.Args)
 }
