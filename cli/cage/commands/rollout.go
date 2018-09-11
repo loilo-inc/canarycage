@@ -1,18 +1,18 @@
-package main
+package commands
 
 import (
-	"github.com/urfave/cli"
-	"github.com/loilo-inc/canarycage"
 	"encoding/json"
 	"fmt"
-	"os"
-	"io/ioutil"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
+	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/loilo-inc/canarycage"
+	"github.com/urfave/cli"
+	"io/ioutil"
+	"os"
 )
 
 func RollOutCommand() cli.Command {
