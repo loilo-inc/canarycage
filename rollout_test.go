@@ -33,6 +33,7 @@ func DefaultEnvars() *Envars {
 		NextTaskDefinitionBase64: aws.String(o),
 		AvailabilityThreshold:    aws.Float64(0.9970),
 		ResponseTimeThreshold:    aws.Float64(1),
+		SkipCanary:               aws.Bool(false),
 	}
 }
 
@@ -198,6 +199,26 @@ func TestEnvars_StartGradualRollOut4(t *testing.T) {
 	cwMock := mock_cloudwatch.NewMockCloudWatchAPI(ctrl)
 	cwMock.EXPECT().GetMetricStatistics(gomock.Any()).Times(0)
 	ctx.Cw = cwMock
+	if res, err := envars.StartGradualRollOut(ctx); err != nil {
+		t.Fatalf(err.Error())
+	} else if res.HandledError != nil {
+		t.Fatalf(err.Error())
+	}
+}
+
+func TestEnvars_StartGradualRollOut5(t *testing.T) {
+	// lbがないサービスの場合もロールアウトする
+	envars := DefaultEnvars()
+	d, _ := ioutil.ReadFile("fixtures/service.json")
+	input := &ecs.CreateServiceInput{}
+	_ = json.Unmarshal(d, input)
+	input.LoadBalancers = nil
+	newTimer = fakeTimer
+	defer recoverTimer()
+	o, _ := json.Marshal(input)
+	envars.NextServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(o))
+	ctrl := gomock.NewController(t)
+	_, ctx := envars.Setup(ctrl, 2)
 	if res, err := envars.StartGradualRollOut(ctx); err != nil {
 		t.Fatalf(err.Error())
 	} else if res.HandledError != nil {
