@@ -1,22 +1,22 @@
 package test_integration
 
 import (
-	"io/ioutil"
-	"github.com/aws/aws-sdk-go/service/ecs"
 	"encoding/json"
-	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
-	"github.com/aws/aws-sdk-go/aws"
-	"testing"
-	"github.com/loilo-inc/canarycage"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
-	"github.com/aws/aws-sdk-go/service/elbv2"
-	"net/http"
-	"time"
-	"golang.org/x/sync/errgroup"
-	"github.com/stretchr/testify/assert"
 	"fmt"
+	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudwatch"
+	"github.com/aws/aws-sdk-go/service/ecs"
+	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
+	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/loilo-inc/canarycage"
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/sync/errgroup"
+	"io/ioutil"
+	"net/http"
+	"testing"
+	"time"
 )
 
 const kCurrentServiceName = "itg-test-service-current"
@@ -225,7 +225,10 @@ func TestHealthyToHealthy(t *testing.T) {
 	envars.NextTaskDefinitionArn = aws.String(kHealthyTDArn)
 	envars.CurrentServiceName = aws.String(kCurrentServiceName)
 	envars.NextServiceName = aws.String(kNextServiceName)
-	defer cleanupService(ctx.Ecs, envars, envars.CurrentServiceName)
+	defer func() {
+		cleanupService(ctx.Ecs, envars, envars.CurrentServiceName)
+		cleanupService(ctx.Ecs, envars, envars.NextServiceName)
+	}()
 	result, err := testInternal(t, envars);
 	if err != nil {
 		t.Fatalf(err.Error())
