@@ -4,6 +4,8 @@ builds:
     goos:
       - darwin
       - linux
+    env:
+      - CGO_ENABLED=0
     goarch:
       - amd64
       - 386
