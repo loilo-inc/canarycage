@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli"
-	"io/ioutil"
 	"os"
 )
 
@@ -31,8 +30,9 @@ func RollOutCommand() cli.Command {
 	}
 	configPath := ""
 	return cli.Command{
-		Name: "rollout",
+		Name:        "rollout",
 		Description: "start rolling out next service with current service",
+		ArgsUsage: "[deploy context path]",
 		Flags: []cli.Flag{
 			cli.StringFlag{
 				Name:        "config, c",
@@ -128,13 +128,11 @@ func RollOutCommand() cli.Command {
 				fmt.Fprint(os.Stdout, string(d))
 				os.Exit(0)
 			}
-			if configPath != "" {
-				d, err := ioutil.ReadFile(configPath)
-				if err != nil {
-					log.Fatalf("failed to read config file %s due to: %s", configPath, err)
-				}
-				if err := json.Unmarshal(d, envars); err != nil {
-					log.Fatalf("failed to unmarshal json due to: %s", err)
+			if ctx.NArg() > 0 {
+				// deployコンテクストを指定した場合
+				dir := ctx.Args().Get(0)
+				if err := envars.LoadFromFiles(dir); err != nil {
+					log.Fatalf(err.Error())
 				}
 			}
 			err := cage.EnsureEnvars(envars)
@@ -183,6 +181,7 @@ func DryRun(envars *cage.Envars) {
 	estimated := cage.EstimateRollOutCount(*service.RunningCount)
 	log.Infof("%d roll outs are expected", estimated)
 }
+
 
 func Action(envars *cage.Envars) error {
 	ses, err := session.NewSession(&aws.Config{

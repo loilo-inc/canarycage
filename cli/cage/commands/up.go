@@ -12,19 +12,15 @@ import (
 )
 
 func UpCommand(ses *session.Session) cli.Command {
-	context := "."
 	return cli.Command{
 		Name: "up",
-		Flags: []cli.Flag{
-			cli.StringFlag{
-				Name:        "context, c",
-				Usage:       "dirname that contains `service.json` and `task-definition.json`. default value is `.`",
-				Value:       ".",
-				Destination: &context,
-			},
-		},
+		ArgsUsage: "[up context path (default=.)]",
 		Action: func(ctx *cli.Context) {
-			Up(ecs.New(ses), context)
+			dir := "."
+			if ctx.NArg() > 0 {
+				dir = ctx.Args().Get(0)
+			}
+			Up(ecs.New(ses), dir)
 		},
 	}
 }

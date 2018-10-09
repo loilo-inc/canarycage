@@ -58,7 +58,8 @@ func ReadFileAndApplyEnvars(path string) ([]byte, error) {
 			if envar, ok := os.LookupEnv(m[1]); ok {
 				str = strings.Replace(str, m[0], envar, -1)
 			} else {
-				log.Warnf("envar literal '%s' found in %s but was not defined", m[0], path)
+				log.Warnf("envar literal '%s' found in %s but was not defined. filled by empty string", m[0], path)
+				str = strings.Replace(str, m[0], "", -1)
 			}
 		}
 		return []byte(str), nil
