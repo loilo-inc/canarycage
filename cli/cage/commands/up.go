@@ -65,7 +65,7 @@ func Up(
 		} else {
 			log.Infof("created: %s", o.Service.ServiceArn)
 		}
-		log.Infof("waiting for service '%s' to be STABLE")
+		log.Infof("waiting for service '%s' to be STABLE", *input.ServiceName)
 		if err := ecscli.WaitUntilServicesStable(&ecs.DescribeServicesInput{
 			Cluster:  input.Cluster,
 			Services: []*string{input.ServiceName},
