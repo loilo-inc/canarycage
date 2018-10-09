@@ -1,6 +1,10 @@
 package cage
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/ecs"
+	"github.com/golang/mock/gomock"
+	"github.com/loilo-inc/canarycage/mock/mock_ecs"
 	"testing"
 	"github.com/stretchr/testify/assert"
 	"time"
@@ -73,4 +77,46 @@ fugafuga=hogehoge`
 	if s != e {
 		log.Fatalf("e: %s, a: %s", e, s)
 	}
+}
+
+func TestFindService(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	ecsmock := mock_ecs.NewMockECSAPI(ctrl)
+	ecsmock.EXPECT().ListServices(gomock.Any()).Return(&ecs.ListServicesOutput{
+		ServiceArns: aws.StringSlice([]string {
+			"arn:aws:ecs:us-west-2:828165198279:service/lns-share-ee78c92",
+			"arn:aws:ecs:us-west-2:828165198279:service/lns-web-ee78c92",
+		}),
+	}, nil)
+	o, err := FindService(ecsmock, aws.String("hgoe"), "lns-share")
+	assert.Nil(t, err)
+	assert.Equal(t, "lns-share-ee78c92", o)
+}
+
+func TestFindService2(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	ecsmock := mock_ecs.NewMockECSAPI(ctrl)
+	ecsmock.EXPECT().ListServices(gomock.Any()).Return(&ecs.ListServicesOutput{
+		ServiceArns: aws.StringSlice([]string {
+			"arn:aws:ecs:us-west-2:828165198279:service/lns-share-ee78c92",
+			"arn:aws:ecs:us-west-2:828165198279:service/lns-share-ee78c93",
+			"arn:aws:ecs:us-west-2:828165198279:service/lns-web-ee78c92",
+		}),
+	}, nil)
+	_, err := FindService(ecsmock, aws.String("hgoe"), "lns-share")
+	assert.NotNil(t, err)
+}
+
+func TestFindService3(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	ecsmock := mock_ecs.NewMockECSAPI(ctrl)
+	ecsmock.EXPECT().ListServices(gomock.Any()).Return(&ecs.ListServicesOutput{
+		ServiceArns: aws.StringSlice([]string {
+			"arn:aws:ecs:us-west-2:828165198279:service/lns-share-ee78c92",
+			"arn:aws:ecs:us-west-2:828165198279:service/lns-share-ee78c93",
+			"arn:aws:ecs:us-west-2:828165198279:service/lns-web-ee78c92",
+		}),
+	}, nil)
+	_, err := FindService(ecsmock, aws.String("hgoe"), "lns-hgoe")
+	assert.NotNil(t, err)
 }

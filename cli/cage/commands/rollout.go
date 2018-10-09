@@ -29,10 +29,11 @@ func RollOutCommand() cli.Command {
 		SkipCanary:                  aws.Bool(false),
 	}
 	configPath := ""
+	serviceNamePattern := ""
 	return cli.Command{
 		Name:        "rollout",
 		Description: "start rolling out next service with current service",
-		ArgsUsage: "[deploy context path]",
+		ArgsUsage:   "[deploy context path]",
 		Flags: []cli.Flag{
 			cli.StringFlag{
 				Name:        "config, c",
@@ -118,6 +119,11 @@ func RollOutCommand() cli.Command {
 				Usage:       "skip canary test. ensuring only healthy tasks.",
 				Destination: envars.SkipCanary,
 			},
+			cli.StringFlag{
+				Name:        "serviceNamePattern",
+				Usage:       "regex pattern to be used to determine currentServiceName",
+				Destination: &serviceNamePattern,
+			},
 		},
 		Action: func(ctx *cli.Context) {
 			if ctx.Bool("skeleton") {
@@ -135,21 +141,39 @@ func RollOutCommand() cli.Command {
 					log.Fatalf(err.Error())
 				}
 			}
-			err := cage.EnsureEnvars(envars)
+			ses, err := session.NewSession(&aws.Config{
+				Region: envars.Region,
+			})
 			if err != nil {
+				log.Fatalf("failed to create new AWS session due to: %s", err)
+			}
+			cageCtx := &cage.Context{
+				Ecs: ecs.New(ses),
+				Cw:  cloudwatch.New(ses),
+				Alb: elbv2.New(ses),
+			}
+			// currentServiceNameを自動的に設定する場合
+			if len(serviceNamePattern) > 0 {
+				o, err := cage.FindService(cageCtx.Ecs, envars.Cluster, serviceNamePattern)
+				if err != nil {
+					log.Fatal(err.Error())
+				}
+				envars.CurrentServiceName = &o
+			}
+			if err := cage.EnsureEnvars(envars); err != nil {
 				log.Fatalf(err.Error())
 			}
 			if ctx.Bool("dryRun") {
-				DryRun(envars)
+				DryRun(envars, cageCtx)
 			} else {
-				if err := Action(envars); err != nil {
+				if err := Action(envars, cageCtx); err != nil {
 					log.Fatalf("failed: %s", err)
 				}
 			}
 		},
 	}
 }
-func DryRun(envars *cage.Envars) {
+func DryRun(envars *cage.Envars, ctx *cage.Context) {
 	log.Infof("== [DRY RUN] ==")
 	d, _ := json.MarshalIndent(envars, "", "\t")
 	log.Infof("envars = \n%s", string(d))
@@ -157,13 +181,7 @@ func DryRun(envars *cage.Envars) {
 		log.Info("create NEXT task definition with provided json")
 	}
 	log.Infof("create NEXT service '%s' with desiredCount=1", *envars.NextServiceName)
-	ses, err := session.NewSession(&aws.Config{
-		Region: envars.Region,
-	})
-	if err != nil {
-		log.Fatalf(err.Error())
-	}
-	e := ecs.New(ses)
+	e := ctx.Ecs
 	var (
 		service *ecs.Service
 	)
@@ -182,20 +200,7 @@ func DryRun(envars *cage.Envars) {
 	log.Infof("%d roll outs are expected", estimated)
 }
 
-
-func Action(envars *cage.Envars) error {
-	ses, err := session.NewSession(&aws.Config{
-		Region: envars.Region,
-	})
-	if err != nil {
-		log.Errorf("failed to create new AWS session due to: %s", err)
-		return err
-	}
-	ctx := &cage.Context{
-		Ecs: ecs.New(ses),
-		Cw:  cloudwatch.New(ses),
-		Alb: elbv2.New(ses),
-	}
+func Action(envars *cage.Envars, ctx *cage.Context) error {
 	result, err := envars.StartGradualRollOut(ctx)
 	if err != nil {
 		log.Errorf("😭failed roll out new tasks due to: %s", err)
@@ -208,3 +213,4 @@ func Action(envars *cage.Envars) error {
 	}
 	return nil
 }
+

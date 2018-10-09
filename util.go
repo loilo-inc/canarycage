@@ -1,6 +1,8 @@
 package cage
 
 import (
+	"github.com/aws/aws-sdk-go/service/ecs"
+	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"regexp"
 	"fmt"
 	"math"
@@ -68,4 +70,38 @@ func ReadFileAndApplyEnvars(path string) ([]byte, error) {
 
 func NewErrorf(f string, args ...interface{}) error {
 	return errors.New(fmt.Sprintf(f, args...))
+}
+
+func FindService(
+	ecscli ecsiface.ECSAPI,
+	cluster *string,
+	pattern string,
+) (string, error) {
+	var services []string
+	serviceRegex := regexp.MustCompile("^.+/(.+?)$")
+	nameRegex := regexp.MustCompile(pattern)
+	if o, err := ecscli.ListServices(&ecs.ListServicesInput{
+		Cluster: cluster,
+	}); err != nil {
+		return "", err
+	} else {
+		for _, s := range o.ServiceArns {
+			if m := serviceRegex.FindStringSubmatch(*s); len(m) > 1 {
+				serviceName := m[1]
+				if nameRegex.MatchString(serviceName) {
+					services = append(services, serviceName)
+				}
+			}
+		}
+		if len(services) > 1 {
+			return "", NewErrorf(
+				"multiple service with prefix '%s' found. cannot determine to roll out: %s", pattern, services,
+			)
+		} else if len(services) == 0 {
+			return "", NewErrorf(
+				"no service found that matches '%s' found in '%s'", pattern, *cluster,
+			)
+		}
+		return services[0], nil
+	}
 }
