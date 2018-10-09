@@ -1,8 +1,13 @@
 package cage
 
 import (
-	"math"
+	"encoding/base64"
+	"encoding/json"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/ecs"
+	"math"
+	"os"
+	"path/filepath"
 )
 
 type Envars struct {
@@ -87,4 +92,46 @@ func EnsureEnvars(
 		dest.SkipCanary = aws.Bool(false)
 	}
 	return nil
+}
+
+func (e *Envars) LoadFromFiles(dir string) error {
+	svcPath := filepath.Join(dir, "service.json")
+	tdPath := filepath.Join(dir, "task-definition.json")
+	_, noSvc := os.Stat(svcPath)
+	_, noTd := os.Stat(tdPath)
+	if noSvc != nil || noTd != nil {
+		return NewErrorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
+	}
+	var (
+		svc = &ecs.CreateServiceInput{}
+		td = &ecs.RegisterTaskDefinitionInput{}
+		svcBase64 string
+		tdBase64 string
+	)
+	if d ,err := ReadAndUnmarshalJson(svcPath, svc); err != nil {
+		return NewErrorf("failed to read and unmarshal service.json: %s", err)
+	} else {
+		svcBase64 = base64.StdEncoding.EncodeToString(d)
+	}
+	if d, err := ReadAndUnmarshalJson(tdPath, td); err != nil {
+		return NewErrorf("failed to read and unmarshal task-definition.json: %s", err)
+	} else {
+		tdBase64 = base64.StdEncoding.EncodeToString(d)
+	}
+	e.Cluster = svc.Cluster
+	e.NextServiceName = svc.ServiceName
+	e.NextServiceDefinitionBase64 = &svcBase64
+	e.NextTaskDefinitionBase64 = &tdBase64
+	return nil
+}
+
+func ReadAndUnmarshalJson(path string, dest interface{}) ([]byte, error) {
+	if d, err := ReadFileAndApplyEnvars(path); err != nil {
+		return d, err
+	} else {
+		if err := json.Unmarshal(d, dest); err != nil {
+			return d, err
+		}
+		return d, nil
+	}
 }
