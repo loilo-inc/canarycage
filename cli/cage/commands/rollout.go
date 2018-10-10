@@ -12,6 +12,7 @@ import (
 	"github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli"
 	"os"
+	"path/filepath"
 )
 
 func RollOutCommand() cli.Command {
@@ -139,6 +140,10 @@ func RollOutCommand() cli.Command {
 				dir := ctx.Args().Get(0)
 				if err := envars.LoadFromFiles(dir); err != nil {
 					log.Fatalf(err.Error())
+				}
+				// serviceNamePatternとcurrentServiceNameがない場合はserviceNamePatterをデプロイコンテクストにする
+				if len(serviceNamePattern) == 0 && len(*envars.CurrentServiceName) == 0 {
+					serviceNamePattern = filepath.Base(dir)
 				}
 			}
 			ses, err := session.NewSession(&aws.Config{
