@@ -59,7 +59,7 @@ func Up(
 		if o, err := ecscli.CreateService(input); err != nil {
 			log.Fatalf("failed to create service '%s': %s", *input.ServiceName, err.Error())
 		} else {
-			log.Infof("created: %s", o.Service.ServiceArn)
+			log.Infof("service created: '%s'", *o.Service.ServiceArn)
 		}
 		log.Infof("waiting for service '%s' to be STABLE", *input.ServiceName)
 		if err := ecscli.WaitUntilServicesStable(&ecs.DescribeServicesInput{
