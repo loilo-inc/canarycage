@@ -20,6 +20,7 @@ release: build
 	WD=/go/src/github.com/loilo-inc/canarycage
 	docker run \
 		-v `pwd`:${WD} \
+		-v ~/.aws:/root/.aws \
 		-e GITHUB_TOKEN=$(lake decrypt --binary -f .github_token.enc) \
 	 	-t canarycage shake _release
 _release:
