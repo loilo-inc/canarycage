@@ -65,11 +65,13 @@ func (envars *Envars) RollOut(
 		return throw(err)
 	}
 	log.Infof("service '%s' ensured.", *envars.CanaryService)
-	log.Infof("ensuring canary task to become healthy...")
-	if err := envars.EnsureTaskHealthy(ctx, targetGroupArn); err != nil {
-		return throw(err)
+	if targetGroupArn != nil {
+		log.Infof("ensuring canary task to become healthy...")
+		if err := envars.EnsureTaskHealthy(ctx, targetGroupArn); err != nil {
+			return throw(err)
+		}
+		log.Info("🤩 canary task is healthy!")
 	}
-	log.Info("🤩 canary task is healthy!")
 	ret.ServiceIntact = false
 	log.Infof("updating '%s' 's task definition to '%s:%d'...", *envars.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision)
 	if _, err := ctx.Ecs.UpdateService(&ecs.UpdateServiceInput{
@@ -127,7 +129,11 @@ func (envars *Envars) EnsureTaskHealthy(
 		}
 	}
 	log.Infof("checking canary task's health state...")
+	var unusedCount = 0
+	var initialized = false
+	var recentState *string
 	for {
+		<-newTimer(time.Duration(15)*  time.Second).C
 		if o, err := ctx.Alb.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{
 			TargetGroupArn: tgArn,
 			Targets: []*elbv2.TargetDescription{{
@@ -136,19 +142,26 @@ func (envars *Envars) EnsureTaskHealthy(
 		}); err != nil {
 			return err
 		} else {
-			health := o.TargetHealthDescriptions[0].TargetHealth.State
-			log.Infof("canary task '%s' (%s) state is: %s", *canaryTaskArn, *canaryTaskPrivateIP, *health)
-			switch *health {
+			recentState = o.TargetHealthDescriptions[0].TargetHealth.State
+			log.Infof("canary task '%s' (%s) state is: %s", *canaryTaskArn, *canaryTaskPrivateIP, *recentState)
+			switch *recentState {
 			case "healthy":
 				return nil
 			case "initial":
+				initialized = true
 				log.Infof("still checking state...")
+				continue
+			case "unused":
+				// 5回以上unusedになった場合はエラーにする
+				unusedCount++
+				if !initialized && unusedCount < 5 {
+					continue
+				}
 			default:
-				// unhealthy, draining, unused
-				return NewErrorf("canary task '%s' (%s) hasn't become to healthy. Recent state: %s", *canaryTaskArn, *canaryTaskPrivateIP, *health)
 			}
 		}
-		<-newTimer(time.Duration(15)*  time.Second).C
+		// unhealthy, draining, unused
+		return NewErrorf("canary task '%s' (%s) hasn't become to healthy. Recent state: %s", *canaryTaskArn, *canaryTaskPrivateIP, *recentState)
 	}
 }
 

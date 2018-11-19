@@ -6,6 +6,7 @@ import (
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecs"
+	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/golang/mock/gomock"
 	"github.com/loilo-inc/canarycage/mock/mock_ecs"
 	"github.com/loilo-inc/canarycage/mock/mock_elbv2"
@@ -114,6 +115,53 @@ func TestEnvars_StartGradualRollOut2(t *testing.T) {
 	assert.Equal(t, int64(2), mocker.TaskSize())
 }
 
+func TestEnvars_RollOut2(t *testing.T) {
+	// canary taskがtgに登録されるまで少し待つ
+	newTimer = fakeTimer
+	defer recoverTimer()
+	envars := DefaultEnvars()
+	d, _ := ioutil.ReadFile("fixtures/service.json")
+	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
+	ctrl := gomock.NewController(t)
+	mocker, ctx := envars.Setup(ctrl, 2)
+	albMock := mock_elbv2.NewMockELBV2API(ctrl)
+	gomock.InOrder(
+		albMock.EXPECT().DescribeTargetHealth(gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
+			TargetHealthDescriptions: []*elbv2.TargetHealthDescription{{
+				TargetHealth: &elbv2.TargetHealth{
+					State: aws.String("unused"),
+				},
+			}},
+		}, nil).Times(2),
+		albMock.EXPECT().DescribeTargetHealth(gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
+	)
+	ctx.Alb = albMock
+	result := envars.RollOut(ctx)
+	if result.Error != nil {
+		t.Fatalf(result.Error.Error())
+	}
+}
+func TestEnvars_RollOut3(t *testing.T) {
+	// canary taskがtgに登録されない場合は打ち切る
+	newTimer = fakeTimer
+	defer recoverTimer()
+	envars := DefaultEnvars()
+	d, _ := ioutil.ReadFile("fixtures/service.json")
+	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
+	ctrl := gomock.NewController(t)
+	_, ctx := envars.Setup(ctrl, 2)
+	albMock := mock_elbv2.NewMockELBV2API(ctrl)
+	albMock.EXPECT().DescribeTargetHealth(gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
+		TargetHealthDescriptions: []*elbv2.TargetHealthDescription{{
+			TargetHealth: &elbv2.TargetHealth{
+				State: aws.String("unused"),
+			},
+		}},
+	}, nil).AnyTimes()
+	ctx.Alb = albMock
+	result := envars.RollOut(ctx)
+	assert.NotNil(t, result.Error)
+}
 func TestEnvars_StartGradualRollOut5(t *testing.T) {
 	// lbがないサービスの場合もロールアウトする
 	envars := DefaultEnvars()
