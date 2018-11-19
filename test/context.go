@@ -109,7 +109,11 @@ func (ctx *MockContext) UpdateService(input *ecs.UpdateServiceInput) (*ecs.Updat
 	ctx.mux.Lock()
 	s := ctx.Services[*input.Service]
 	ctx.mux.Unlock()
-	if diff := *input.DesiredCount - *s.DesiredCount; diff > 0 {
+	nextDesiredCount := s.DesiredCount
+	if input.DesiredCount != nil {
+		nextDesiredCount = input.DesiredCount
+	}
+	if diff := *nextDesiredCount - *s.DesiredCount; diff > 0 {
 		log.Debugf("diff=%d", diff)
 		// scale
 		for i := 0; i < int(diff); i++ {
@@ -138,9 +142,9 @@ func (ctx *MockContext) UpdateService(input *ecs.UpdateServiceInput) (*ecs.Updat
 		}
 	}
 	ctx.mux.Lock()
-	s.DesiredCount = input.DesiredCount
+	s.DesiredCount = nextDesiredCount
 	s.TaskDefinition = input.TaskDefinition
-	*s.RunningCount = *input.DesiredCount
+	*s.RunningCount = *nextDesiredCount
 	ctx.mux.Unlock()
 	return &ecs.UpdateServiceOutput{
 		Service: s,
@@ -176,6 +180,8 @@ func (ctx *MockContext) RegisterTaskDefinition(input *ecs.RegisterTaskDefinition
 	return &ecs.RegisterTaskDefinitionOutput{
 		TaskDefinition: &ecs.TaskDefinition{
 			TaskDefinitionArn: &idstr,
+			Family: aws.String("family"),
+			Revision: aws.Int64(1),
 		},
 	}, nil
 }
@@ -190,6 +196,12 @@ func (ctx *MockContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutp
 		ClusterArn:        input.Cluster,
 		TaskDefinitionArn: input.TaskDefinition,
 		Group:             input.Group,
+		Attachments: []*ecs.Attachment {{
+			Details: []*ecs.KeyValuePair{{
+				Name: aws.String("privateIPv4Address"),
+				Value: aws.String("127.0.0.1"),
+			}},
+		}},
 	}
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
