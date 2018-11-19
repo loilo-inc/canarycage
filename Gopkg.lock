@@ -10,7 +10,7 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:23063aca27e1d42264ed7dbb77aeb2d02e18d803019e59b03ff65aab22635522"
+  digest = "1:33bd694daeef264071674d2c678b00e77be7a28fdfa32f628e2079e6ecc153e2"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -45,11 +45,21 @@
     "service/cloudwatch/cloudwatchiface",
     "service/ecs",
     "service/ecs/ecsiface",
+    "service/elbv2",
+    "service/elbv2/elbv2iface",
     "service/sts",
   ]
   pruneopts = "UT"
   revision = "e2b22a3b42bdad95d52bf59f477bdcd57f38191d"
   version = "v1.15.6"
+
+[[projects]]
+  digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
+  name = "github.com/davecgh/go-spew"
+  packages = ["spew"]
+  pruneopts = "UT"
+  revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
+  version = "v1.1.1"
 
 [[projects]]
   digest = "1:fe8a03a8222d5b913f256972933d26d24ad7c8286692a42943bc01633cc8fce3"
@@ -91,6 +101,30 @@
   version = "v0.8.0"
 
 [[projects]]
+  digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  pruneopts = "UT"
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
+  digest = "1:18752d0b95816a1b777505a97f71c7467a8445b8ffb55631a7bf779f6ba4fa83"
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  pruneopts = "UT"
+  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
+  version = "v1.2.2"
+
+[[projects]]
+  digest = "1:b24d38b282bacf9791408a080f606370efa3d364e4b5fd9ba0f7b87786d3b679"
+  name = "github.com/urfave/cli"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "cfb38830724cc34fedffe9a2a29fb54fa9169cd1"
+  version = "v1.20.0"
+
+[[projects]]
   branch = "master"
   digest = "1:76ee51c3f468493aff39dbacc401e8831fbb765104cbf613b89bef01cf4bad70"
   name = "golang.org/x/net"
@@ -118,9 +152,12 @@
     "github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface",
     "github.com/aws/aws-sdk-go/service/ecs",
     "github.com/aws/aws-sdk-go/service/ecs/ecsiface",
+    "github.com/aws/aws-sdk-go/service/elbv2",
+    "github.com/aws/aws-sdk-go/service/elbv2/elbv2iface",
     "github.com/golang/mock/gomock",
     "github.com/google/uuid",
-    "github.com/pkg/errors",
+    "github.com/stretchr/testify/assert",
+    "github.com/urfave/cli",
     "golang.org/x/sync/errgroup",
   ]
   solver-name = "gps-cdcl"
