@@ -344,6 +344,11 @@ func (ctx *MockContext) DescribeTargetHealth(input *elbv2.DescribeTargetHealthIn
 	var ret []*elbv2.TargetHealthDescription
 	for i := int64(0); i < ctx.TaskSize(); i++ {
 		ret = append(ret, &elbv2.TargetHealthDescription{
+			Target: &elbv2.TargetDescription{
+				Id: aws.String("127.0.0.1"),
+				Port: aws.Int64(8000),
+				AvailabilityZone: aws.String("us-west-2"),
+			},
 			TargetHealth: &elbv2.TargetHealth{
 				State: aws.String("healthy"),
 			},
