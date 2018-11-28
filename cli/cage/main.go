@@ -19,7 +19,7 @@ func main() {
 	}
 	app := cli.NewApp()
 	app.Name = "canarycage"
-	app.Version = "2.0.0-alpha3"
+	app.Version = "2.0.0-alpha4"
 	app.Description = "A gradual roll-out deployment tool for AWS ECS"
 	app.Commands = cli.Commands{
 		commands.RollOutCommand(),
