@@ -152,9 +152,9 @@ func (envars *Envars) EnsureTaskHealthy(
 				log.Infof("still checking state...")
 				continue
 			case "unused":
-				// 5回以上unusedになった場合はエラーにする
+				// 20回以上=300秒間unusedになった場合はエラーにする
 				unusedCount++
-				if !initialized && unusedCount < 5 {
+				if !initialized && unusedCount < 20 {
 					continue
 				}
 			default:
@@ -248,6 +248,8 @@ func (envars *Envars) CreateCanaryService(
 		log.Errorf("failed to create canary service due to: %s", err)
 		return err
 	}
+	log.Infof("standing up for 10 seconds for '%s' become to be ready...", *service.ServiceName)
+	<-newTimer(time.Duration(10) * time.Second).C
 	log.Infof("waiting for service '%s' to become STABLE", *envars.CanaryService)
 	if err := awsEcs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
 		Cluster:  envars.Cluster,
