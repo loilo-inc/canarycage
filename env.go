@@ -91,6 +91,31 @@ func (e *Envars) LoadFromFiles(dir string) error {
 	return nil
 }
 
+func (e *Envars) Merge(o *Envars) error {
+	if !isEmpty(o.Region) {
+		e.Region = o.Region
+	}
+	if !isEmpty(o.Cluster) {
+		e.Cluster = o.Cluster
+	}
+	if !isEmpty(o.Service) {
+		e.Service = o.Service
+	}
+	if !isEmpty(o.CanaryService) {
+		e.CanaryService = o.CanaryService
+	}
+	if !isEmpty(o.TaskDefinitionBase64) {
+		e.TaskDefinitionBase64 = o.TaskDefinitionBase64
+	}
+	if !isEmpty(o.TaskDefinitionArn) {
+		e.TaskDefinitionArn = o.TaskDefinitionArn
+	}
+	if !isEmpty(o.ServiceDefinitionBase64) {
+		e.ServiceDefinitionBase64 = o.ServiceDefinitionBase64
+	}
+	return nil
+}
+
 func ReadAndUnmarshalJson(path string, dest interface{}) ([]byte, error) {
 	if d, err := ReadFileAndApplyEnvars(path); err != nil {
 		return d, err
