@@ -49,9 +49,11 @@ func (envars *Envars) RollOut(
 	service := out.Services[0]
 	var (
 		targetGroupArn *string
+		targetPort *int64
 	)
 	if len(service.LoadBalancers) > 0 {
 		targetGroupArn = service.LoadBalancers[0].TargetGroupArn
+		targetPort = service.LoadBalancers[0].ContainerPort
 	}
 	log.Infof("ensuring next task definition...")
 	nextTaskDefinition, err := envars.CreateNextTaskDefinition(ctx.Ecs)
@@ -67,7 +69,7 @@ func (envars *Envars) RollOut(
 	log.Infof("service '%s' ensured.", *envars.CanaryService)
 	if targetGroupArn != nil {
 		log.Infof("ensuring canary task to become healthy...")
-		if err := envars.EnsureTaskHealthy(ctx, targetGroupArn); err != nil {
+		if err := envars.EnsureTaskHealthy(ctx, targetGroupArn, targetPort); err != nil {
 			return throw(err)
 		}
 		log.Info("🤩 canary task is healthy!")
@@ -106,6 +108,7 @@ func (envars *Envars) RollOut(
 func (envars *Envars) EnsureTaskHealthy(
 	ctx *Context,
 	tgArn *string,
+	targetPort *int64,
 ) error {
 	var canaryTaskPrivateIP *string
 	var canaryTaskArn *string
@@ -122,7 +125,8 @@ func (envars *Envars) EnsureTaskHealthy(
 	} else {
 		canaryTaskArn = o.Tasks[0].TaskArn
 		for _, d := range o.Tasks[0].Attachments[0].Details {
-			if *d.Name == "privateIPv4Address" {
+			switch *d.Name {
+			case "privateIPv4Address":
 				canaryTaskPrivateIP = d.Value
 				break
 			}
@@ -138,11 +142,12 @@ func (envars *Envars) EnsureTaskHealthy(
 			TargetGroupArn: tgArn,
 			Targets: []*elbv2.TargetDescription{{
 				Id: canaryTaskPrivateIP,
+				Port: targetPort,
 			}},
 		}); err != nil {
 			return err
 		} else {
-			recentState = GetTargetIsHealthy(o, canaryTaskPrivateIP)
+			recentState = GetTargetIsHealthy(o, canaryTaskPrivateIP, targetPort)
 			if recentState == nil {
 				return NewErrorf("'%s' is not registered to target group '%s'", *canaryTaskPrivateIP, *tgArn)
 			}
@@ -168,9 +173,10 @@ func (envars *Envars) EnsureTaskHealthy(
 	}
 }
 
-func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetIp *string) *string {
+func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetIp *string, targetPort *int64) *string {
 	for _, desc := range o.TargetHealthDescriptions {
-		if *desc.Target.Id == *targetIp {
+		log.Debugf("%+v", desc)
+		if *desc.Target.Id == *targetIp && *desc.Target.Port == *targetPort {
 			return desc.TargetHealth.State
 		}
 	}
