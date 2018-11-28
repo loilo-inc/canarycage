@@ -128,6 +128,11 @@ func TestEnvars_RollOut2(t *testing.T) {
 	gomock.InOrder(
 		albMock.EXPECT().DescribeTargetHealth(gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 			TargetHealthDescriptions: []*elbv2.TargetHealthDescription{{
+				Target: &elbv2.TargetDescription{
+					Id: aws.String("127.0.0.1"),
+					Port: aws.Int64(8000),
+					AvailabilityZone: aws.String("us-west-2"),
+				},
 				TargetHealth: &elbv2.TargetHealth{
 					State: aws.String("unused"),
 				},
@@ -153,6 +158,20 @@ func TestEnvars_RollOut3(t *testing.T) {
 	albMock := mock_elbv2.NewMockELBV2API(ctrl)
 	albMock.EXPECT().DescribeTargetHealth(gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 		TargetHealthDescriptions: []*elbv2.TargetHealthDescription{{
+			Target: &elbv2.TargetDescription{
+				Id: aws.String("192.0.0.1"),
+				Port: aws.Int64(8000),
+				AvailabilityZone: aws.String("us-west-2"),
+			},
+			TargetHealth: &elbv2.TargetHealth{
+				State: aws.String("healthy"),
+			},
+		},{
+			Target: &elbv2.TargetDescription{
+				Id: aws.String("127.0.0.1"),
+				Port: aws.Int64(8000),
+				AvailabilityZone: aws.String("us-west-2"),
+			},
 			TargetHealth: &elbv2.TargetHealth{
 				State: aws.String("unused"),
 			},

@@ -142,7 +142,10 @@ func (envars *Envars) EnsureTaskHealthy(
 		}); err != nil {
 			return err
 		} else {
-			recentState = o.TargetHealthDescriptions[0].TargetHealth.State
+			recentState = GetTargetIsHealthy(o, canaryTaskPrivateIP)
+			if recentState == nil {
+				return NewErrorf("'%s' is not registered to target group '%s'", *canaryTaskPrivateIP, *tgArn)
+			}
 			log.Infof("canary task '%s' (%s) state is: %s", *canaryTaskArn, *canaryTaskPrivateIP, *recentState)
 			switch *recentState {
 			case "healthy":
@@ -163,6 +166,15 @@ func (envars *Envars) EnsureTaskHealthy(
 		// unhealthy, draining, unused
 		return NewErrorf("canary task '%s' (%s) hasn't become to healthy. Recent state: %s", *canaryTaskArn, *canaryTaskPrivateIP, *recentState)
 	}
+}
+
+func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetIp *string) *string {
+	for _, desc := range o.TargetHealthDescriptions {
+		if *desc.Target.Id == *targetIp {
+			return desc.TargetHealth.State
+		}
+	}
+	return nil
 }
 
 func (envars *Envars) CreateNextTaskDefinition(awsEcs ecsiface.ECSAPI) (*ecs.TaskDefinition, error) {
