@@ -14,7 +14,7 @@ import (
 )
 
 func RollOutCommand() cli.Command {
-	envars := &cage.Envars{
+	dest := &cage.Envars{
 		Region:                  aws.String(""),
 		Cluster:                 aws.String(""),
 		Service:                 aws.String(""),
@@ -40,59 +40,63 @@ func RollOutCommand() cli.Command {
 				EnvVar:      cage.RegionKey,
 				Value:       "us-west-2",
 				Usage:       "aws region for ecs",
-				Destination: envars.Region,
+				Destination: dest.Region,
 			},
 			cli.StringFlag{
 				Name:        "cluster",
 				EnvVar:      cage.ClusterKey,
 				Usage:       "ecs cluster name",
-				Destination: envars.Cluster,
+				Destination: dest.Cluster,
 			},
 			cli.StringFlag{
 				Name:        "service",
 				EnvVar:      cage.ServiceKey,
 				Usage:       "service name",
-				Destination: envars.Service,
+				Destination: dest.Service,
 			},
 			cli.StringFlag{
 				Name: "canaryService",
 				EnvVar: cage.CanaryServiceKey,
 				Usage: "canary service name",
-				Destination: envars.CanaryService,
+				Destination: dest.CanaryService,
 			},
 			cli.StringFlag{
 				Name:        "serviceDefinitionBase64",
 				EnvVar:      cage.ServiceDefinitionBase64Key,
 				Usage:       "base64 encoded service definition for next service",
-				Destination: envars.ServiceDefinitionBase64,
+				Destination: dest.ServiceDefinitionBase64,
 			},
 			cli.StringFlag{
 				Name:        "taskDefinitionBase64",
 				EnvVar:      cage.TaskDefinitionBase64Key,
 				Usage:       "base64 encoded task definition for next task definition",
-				Destination: envars.TaskDefinitionBase64,
+				Destination: dest.TaskDefinitionBase64,
 			},
 			cli.StringFlag{
 				Name:        "taskDefinitionArn",
 				EnvVar:      cage.TaskDefinitionArnKey,
 				Usage:       "full arn for next task definition",
-				Destination: envars.TaskDefinitionArn,
+				Destination: dest.TaskDefinitionArn,
 			},
 		},
 		Action: func(ctx *cli.Context) {
 			if ctx.Bool("skeleton") {
-				d, err := json.MarshalIndent(envars, "", "\t")
+				d, err := json.MarshalIndent(dest, "", "\t")
 				if err != nil {
 					log.Fatalf("failed to marshal json due to: %s", err)
 				}
 				fmt.Fprint(os.Stdout, string(d))
 				os.Exit(0)
 			}
+			envars := &cage.Envars{}
 			if ctx.NArg() > 0 {
 				// deployコンテクストを指定した場合
 				dir := ctx.Args().Get(0)
 				if err := envars.LoadFromFiles(dir); err != nil {
 					log.Fatalf(err.Error())
+				}
+				if err := envars.Merge(dest); err != nil {
+					log.Fatalf("failed to merge envars from files and cli: %s", err)
 				}
 			}
 			ses, err := session.NewSession(&aws.Config{
