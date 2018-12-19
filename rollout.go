@@ -3,12 +3,15 @@ package cage
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
+	"regexp"
 	"time"
 )
 
@@ -26,12 +29,12 @@ type RollOutResult struct {
 
 func (envars *Envars) RollOut(
 	ctx *Context,
-) (*RollOutResult) {
+) *RollOutResult {
 	ret := &RollOutResult{
 		StartTime:     now(),
 		ServiceIntact: true,
 	}
-	throw := func(err error) (*RollOutResult) {
+	throw := func(err error) *RollOutResult {
 		ret.EndTime = now()
 		ret.Error = err
 		return ret
@@ -49,7 +52,7 @@ func (envars *Envars) RollOut(
 	service := out.Services[0]
 	var (
 		targetGroupArn *string
-		targetPort *int64
+		targetPort     *int64
 	)
 	if len(service.LoadBalancers) > 0 {
 		targetGroupArn = service.LoadBalancers[0].TargetGroupArn
@@ -95,7 +98,7 @@ func (envars *Envars) RollOut(
 	if _, err := ctx.Ecs.DeleteService(&ecs.DeleteServiceInput{
 		Cluster: envars.Cluster,
 		Service: envars.CanaryService,
-		Force: aws.Bool(true),
+		Force:   aws.Bool(true),
 	}); err != nil {
 		return throw(err)
 	}
@@ -110,7 +113,7 @@ func (envars *Envars) EnsureTaskHealthy(
 	tgArn *string,
 	targetPort *int64,
 ) error {
-	var canaryTaskPrivateIP *string
+	var canaryTaskId *string
 	var canaryTaskArn *string
 	if o, err := ctx.Ecs.ListTasks(&ecs.ListTasksInput{
 		Cluster:     envars.Cluster,
@@ -124,12 +127,29 @@ func (envars *Envars) EnsureTaskHealthy(
 		return err
 	} else {
 		canaryTaskArn = o.Tasks[0].TaskArn
-		for _, d := range o.Tasks[0].Attachments[0].Details {
-			switch *d.Name {
-			case "privateIPv4Address":
-				canaryTaskPrivateIP = d.Value
-				break
+		launchType := o.Tasks[0].LaunchType
+		if launchType == nil {
+			errMsg := "launch type is nil"
+			log.Error(errMsg)
+			return errors.New(errMsg)
+		}
+		if *launchType == "FARGATE" {
+			for _, d := range o.Tasks[0].Attachments[0].Details {
+				switch *d.Name {
+				case "privateIPv4Address":
+					canaryTaskId = d.Value
+					break
+				}
 			}
+		} else if *launchType == "EC2" {
+			instanceArn := o.Tasks[0].ContainerInstanceArn
+			r := regexp.MustCompile(":container-instance/(.+)$")
+			instanceId := r.FindStringSubmatch(*instanceArn)[1]
+			canaryTaskId = &instanceId
+		} else {
+			errMsg := fmt.Sprintf("launch type is unknown (%s)", *launchType)
+			log.Error(errMsg)
+			return errors.New(errMsg)
 		}
 	}
 	log.Infof("checking canary task's health state...")
@@ -137,21 +157,21 @@ func (envars *Envars) EnsureTaskHealthy(
 	var initialized = false
 	var recentState *string
 	for {
-		<-newTimer(time.Duration(15)*  time.Second).C
+		<-newTimer(time.Duration(15) * time.Second).C
 		if o, err := ctx.Alb.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{
 			TargetGroupArn: tgArn,
 			Targets: []*elbv2.TargetDescription{{
-				Id: canaryTaskPrivateIP,
+				Id:   canaryTaskId,
 				Port: targetPort,
 			}},
 		}); err != nil {
 			return err
 		} else {
-			recentState = GetTargetIsHealthy(o, canaryTaskPrivateIP, targetPort)
+			recentState = GetTargetIsHealthy(o, canaryTaskId, targetPort)
 			if recentState == nil {
-				return NewErrorf("'%s' is not registered to target group '%s'", *canaryTaskPrivateIP, *tgArn)
+				return NewErrorf("'%s' is not registered to target group '%s'", *canaryTaskId, *tgArn)
 			}
-			log.Infof("canary task '%s' (%s) state is: %s", *canaryTaskArn, *canaryTaskPrivateIP, *recentState)
+			log.Infof("canary task '%s' (%s) state is: %s", *canaryTaskArn, *canaryTaskId, *recentState)
 			switch *recentState {
 			case "healthy":
 				return nil
@@ -169,14 +189,14 @@ func (envars *Envars) EnsureTaskHealthy(
 			}
 		}
 		// unhealthy, draining, unused
-		return NewErrorf("canary task '%s' (%s) hasn't become to healthy. Recent state: %s", *canaryTaskArn, *canaryTaskPrivateIP, *recentState)
+		return NewErrorf("canary task '%s' (%s) hasn't become to healthy. Recent state: %s", *canaryTaskArn, *canaryTaskId, *recentState)
 	}
 }
 
-func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetIp *string, targetPort *int64) *string {
+func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetId *string, targetPort *int64) *string {
 	for _, desc := range o.TargetHealthDescriptions {
 		log.Debugf("%+v", desc)
-		if *desc.Target.Id == *targetIp && *desc.Target.Port == *targetPort {
+		if *desc.Target.Id == *targetId && *desc.Target.Port == *targetPort {
 			return desc.TargetHealth.State
 		}
 	}
@@ -217,7 +237,7 @@ func (envars *Envars) CreateNextTaskDefinition(awsEcs ecsiface.ECSAPI) (*ecs.Tas
 func (envars *Envars) CreateCanaryService(
 	awsEcs ecsiface.ECSAPI,
 	nextTaskDefinitionArn *string,
-) (error) {
+) error {
 	service := &ecs.CreateServiceInput{}
 	if envars.ServiceDefinitionBase64 == nil {
 		// サービス定義が与えられなかった場合はタスク定義と名前だけ変えたservice-currentのレプリカを作成する
