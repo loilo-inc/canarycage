@@ -28,7 +28,7 @@ func DefaultEnvars() *Envars {
 	}
 }
 
-func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64) (*test.MockContext, *Context) {
+func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64, launchType string) (*test.MockContext, *Context) {
 	ecsMock := mock_ecs.NewMockECSAPI(ctrl)
 	albMock := mock_elbv2.NewMockELBV2API(ctrl)
 	mocker := test.NewMockContext()
@@ -63,6 +63,7 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64) (*t
 		},
 		TaskDefinition: td.TaskDefinition.TaskDefinitionArn,
 		DesiredCount:   aws.Int64(currentTaskCount),
+		LaunchType:     aws.String(launchType),
 	}
 	_, _ = mocker.CreateService(a)
 	return mocker, &Context{
@@ -79,7 +80,7 @@ func TestEnvars_RollOut(t *testing.T) {
 		log.Info("====")
 		envars := DefaultEnvars()
 		ctrl := gomock.NewController(t)
-		mctx, ctx := envars.Setup(ctrl, v)
+		mctx, ctx := envars.Setup(ctrl, v, "FARGATE")
 		if mctx.ServiceSize() != 1 {
 			t.Fatalf("current service not setup")
 		}
@@ -105,7 +106,7 @@ func TestEnvars_StartGradualRollOut2(t *testing.T) {
 	d, _ := ioutil.ReadFile("fixtures/service.json")
 	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
 	ctrl := gomock.NewController(t)
-	mocker, ctx := envars.Setup(ctrl, 2)
+	mocker, ctx := envars.Setup(ctrl, 2, "FARGATE")
 	result := envars.RollOut(ctx)
 	if result.Error != nil {
 		t.Fatalf(result.Error.Error())
@@ -123,14 +124,14 @@ func TestEnvars_RollOut2(t *testing.T) {
 	d, _ := ioutil.ReadFile("fixtures/service.json")
 	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
 	ctrl := gomock.NewController(t)
-	mocker, ctx := envars.Setup(ctrl, 2)
+	mocker, ctx := envars.Setup(ctrl, 2, "FARGATE")
 	albMock := mock_elbv2.NewMockELBV2API(ctrl)
 	gomock.InOrder(
 		albMock.EXPECT().DescribeTargetHealth(gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 			TargetHealthDescriptions: []*elbv2.TargetHealthDescription{{
 				Target: &elbv2.TargetDescription{
-					Id: aws.String("127.0.0.1"),
-					Port: aws.Int64(8000),
+					Id:               aws.String("127.0.0.1"),
+					Port:             aws.Int64(80),
 					AvailabilityZone: aws.String("us-west-2"),
 				},
 				TargetHealth: &elbv2.TargetHealth{
@@ -154,22 +155,22 @@ func TestEnvars_RollOut3(t *testing.T) {
 	d, _ := ioutil.ReadFile("fixtures/service.json")
 	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
 	ctrl := gomock.NewController(t)
-	_, ctx := envars.Setup(ctrl, 2)
+	_, ctx := envars.Setup(ctrl, 2, "FARGATE")
 	albMock := mock_elbv2.NewMockELBV2API(ctrl)
 	albMock.EXPECT().DescribeTargetHealth(gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 		TargetHealthDescriptions: []*elbv2.TargetHealthDescription{{
 			Target: &elbv2.TargetDescription{
-				Id: aws.String("192.0.0.1"),
-				Port: aws.Int64(8000),
+				Id:               aws.String("192.0.0.1"),
+				Port:             aws.Int64(8000),
 				AvailabilityZone: aws.String("us-west-2"),
 			},
 			TargetHealth: &elbv2.TargetHealth{
 				State: aws.String("healthy"),
 			},
-		},{
+		}, {
 			Target: &elbv2.TargetDescription{
-				Id: aws.String("127.0.0.1"),
-				Port: aws.Int64(8000),
+				Id:               aws.String("127.0.0.1"),
+				Port:             aws.Int64(8000),
 				AvailabilityZone: aws.String("us-west-2"),
 			},
 			TargetHealth: &elbv2.TargetHealth{
@@ -193,11 +194,35 @@ func TestEnvars_StartGradualRollOut5(t *testing.T) {
 	o, _ := json.Marshal(input)
 	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(o))
 	ctrl := gomock.NewController(t)
-	_, ctx := envars.Setup(ctrl, 2)
+	_, ctx := envars.Setup(ctrl, 2, "FARGATE")
 	if res := envars.RollOut(ctx); res.Error != nil {
 		t.Fatalf(res.Error.Error())
 	} else if res.ServiceIntact {
 		t.Fatalf("no")
+	}
+}
+func TestEnvars_RollOut_EC2(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	newTimer = fakeTimer
+	defer recoverTimer()
+	for _, v := range []int64{1, 2, 15} {
+		log.Info("====")
+		envars := DefaultEnvars()
+		ctrl := gomock.NewController(t)
+		mctx, ctx := envars.Setup(ctrl, v, "EC2")
+		if mctx.ServiceSize() != 1 {
+			t.Fatalf("current service not setup")
+		}
+		if taskCnt := mctx.TaskSize(); taskCnt != v {
+			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
+		}
+		result := envars.RollOut(ctx)
+		if result.Error != nil {
+			t.Fatalf("%s", result.Error)
+		}
+		assert.False(t, result.ServiceIntact)
+		assert.Equal(t, int64(1), mctx.ServiceSize())
+		assert.Equal(t, v, mctx.TaskSize())
 	}
 }
 
@@ -209,7 +234,7 @@ func TestEnvars_CreateNextTaskDefinition(t *testing.T) {
 	e := mock_ecs.NewMockECSAPI(ctrl)
 	e.EXPECT().DescribeTaskDefinition(gomock.Any()).Return(
 		&ecs.DescribeTaskDefinitionOutput{
-			TaskDefinition: &ecs.TaskDefinition{TaskDefinitionArn: aws.String("arn://task"),},
+			TaskDefinition: &ecs.TaskDefinition{TaskDefinitionArn: aws.String("arn://task")},
 		}, nil)
 	// nextTaskDefinitionArnがある場合はdescribeTaskDefinitionから返す
 	o, err := envars.CreateNextTaskDefinition(e)
