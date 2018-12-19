@@ -10,7 +10,7 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:33bd694daeef264071674d2c678b00e77be7a28fdfa32f628e2079e6ecc153e2"
+  digest = "1:f48161acfd1cd79cdcef3b51b87b38ca5631dd45768e2119895a01c6e23f4393"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -42,7 +42,6 @@
     "private/protocol/rest",
     "private/protocol/xml/xmlutil",
     "service/cloudwatch",
-    "service/cloudwatch/cloudwatchiface",
     "service/ecs",
     "service/ecs/ecsiface",
     "service/elbv2",
@@ -132,14 +131,6 @@
   pruneopts = "UT"
   revision = "f4c29de78a2a91c00474a2e689954305c350adf9"
 
-[[projects]]
-  branch = "master"
-  digest = "1:39ebcc2b11457b703ae9ee2e8cca0f68df21969c6102cb3b705f76cca0ea0239"
-  name = "golang.org/x/sync"
-  packages = ["errgroup"]
-  pruneopts = "UT"
-  revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
-
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
@@ -149,7 +140,6 @@
     "github.com/aws/aws-sdk-go/aws/request",
     "github.com/aws/aws-sdk-go/aws/session",
     "github.com/aws/aws-sdk-go/service/cloudwatch",
-    "github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface",
     "github.com/aws/aws-sdk-go/service/ecs",
     "github.com/aws/aws-sdk-go/service/ecs/ecsiface",
     "github.com/aws/aws-sdk-go/service/elbv2",
@@ -158,7 +148,6 @@
     "github.com/google/uuid",
     "github.com/stretchr/testify/assert",
     "github.com/urfave/cli",
-    "golang.org/x/sync/errgroup",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
