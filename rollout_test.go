@@ -63,6 +63,7 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64) (*t
 		},
 		TaskDefinition: td.TaskDefinition.TaskDefinitionArn,
 		DesiredCount:   aws.Int64(currentTaskCount),
+		LaunchType: aws.String("FARGATE"),
 	}
 	_, _ = mocker.CreateService(a)
 	return mocker, &Context{

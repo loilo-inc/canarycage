@@ -75,12 +75,11 @@ func (ctx *MockContext) GetMetricStatics(input *cloudwatch.GetMetricStatisticsIn
 
 func (ctx *MockContext) CreateService(input *ecs.CreateServiceInput) (*ecs.CreateServiceOutput, error) {
 	idstr := uuid.New().String()
-	lt := "FARGATE"
 	st := "ACTIVE"
 	ret := &ecs.Service{
 		ServiceName:                   input.ServiceName,
 		RunningCount:                  aws.Int64(0),
-		LaunchType:                    &lt,
+		LaunchType:                    input.LaunchType,
 		LoadBalancers:                 input.LoadBalancers,
 		DesiredCount:                  input.DesiredCount,
 		TaskDefinition:                input.TaskDefinition,
@@ -202,13 +201,13 @@ func (ctx *MockContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutp
 				Value: aws.String("127.0.0.1"),
 			}},
 		}},
-		LaunchType: aws.String("FARGATE"),
 	}
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	ctx.Tasks[idstr] = ret
 	s := ctx.Services[m[1]]
 	*s.RunningCount += 1
+	ret.LaunchType = s.LaunchType
 	return &ecs.StartTaskOutput{
 		Tasks: []*ecs.Task{ret},
 	}, nil
