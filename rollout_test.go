@@ -131,7 +131,7 @@ func TestEnvars_RollOut2(t *testing.T) {
 			TargetHealthDescriptions: []*elbv2.TargetHealthDescription{{
 				Target: &elbv2.TargetDescription{
 					Id:               aws.String("127.0.0.1"),
-					Port:             aws.Int64(8000),
+					Port:             aws.Int64(80),
 					AvailabilityZone: aws.String("us-west-2"),
 				},
 				TargetHealth: &elbv2.TargetHealth{
