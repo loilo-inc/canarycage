@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
+	"regexp"
 	"time"
 )
 
@@ -110,7 +111,7 @@ func (envars *Envars) EnsureTaskHealthy(
 	tgArn *string,
 	targetPort *int64,
 ) error {
-	var canaryTaskPrivateIP *string
+	var canaryTaskId *string
 	var canaryTaskArn *string
 	if o, err := ctx.Ecs.ListTasks(&ecs.ListTasksInput{
 		Cluster:     envars.Cluster,
@@ -124,12 +125,19 @@ func (envars *Envars) EnsureTaskHealthy(
 		return err
 	} else {
 		canaryTaskArn = o.Tasks[0].TaskArn
-		for _, d := range o.Tasks[0].Attachments[0].Details {
-			switch *d.Name {
-			case "privateIPv4Address":
-				canaryTaskPrivateIP = d.Value
-				break
+		if (*(o.Tasks[0].LaunchType) == "FARGATE") {
+			for _, d := range o.Tasks[0].Attachments[0].Details {
+				switch *d.Name {
+				case "privateIPv4Address":
+					canaryTaskId = d.Value
+					break
+				}
 			}
+		} else {
+			instanceArn := o.Tasks[0].ContainerInstanceArn
+			r := regexp.MustCompile(":container-instance/(.+)$")
+			instanceId := r.FindStringSubmatch(*instanceArn)[1]
+			canaryTaskId = &instanceId
 		}
 	}
 	log.Infof("checking canary task's health state...")
@@ -141,17 +149,17 @@ func (envars *Envars) EnsureTaskHealthy(
 		if o, err := ctx.Alb.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{
 			TargetGroupArn: tgArn,
 			Targets: []*elbv2.TargetDescription{{
-				Id: canaryTaskPrivateIP,
+				Id:   canaryTaskId,
 				Port: targetPort,
 			}},
 		}); err != nil {
 			return err
 		} else {
-			recentState = GetTargetIsHealthy(o, canaryTaskPrivateIP, targetPort)
+			recentState = GetTargetIsHealthy(o, canaryTaskId, targetPort)
 			if recentState == nil {
-				return NewErrorf("'%s' is not registered to target group '%s'", *canaryTaskPrivateIP, *tgArn)
+				return NewErrorf("'%s' is not registered to target group '%s'", *canaryTaskId, *tgArn)
 			}
-			log.Infof("canary task '%s' (%s) state is: %s", *canaryTaskArn, *canaryTaskPrivateIP, *recentState)
+			log.Infof("canary task '%s' (%s) state is: %s", *canaryTaskArn, *canaryTaskId, *recentState)
 			switch *recentState {
 			case "healthy":
 				return nil
@@ -169,14 +177,14 @@ func (envars *Envars) EnsureTaskHealthy(
 			}
 		}
 		// unhealthy, draining, unused
-		return NewErrorf("canary task '%s' (%s) hasn't become to healthy. Recent state: %s", *canaryTaskArn, *canaryTaskPrivateIP, *recentState)
+		return NewErrorf("canary task '%s' (%s) hasn't become to healthy. Recent state: %s", *canaryTaskArn, *canaryTaskId, *recentState)
 	}
 }
 
-func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetIp *string, targetPort *int64) *string {
+func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetId *string, targetPort *int64) *string {
 	for _, desc := range o.TargetHealthDescriptions {
 		log.Debugf("%+v", desc)
-		if *desc.Target.Id == *targetIp && *desc.Target.Port == *targetPort {
+		if *desc.Target.Id == *targetId && *desc.Target.Port == *targetPort {
 			return desc.TargetHealth.State
 		}
 	}
