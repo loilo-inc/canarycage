@@ -2,6 +2,7 @@ package cage
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -65,4 +66,23 @@ func dummyEnvs() *Envars {
 		TaskDefinitionBase64: dummy,
 		Cluster:              dummy,
 	}
+}
+
+func TestEnvars_Merge(t *testing.T) {
+	e1 := &Envars{
+		Region: aws.String("us-west-2"),
+		Cluster: aws.String("cluster"),
+		CanaryService: aws.String("canary"),
+	}
+	e2 := &Envars {
+		Cluster: aws.String("hoge"),
+		Service: aws.String("fuga"),
+		CanaryService: aws.String(""),
+	}
+	err := e1.Merge(e2)
+	assert.Nil(t, err)
+	assert.Equal(t, *e1.Region, "us-west-2")
+	assert.Equal(t, *e1.Cluster, "hoge")
+	assert.Equal(t, *e1.Service, "fuga")
+	assert.Equal(t, *e1.CanaryService, "canary")
 }
