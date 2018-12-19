@@ -3,6 +3,8 @@ package cage
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecs"
@@ -27,12 +29,12 @@ type RollOutResult struct {
 
 func (envars *Envars) RollOut(
 	ctx *Context,
-) (*RollOutResult) {
+) *RollOutResult {
 	ret := &RollOutResult{
 		StartTime:     now(),
 		ServiceIntact: true,
 	}
-	throw := func(err error) (*RollOutResult) {
+	throw := func(err error) *RollOutResult {
 		ret.EndTime = now()
 		ret.Error = err
 		return ret
@@ -50,7 +52,7 @@ func (envars *Envars) RollOut(
 	service := out.Services[0]
 	var (
 		targetGroupArn *string
-		targetPort *int64
+		targetPort     *int64
 	)
 	if len(service.LoadBalancers) > 0 {
 		targetGroupArn = service.LoadBalancers[0].TargetGroupArn
@@ -96,7 +98,7 @@ func (envars *Envars) RollOut(
 	if _, err := ctx.Ecs.DeleteService(&ecs.DeleteServiceInput{
 		Cluster: envars.Cluster,
 		Service: envars.CanaryService,
-		Force: aws.Bool(true),
+		Force:   aws.Bool(true),
 	}); err != nil {
 		return throw(err)
 	}
@@ -125,7 +127,13 @@ func (envars *Envars) EnsureTaskHealthy(
 		return err
 	} else {
 		canaryTaskArn = o.Tasks[0].TaskArn
-		if (*(o.Tasks[0].LaunchType) == "FARGATE") {
+		launchType := o.Tasks[0].LaunchType
+		if launchType == nil {
+			errMsg := "launch type is nil"
+			log.Error(errMsg)
+			return errors.New(errMsg)
+		}
+		if *launchType == "FARGATE" {
 			for _, d := range o.Tasks[0].Attachments[0].Details {
 				switch *d.Name {
 				case "privateIPv4Address":
@@ -133,11 +141,15 @@ func (envars *Envars) EnsureTaskHealthy(
 					break
 				}
 			}
-		} else {
+		} else if *launchType == "EC2" {
 			instanceArn := o.Tasks[0].ContainerInstanceArn
 			r := regexp.MustCompile(":container-instance/(.+)$")
 			instanceId := r.FindStringSubmatch(*instanceArn)[1]
 			canaryTaskId = &instanceId
+		} else {
+			errMsg := fmt.Sprintf("launch type is unknown (%s)", *launchType)
+			log.Error(errMsg)
+			return errors.New(errMsg)
 		}
 	}
 	log.Infof("checking canary task's health state...")
@@ -145,7 +157,7 @@ func (envars *Envars) EnsureTaskHealthy(
 	var initialized = false
 	var recentState *string
 	for {
-		<-newTimer(time.Duration(15)*  time.Second).C
+		<-newTimer(time.Duration(15) * time.Second).C
 		if o, err := ctx.Alb.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{
 			TargetGroupArn: tgArn,
 			Targets: []*elbv2.TargetDescription{{
@@ -225,7 +237,7 @@ func (envars *Envars) CreateNextTaskDefinition(awsEcs ecsiface.ECSAPI) (*ecs.Tas
 func (envars *Envars) CreateCanaryService(
 	awsEcs ecsiface.ECSAPI,
 	nextTaskDefinitionArn *string,
-) (error) {
+) error {
 	service := &ecs.CreateServiceInput{}
 	if envars.ServiceDefinitionBase64 == nil {
 		// サービス定義が与えられなかった場合はタスク定義と名前だけ変えたservice-currentのレプリカを作成する
