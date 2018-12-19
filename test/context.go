@@ -202,6 +202,7 @@ func (ctx *MockContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutp
 				Value: aws.String("127.0.0.1"),
 			}},
 		}},
+		LaunchType: aws.String("FARGATE"),
 	}
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
