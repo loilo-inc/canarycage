@@ -84,8 +84,8 @@ func (ctx *MockContext) CreateService(input *ecs.CreateServiceInput) (*ecs.Creat
 		DesiredCount:                  input.DesiredCount,
 		TaskDefinition:                input.TaskDefinition,
 		HealthCheckGracePeriodSeconds: aws.Int64(0),
-		Status:     &st,
-		ServiceArn: &idstr,
+		Status:                        &st,
+		ServiceArn:                    &idstr,
 	}
 	ctx.mux.Lock()
 	ctx.Services[*input.ServiceName] = ret
@@ -317,6 +317,19 @@ func (ctx *MockContext) DescribeTasks(input *ecs.DescribeTasksInput) (*ecs.Descr
 	}
 	return &ecs.DescribeTasksOutput{
 		Tasks: ret,
+	}, nil
+}
+func (ctx *MockContext) DescribeContainerInstances(input *ecs.DescribeContainerInstancesInput) (*ecs.DescribeContainerInstancesOutput, error) {
+	ctx.mux.Lock()
+	defer ctx.mux.Unlock()
+	var ret []*ecs.ContainerInstance
+	ec2Id := "i-1234567890abcdefg"
+	instance := ecs.ContainerInstance{
+		Ec2InstanceId: &ec2Id,
+	}
+	ret = append(ret, &instance)
+	return &ecs.DescribeContainerInstancesOutput{
+		ContainerInstances: ret,
 	}, nil
 }
 
