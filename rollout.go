@@ -283,6 +283,9 @@ func (envars *Envars) CreateCanaryService(
 		*service.DesiredCount = 1
 	}
 	if *service.LaunchType == "EC2" {
+		if envars.CanaryInstanceId == nil {
+			return errors.New("canaryInstanceId option is required when rollout to EC2")
+		}
 		attributeName := *envars.CanaryService
 		attributeValue := "true"
 		if err := envars.EnsureCanaryInstanceAttribute(awsEcs, &attributeName, &attributeValue); err != nil {
