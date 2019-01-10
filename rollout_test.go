@@ -70,7 +70,7 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64, lau
 	return mocker, ecsMock, albMock
 }
 
-func SetupContext(ecsMock *mock_ecs.MockECSAPI, albMock *mock_elbv2.MockELBV2API) *Context {
+func MakeContext(ecsMock *mock_ecs.MockECSAPI, albMock *mock_elbv2.MockELBV2API) *Context {
 	return &Context{
 		Ecs: ecsMock,
 		Alb: albMock,
@@ -86,7 +86,7 @@ func TestEnvars_RollOut(t *testing.T) {
 		envars := DefaultEnvars()
 		ctrl := gomock.NewController(t)
 		mctx, ecsMock, albMock := envars.Setup(ctrl, v, "FARGATE")
-		ctx := SetupContext(ecsMock, albMock)
+		ctx := MakeContext(ecsMock, albMock)
 		if mctx.ServiceSize() != 1 {
 			t.Fatalf("current service not setup")
 		}
@@ -113,7 +113,7 @@ func TestEnvars_StartGradualRollOut2(t *testing.T) {
 	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
 	ctrl := gomock.NewController(t)
 	mocker, ecsMock, albMock := envars.Setup(ctrl, 2, "FARGATE")
-	ctx := SetupContext(ecsMock, albMock)
+	ctx := MakeContext(ecsMock, albMock)
 	result := envars.RollOut(ctx)
 	if result.Error != nil {
 		t.Fatalf(result.Error.Error())
@@ -148,7 +148,7 @@ func TestEnvars_RollOut2(t *testing.T) {
 		}, nil).Times(2),
 		albMock.EXPECT().DescribeTargetHealth(gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
 	)
-	ctx := SetupContext(ecsMock, albMock)
+	ctx := MakeContext(ecsMock, albMock)
 	result := envars.RollOut(ctx)
 	if result.Error != nil {
 		t.Fatalf(result.Error.Error())
@@ -185,7 +185,7 @@ func TestEnvars_RollOut3(t *testing.T) {
 			},
 		}},
 	}, nil).AnyTimes()
-	ctx := SetupContext(ecsMock, albMock)
+	ctx := MakeContext(ecsMock, albMock)
 	result := envars.RollOut(ctx)
 	assert.NotNil(t, result.Error)
 }
@@ -202,7 +202,7 @@ func TestEnvars_StartGradualRollOut5(t *testing.T) {
 	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(o))
 	ctrl := gomock.NewController(t)
 	_, ecsMock, albMock := envars.Setup(ctrl, 2, "FARGATE")
-	ctx := SetupContext(ecsMock, albMock)
+	ctx := MakeContext(ecsMock, albMock)
 	if res := envars.RollOut(ctx); res.Error != nil {
 		t.Fatalf(res.Error.Error())
 	} else if res.ServiceIntact {
@@ -230,7 +230,7 @@ func TestEnvars_RollOut_EC2(t *testing.T) {
 				},
 			},
 		}, nil).AnyTimes()
-		ctx := SetupContext(ecsMock, albMock)
+		ctx := MakeContext(ecsMock, albMock)
 		if mctx.ServiceSize() != 1 {
 			t.Fatalf("current service not setup")
 		}
@@ -254,7 +254,7 @@ func TestEnvars_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 	envars := DefaultEnvars()
 	ctrl := gomock.NewController(t)
 	mctx, ecsMock, albMock := envars.Setup(ctrl, 1, "EC2")
-	ctx := SetupContext(ecsMock, albMock)
+	ctx := MakeContext(ecsMock, albMock)
 	if mctx.ServiceSize() != 1 {
 		t.Fatalf("current service not setup")
 	}
@@ -288,7 +288,7 @@ func TestEnvars_RollOut_EC2_no_attribute(t *testing.T) {
 		Attributes: []*ecs.Attribute{},
 	}, nil).AnyTimes()
 	ecsMock.EXPECT().PutAttributes(gomock.Any()).Return(&ecs.PutAttributesOutput{}, nil).AnyTimes()
-	ctx := SetupContext(ecsMock, albMock)
+	ctx := MakeContext(ecsMock, albMock)
 	result := envars.RollOut(ctx)
 	if result.Error != nil {
 		t.Fatalf("%s", result.Error)
