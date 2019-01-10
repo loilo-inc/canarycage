@@ -283,8 +283,8 @@ func (envars *Envars) CreateCanaryService(
 		*service.DesiredCount = 1
 	}
 	if *service.LaunchType == "EC2" {
-		if envars.CanaryInstanceId == nil {
-			return errors.New("canaryInstanceId option is required when rollout to EC2")
+		if envars.CanaryInstanceArn == nil {
+			return errors.New("canaryInstanceArn option is required when rollout to EC2")
 		}
 		attributeName := *envars.CanaryService
 		attributeValue := "true"
@@ -328,38 +328,26 @@ func (envars *Envars) EnsureCanaryInstanceAttribute(
 	attributeName *string,
 	attributeValue *string,
 ) error {
-	log.Infof("ensuring canary instance(%s) attribute", *envars.CanaryInstanceId)
-	var filterBuilder strings.Builder
-	filterBuilder.WriteString("ec2InstanceId == ")
-	filterBuilder.WriteString(*envars.CanaryInstanceId)
-	filterString := filterBuilder.String()
-	if instances, err := awsEcs.ListContainerInstances(&ecs.ListContainerInstancesInput{
-		Cluster: envars.Cluster,
-		Filter:  &filterString,
+	log.Infof("ensuring canary instance(%s) attribute", *envars.CanaryInstanceArn)
+	if out, err := awsEcs.ListAttributes(&ecs.ListAttributesInput{
+		Cluster:       envars.Cluster,
+		AttributeName: attributeName,
 	}); err != nil {
 		return err
 	} else {
-		instanceArn := instances.ContainerInstanceArns[0]
-		if out, err := awsEcs.ListAttributes(&ecs.ListAttributesInput{
-			Cluster:       envars.Cluster,
-			AttributeName: attributeName,
-		}); err != nil {
-			return err
-		} else {
-			if len(out.Attributes) < 1 {
-				log.Infof("put attribute to canary instance(%s)", *envars.CanaryInstanceId)
-				if _, err := awsEcs.PutAttributes(&ecs.PutAttributesInput{
-					Cluster: envars.Cluster,
-					Attributes: []*ecs.Attribute{
-						{
-							Name:     attributeName,
-							Value:    attributeValue,
-							TargetId: instanceArn,
-						},
+		if len(out.Attributes) < 1 {
+			log.Infof("put attribute to canary instance(%s)", *envars.CanaryInstanceArn)
+			if _, err := awsEcs.PutAttributes(&ecs.PutAttributesInput{
+				Cluster: envars.Cluster,
+				Attributes: []*ecs.Attribute{
+					{
+						Name:     attributeName,
+						Value:    attributeValue,
+						TargetId: envars.CanaryInstanceArn,
 					},
-				}); err != nil {
-					return err
-				}
+				},
+			}); err != nil {
+				return err
 			}
 		}
 	}

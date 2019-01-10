@@ -61,10 +61,10 @@ func RollOutCommand() cli.Command {
 				Destination: dest.CanaryService,
 			},
 			cli.StringFlag{
-				Name:        "canaryInstanceId",
-				EnvVar:      cage.CanaryInstanceIdKey,
-				Usage:       "canary instance id (required only EC2 ECS)",
-				Destination: dest.CanaryInstanceId,
+				Name:        "canaryInstanceArn",
+				EnvVar:      cage.CanaryInstanceArnKey,
+				Usage:       "canary instance ARN (required only EC2 ECS)",
+				Destination: dest.CanaryInstanceArn,
 			},
 			cli.StringFlag{
 				Name:        "serviceDefinitionBase64",
