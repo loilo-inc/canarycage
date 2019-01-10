@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -143,10 +142,14 @@ func (envars *Envars) EnsureTaskHealthy(
 				}
 			}
 		} else if *launchType == "EC2" {
-			instanceArn := o.Tasks[0].ContainerInstanceArn
-			r := regexp.MustCompile(":container-instance/(.+)$")
-			instanceId := r.FindStringSubmatch(*instanceArn)[1]
-			canaryTaskId = &instanceId
+			containerInstanceArn := o.Tasks[0].ContainerInstanceArn
+			if outputs, err := ctx.Ecs.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
+				ContainerInstances: []*string{containerInstanceArn},
+			}); err != nil {
+				return err
+			} else {
+				canaryTaskId = outputs.ContainerInstances[0].Ec2InstanceId
+			}
 		} else {
 			errMsg := fmt.Sprintf("launch type is unknown (%s)", *launchType)
 			log.Error(errMsg)

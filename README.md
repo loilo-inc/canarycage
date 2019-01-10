@@ -124,3 +124,4 @@ It resulted in protection of healthy service during continual delivery in develo
 ## Author
 
 [keroxp](https://github.com/keroxp)
+[Yuto Urakami](https://github.com/YutoUrakami)
