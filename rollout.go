@@ -142,9 +142,8 @@ func (envars *Envars) EnsureTaskHealthy(
 				}
 			}
 		} else if *launchType == "EC2" {
-			containerInstanceArn := o.Tasks[0].ContainerInstanceArn
 			if outputs, err := ctx.Ecs.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
-				ContainerInstances: []*string{containerInstanceArn},
+				ContainerInstances: []*string{envars.CanaryInstanceArn},
 			}); err != nil {
 				return err
 			} else {
