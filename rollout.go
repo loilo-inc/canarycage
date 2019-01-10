@@ -338,7 +338,13 @@ func (envars *Envars) EnsureCanaryInstanceAttribute(
 	}); err != nil {
 		return err
 	} else {
-		if len(out.Attributes) < 1 {
+		canaryInstanceAttribute := make([]*ecs.Attribute, 0)
+		for _, attr := range out.Attributes {
+			if *attr.TargetId == *envars.CanaryInstanceArn && *attr.Value == "true" {
+				canaryInstanceAttribute = append(canaryInstanceAttribute, attr)
+			}
+		}
+		if len(canaryInstanceAttribute) < 1 {
 			log.Infof("put attribute to canary instance(%s)", *envars.CanaryInstanceArn)
 			if _, err := awsEcs.PutAttributes(&ecs.PutAttributesInput{
 				Cluster: envars.Cluster,
