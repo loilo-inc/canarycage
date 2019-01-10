@@ -46,6 +46,7 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64, lau
 	ecsMock.EXPECT().WaitUntilTasksStopped(gomock.Any()).DoAndReturn(mocker.WaitUntilTasksStopped).AnyTimes()
 	ecsMock.EXPECT().ListTasks(gomock.Any()).DoAndReturn(mocker.ListTasks).AnyTimes()
 	ecsMock.EXPECT().DescribeContainerInstances(gomock.Any()).DoAndReturn(mocker.DescribeContainerInstances).AnyTimes()
+	ecsMock.EXPECT().ListAttributes(gomock.Any()).DoAndReturn(mocker.ListAttributes).AnyTimes()
 	albMock.EXPECT().DescribeTargetGroups(gomock.Any()).DoAndReturn(mocker.DescribeTargetGroups).AnyTimes()
 	albMock.EXPECT().DescribeTargetHealth(gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes()
 	albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any()).DoAndReturn(mocker.DescribeTargetGroupAttibutes).AnyTimes()
@@ -208,7 +209,9 @@ func TestEnvars_RollOut_EC2(t *testing.T) {
 	defer recoverTimer()
 	for _, v := range []int64{1, 2, 15} {
 		log.Info("====")
+		canaryInstanceArn := "arn:aws:ecs:us-west-2:1234567689012:container-instance/abcdefg-hijk-lmn-opqrstuvwxyz"
 		envars := DefaultEnvars()
+		envars.CanaryInstanceArn = &canaryInstanceArn
 		ctrl := gomock.NewController(t)
 		mctx, ctx := envars.Setup(ctrl, v, "EC2")
 		if mctx.ServiceSize() != 1 {

@@ -332,6 +332,24 @@ func (ctx *MockContext) DescribeContainerInstances(input *ecs.DescribeContainerI
 		ContainerInstances: ret,
 	}, nil
 }
+func (ctx *MockContext) ListAttributes(input *ecs.ListAttributesInput) (*ecs.ListAttributesOutput, error) {
+	ctx.mux.Lock()
+	defer ctx.mux.Unlock()
+	value := "true"
+	// NOTE: urakami
+	// rollout_test.goに同じ文字列をハードコーディングしている。
+	// どこかで共通化したいが、良いアイディアが思い浮かばない。
+	targetId := "arn:aws:ecs:us-west-2:1234567689012:container-instance/abcdefg-hijk-lmn-opqrstuvwxyz"
+	return &ecs.ListAttributesOutput{
+		Attributes: []*ecs.Attribute{
+			{
+				Name:     input.AttributeName,
+				Value:    &value,
+				TargetId: &targetId,
+			},
+		},
+	}, nil
+}
 
 //
 
