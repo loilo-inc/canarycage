@@ -18,6 +18,8 @@ func RollOutCommand() cli.Command {
 		Region:                  aws.String(""),
 		Cluster:                 aws.String(""),
 		Service:                 aws.String(""),
+		CanaryService:           aws.String(""),
+		CanaryInstanceArn:       aws.String(""),
 		ServiceDefinitionBase64: aws.String(""),
 		TaskDefinitionBase64:    aws.String(""),
 		TaskDefinitionArn:       aws.String(""),
