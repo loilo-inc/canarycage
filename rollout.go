@@ -142,6 +142,7 @@ func (envars *Envars) EnsureTaskHealthy(
 			}
 		} else if *launchType == "EC2" {
 			if outputs, err := ctx.Ecs.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
+				Cluster:            envars.Cluster,
 				ContainerInstances: []*string{envars.CanaryInstanceArn},
 			}); err != nil {
 				return err
@@ -292,7 +293,7 @@ func (envars *Envars) CreateCanaryService(
 		if err := envars.EnsureCanaryInstanceAttribute(awsEcs, &attributeName, &attributeValue); err != nil {
 			return err
 		}
-		constraintsExpression := fmt.Sprintf("attributes:%s == %s", attributeName, attributeValue)
+		constraintsExpression := fmt.Sprintf("attribute:%s == %s", attributeName, attributeValue)
 		constraintsType := "memberOf"
 		service.PlacementConstraints = []*ecs.PlacementConstraint{
 			{
@@ -325,9 +326,11 @@ func (envars *Envars) EnsureCanaryInstanceAttribute(
 	attributeValue *string,
 ) error {
 	log.Infof("ensuring canary instance(%s) attribute", *envars.CanaryInstanceArn)
+	targetType := "container-instance"
 	if out, err := awsEcs.ListAttributes(&ecs.ListAttributesInput{
 		Cluster:       envars.Cluster,
 		AttributeName: attributeName,
+		TargetType:    &targetType,
 	}); err != nil {
 		return err
 	} else {
