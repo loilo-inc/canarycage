@@ -106,6 +106,9 @@ func (e *Envars) Merge(o *Envars) error {
 	if !isEmpty(o.CanaryService) {
 		e.CanaryService = o.CanaryService
 	}
+	if !isEmpty(o.CanaryInstanceArn) {
+		e.CanaryInstanceArn = o.CanaryInstanceArn
+	}
 	if !isEmpty(o.TaskDefinitionBase64) {
 		e.TaskDefinitionBase64 = o.TaskDefinitionBase64
 	}
