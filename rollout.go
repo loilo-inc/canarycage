@@ -141,9 +141,8 @@ func (envars *Envars) EnsureTaskHealthy(
 				}
 			}
 		} else if *launchType == "EC2" {
-			containerInstanceArn := o.Tasks[0].ContainerInstanceArn
 			if outputs, err := ctx.Ecs.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
-				ContainerInstances: []*string{containerInstanceArn},
+				ContainerInstances: []*string{envars.CanaryInstanceArn},
 			}); err != nil {
 				return err
 			} else {
@@ -284,6 +283,24 @@ func (envars *Envars) CreateCanaryService(
 		service.TaskDefinition = nextTaskDefinitionArn
 		*service.DesiredCount = 1
 	}
+	if *service.LaunchType == "EC2" {
+		if envars.CanaryInstanceArn == nil {
+			return errors.New("canaryInstanceArn option is required when rollout to EC2")
+		}
+		attributeName := *envars.CanaryService
+		attributeValue := "true"
+		if err := envars.EnsureCanaryInstanceAttribute(awsEcs, &attributeName, &attributeValue); err != nil {
+			return err
+		}
+		constraintsExpression := fmt.Sprintf("attributes:%s == %s", attributeName, attributeValue)
+		constraintsType := "memberOf"
+		service.PlacementConstraints = []*ecs.PlacementConstraint{
+			{
+				Expression: &constraintsExpression,
+				Type:       &constraintsType,
+			},
+		}
+	}
 	log.Infof("creating canary service '%s' with desiredCount=1", *envars.CanaryService)
 	if _, err := awsEcs.CreateService(service); err != nil {
 		log.Errorf("failed to create canary service due to: %s", err)
@@ -300,5 +317,41 @@ func (envars *Envars) CreateCanaryService(
 		return err
 	}
 	log.Infof("service '%s' has reached STABLE state", *envars.CanaryService)
+	return nil
+}
+func (envars *Envars) EnsureCanaryInstanceAttribute(
+	awsEcs ecsiface.ECSAPI,
+	attributeName *string,
+	attributeValue *string,
+) error {
+	log.Infof("ensuring canary instance(%s) attribute", *envars.CanaryInstanceArn)
+	if out, err := awsEcs.ListAttributes(&ecs.ListAttributesInput{
+		Cluster:       envars.Cluster,
+		AttributeName: attributeName,
+	}); err != nil {
+		return err
+	} else {
+		canaryInstanceAttribute := make([]*ecs.Attribute, 0)
+		for _, attr := range out.Attributes {
+			if *attr.TargetId == *envars.CanaryInstanceArn && *attr.Value == "true" {
+				canaryInstanceAttribute = append(canaryInstanceAttribute, attr)
+			}
+		}
+		if len(canaryInstanceAttribute) < 1 {
+			log.Infof("put attribute to canary instance(%s)", *envars.CanaryInstanceArn)
+			if _, err := awsEcs.PutAttributes(&ecs.PutAttributesInput{
+				Cluster: envars.Cluster,
+				Attributes: []*ecs.Attribute{
+					{
+						Name:     attributeName,
+						Value:    attributeValue,
+						TargetId: envars.CanaryInstanceArn,
+					},
+				},
+			}); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }

@@ -16,6 +16,7 @@ type Envars struct {
 	Cluster                 *string  `json:"cluster" type:"string" required:"true"`
 	Service                 *string  `json:"service" type:"string" required:"true"`
 	CanaryService           *string
+	CanaryInstanceArn       *string
 	TaskDefinitionBase64    *string `json:"nextTaskDefinitionBase64" type:"string"`
 	TaskDefinitionArn       *string `json:"nextTaskDefinitionArn" type:"string"`
 	ServiceDefinitionBase64 *string
@@ -33,6 +34,7 @@ const kDefaultRegion = "us-west-2"
 
 // optional
 const CanaryServiceKey = "CAGE_CANARY_SERVICE"
+const CanaryInstanceArnKey = "CAGE_CANARY_INSTANCE_ARN"
 const RegionKey = "CAGE_REGION"
 
 func isEmpty(o *string) bool {
@@ -41,7 +43,7 @@ func isEmpty(o *string) bool {
 
 func EnsureEnvars(
 	dest *Envars,
-) (error) {
+) error {
 	// required
 	if isEmpty(dest.Cluster) {
 		return NewErrorf("--cluster [%s] is required", ClusterKey)
