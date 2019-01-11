@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
-	"strings"
 	"time"
 )
 
@@ -293,12 +292,7 @@ func (envars *Envars) CreateCanaryService(
 		if err := envars.EnsureCanaryInstanceAttribute(awsEcs, &attributeName, &attributeValue); err != nil {
 			return err
 		}
-		var constraintsExpressionBuilder strings.Builder
-		constraintsExpressionBuilder.WriteString("attributes:")
-		constraintsExpressionBuilder.WriteString(attributeName)
-		constraintsExpressionBuilder.WriteString(" == ")
-		constraintsExpressionBuilder.WriteString(attributeValue)
-		constraintsExpression := constraintsExpressionBuilder.String()
+		constraintsExpression := fmt.Sprintf("attributes:%s == %s", attributeName, attributeValue)
 		constraintsType := "memberOf"
 		service.PlacementConstraints = []*ecs.PlacementConstraint{
 			{
