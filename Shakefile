@@ -25,7 +25,5 @@ release: build
 	 	-t canarycage shake _release
 _release:
 	goreleaser --rm-dist
-upload-install.sh:
-	aws s3 cp install.sh s3://loilo-public/oss/canarycage/install.sh --acl public-read
 version:
 	go run cli/cage/main.go -v | cut -f 3 -d ' '
