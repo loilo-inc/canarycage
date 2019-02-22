@@ -1,124 +1,92 @@
 package cage
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"os"
 	"path/filepath"
 )
 
 type Envars struct {
-	_                       struct{} `type:"struct"`
-	Region                  *string  `json:"region" type:"string"`
-	Cluster                 *string  `json:"cluster" type:"string" required:"true"`
-	Service                 *string  `json:"service" type:"string" required:"true"`
-	CanaryService           *string
-	CanaryInstanceArn       *string
-	TaskDefinitionBase64    *string `json:"nextTaskDefinitionBase64" type:"string"`
-	TaskDefinitionArn       *string `json:"nextTaskDefinitionArn" type:"string"`
-	ServiceDefinitionBase64 *string
+	_                 struct{} `type:"struct"`
+	Region            string   `json:"region" type:"string"`
+	Cluster           string   `json:"cluster" type:"string" required:"true"`
+	Service           string   `json:"service" type:"string" required:"true"`
+	CanaryInstanceArn string
+	TaskDefinitionArn string `json:"nextTaskDefinitionArn" type:"string"`
+	taskDefinition    *ecs.RegisterTaskDefinitionInput
+	serviceDefinition *ecs.CreateServiceInput
 }
+
+const kDefaultRegion = "us-west-2"
 
 // required
 const ClusterKey = "CAGE_CLUSTER"
 const ServiceKey = "CAGE_SERVICE"
 
 // either required
-const ServiceDefinitionBase64Key = "CAGE_SERVICE_DEFINITION_BASE64"
-const TaskDefinitionBase64Key = "CAGE_TASK_DEFINITION_BASE64"
 const TaskDefinitionArnKey = "CAGE_TASK_DEFINITION_ARN"
-const kDefaultRegion = "us-west-2"
 
 // optional
-const CanaryServiceKey = "CAGE_CANARY_SERVICE"
 const CanaryInstanceArnKey = "CAGE_CANARY_INSTANCE_ARN"
 const RegionKey = "CAGE_REGION"
-
-func isEmpty(o *string) bool {
-	return o == nil || *o == ""
-}
 
 func EnsureEnvars(
 	dest *Envars,
 ) error {
 	// required
-	if isEmpty(dest.Cluster) {
+	if dest.Cluster == "" {
 		return NewErrorf("--cluster [%s] is required", ClusterKey)
-	} else if isEmpty(dest.Service) {
+	} else if dest.Service == "" {
 		return NewErrorf("--service [%s] is required", ServiceKey)
 	}
-	if isEmpty(dest.TaskDefinitionArn) && isEmpty(dest.TaskDefinitionBase64) {
-		return NewErrorf("--nextTaskDefinitionArn or --nextTaskDefinitionBase64 must be provided")
+	if dest.taskDefinition == nil {
+		return NewErrorf("--nextTaskDefinitionArn or deploy context must be provided")
 	}
-	if isEmpty(dest.Region) {
-		dest.Region = aws.String(kDefaultRegion)
-	}
-	if isEmpty(dest.CanaryService) {
-		dest.CanaryService = aws.String(fmt.Sprintf("%s-canary", *dest.Service))
+	if dest.Region == "" {
+		log.Warnf("--region was not set. use default region: %s", kDefaultRegion)
+		dest.Region = kDefaultRegion
 	}
 	return nil
 }
 
-func (e *Envars) LoadFromFiles(dir string) error {
+func LoadEnvarsFromFiles(dir string) (*Envars, error) {
 	svcPath := filepath.Join(dir, "service.json")
 	tdPath := filepath.Join(dir, "task-definition.json")
 	_, noSvc := os.Stat(svcPath)
 	_, noTd := os.Stat(tdPath)
 	if noSvc != nil || noTd != nil {
-		return NewErrorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
+		return nil, NewErrorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
 	}
-	var (
-		svc       = &ecs.CreateServiceInput{}
-		td        = &ecs.RegisterTaskDefinitionInput{}
-		svcBase64 string
-		tdBase64  string
-	)
-	if d, err := ReadAndUnmarshalJson(svcPath, svc); err != nil {
-		return NewErrorf("failed to read and unmarshal service.json: %s", err)
-	} else {
-		svcBase64 = base64.StdEncoding.EncodeToString(d)
+	dest := Envars{}
+	if _, err := ReadAndUnmarshalJson(svcPath, &dest.serviceDefinition); err != nil {
+		return nil, NewErrorf("failed to read and unmarshal service.json: %s", err)
 	}
-	if d, err := ReadAndUnmarshalJson(tdPath, td); err != nil {
-		return NewErrorf("failed to read and unmarshal task-definition.json: %s", err)
-	} else {
-		tdBase64 = base64.StdEncoding.EncodeToString(d)
+	if _, err := ReadAndUnmarshalJson(tdPath, &dest.taskDefinition); err != nil {
+		return nil, NewErrorf("failed to read and unmarshal task-definition.json: %s", err)
 	}
-	e.Cluster = svc.Cluster
-	e.Service = svc.ServiceName
-	e.ServiceDefinitionBase64 = &svcBase64
-	e.TaskDefinitionBase64 = &tdBase64
-	return nil
+	dest.Cluster = *dest.serviceDefinition.Cluster
+	dest.Service = *dest.serviceDefinition.ServiceName
+	return &dest, nil
 }
 
-func (e *Envars) Merge(o *Envars) error {
-	if !isEmpty(o.Region) {
-		e.Region = o.Region
+func MergeEnvars(dest *Envars, src *Envars) {
+	if src.Region != "" {
+		dest.Region = src.Region
 	}
-	if !isEmpty(o.Cluster) {
-		e.Cluster = o.Cluster
+	if src.Cluster != "" {
+		dest.Cluster = src.Cluster
 	}
-	if !isEmpty(o.Service) {
-		e.Service = o.Service
+	if src.Service != "" {
+		dest.Service = src.Service
 	}
-	if !isEmpty(o.CanaryService) {
-		e.CanaryService = o.CanaryService
+	if src.CanaryInstanceArn != "" {
+		dest.CanaryInstanceArn = src.CanaryInstanceArn
 	}
-	if !isEmpty(o.CanaryInstanceArn) {
-		e.CanaryInstanceArn = o.CanaryInstanceArn
+	if src.TaskDefinitionArn != "" {
+		dest.TaskDefinitionArn = src.TaskDefinitionArn
 	}
-	if !isEmpty(o.TaskDefinitionBase64) {
-		e.TaskDefinitionBase64 = o.TaskDefinitionBase64
-	}
-	if !isEmpty(o.TaskDefinitionArn) {
-		e.TaskDefinitionArn = o.TaskDefinitionArn
-	}
-	if !isEmpty(o.ServiceDefinitionBase64) {
-		e.ServiceDefinitionBase64 = o.ServiceDefinitionBase64
-	}
-	return nil
 }
 
 func ReadAndUnmarshalJson(path string, dest interface{}) ([]byte, error) {

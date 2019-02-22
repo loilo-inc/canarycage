@@ -3,7 +3,6 @@ package commands
 import (
 	"encoding/json"
 	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"github.com/loilo-inc/canarycage"
@@ -11,7 +10,7 @@ import (
 	"path/filepath"
 )
 
-func UpCommand(ses *session.Session) cli.Command {
+func (c *cageCommands) Up() cli.Command {
 	return cli.Command{
 		Name: "up",
 		ArgsUsage: "[up context path (default=.)]",
@@ -20,7 +19,7 @@ func UpCommand(ses *session.Session) cli.Command {
 			if ctx.NArg() > 0 {
 				dir = ctx.Args().Get(0)
 			}
-			Up(ecs.New(ses), dir)
+			Up(ecs.New(c.ses), dir)
 		},
 	}
 }

@@ -6,8 +6,8 @@
         {
             "targetGroupArn": "aaaa/targetgroup/aaa/bbb",
             "loadBalancerName": "lb",
-            "containerName": "",
-            "containerPort": 0
+            "containerName": "container",
+            "containerPort": 8000
         }
     ],
     "serviceRegistries": [
