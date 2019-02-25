@@ -6,7 +6,7 @@ jobs:
   build:
     docker:
       - image: circleci/golang:1.11
-    working_directory: ~/workspace
+    working_directory: /go/src/github.com/loilo-inc/canarycage
     steps:
       - checkout
       - run:
