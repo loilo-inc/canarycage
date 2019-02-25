@@ -14,6 +14,7 @@ import (
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
+	"regexp"
 	"testing"
 )
 
@@ -24,10 +25,11 @@ func DefaultEnvars() *Envars {
 		log.Fatalf(err.Error())
 	}
 	return &Envars{
-		Region:         "us-west-2",
-		Cluster:        "cage-test",
-		Service:        "service",
-		taskDefinition: &taskDefinition,
+		Region:            "us-west-2",
+		Cluster:           "cage-test",
+		Service:           "service",
+		taskDefinition:    &taskDefinition,
+		serviceDefinition: ReadServiceDefinition("fixtures/service.json"),
 	}
 }
 
@@ -75,14 +77,8 @@ func Setup(ctrl *gomock.Controller, envars *Envars, currentTaskCount int64, laun
 
 	td, _ := mocker.RegisterTaskDefinition(envars.taskDefinition)
 	a := &ecs.CreateServiceInput{
-		ServiceName: &envars.Service,
-		LoadBalancers: []*ecs.LoadBalancer{
-			{
-				TargetGroupArn: aws.String("arn://aaa/hoge/targetgroup/aaa/bbb"),
-				ContainerName:  aws.String("container"),
-				ContainerPort:  aws.Int64(80),
-			},
-		},
+		ServiceName:    &envars.Service,
+		LoadBalancers:  envars.serviceDefinition.LoadBalancers,
 		TaskDefinition: td.TaskDefinition.TaskDefinitionArn,
 		DesiredCount:   aws.Int64(currentTaskCount),
 		LaunchType:     aws.String(launchType),
@@ -132,6 +128,9 @@ func TestCage_RollOut2(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
 	albMock := mock_elbv2iface.NewMockELBV2API(ctrl)
+	albMock.EXPECT().RegisterTargets(gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
+	albMock.EXPECT().DeregisterTargets(gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
+	albMock.EXPECT().WaitUntilTargetDeregistered(gomock.Any()).Return(nil).AnyTimes()
 	gomock.InOrder(
 		albMock.EXPECT().DescribeTargetHealth(gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 			TargetHealthDescriptions: []*elbv2.TargetHealthDescription{{
@@ -166,8 +165,11 @@ func TestCage_RollOut3(t *testing.T) {
 	envars := DefaultEnvars()
 	envars.serviceDefinition = ReadServiceDefinition("fixtures/service.json")
 	ctrl := gomock.NewController(t)
-	_, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
+	mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
 	albMock := mock_elbv2iface.NewMockELBV2API(ctrl)
+	albMock.EXPECT().RegisterTargets(gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
+	albMock.EXPECT().DeregisterTargets(gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
+	albMock.EXPECT().WaitUntilTargetDeregistered(gomock.Any()).Return(nil).AnyTimes()
 	albMock.EXPECT().DescribeTargetHealth(gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 		TargetHealthDescriptions: []*elbv2.TargetHealthDescription{{
 			Target: &elbv2.TargetDescription{
@@ -274,7 +276,7 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 	log.Info("====")
 	envars := DefaultEnvars()
 	ctrl := gomock.NewController(t)
-	mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 1, "ec2")
+	mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 1, "EC2")
 	if mctx.ServiceSize() != 1 {
 		t.Fatalf("current service not setup")
 	}
@@ -292,7 +294,7 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 	if result.Error == nil {
 		t.Fatal("Rollout with no container instance should be error")
 	} else {
-		assert.Equal(t, "canaryInstanceArn option is required when rollout to ec2", result.Error.Error())
+		assert.True(t, regexp.MustCompile("canaryInstanceArn is required").MatchString(result.Error.Error()))
 	}
 }
 

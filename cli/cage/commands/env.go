@@ -1,9 +1,10 @@
-package cage
+package commands
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go/service/ecs"
+	"github.com/loilo-inc/canarycage"
 	"os"
 	"path/filepath"
 )
@@ -13,10 +14,9 @@ type Envars struct {
 	Region            string   `json:"region" type:"string"`
 	Cluster           string   `json:"cluster" type:"string" required:"true"`
 	Service           string   `json:"service" type:"string" required:"true"`
-	CanaryInstanceArn string
-	TaskDefinitionArn string `json:"nextTaskDefinitionArn" type:"string"`
-	taskDefinition    *ecs.RegisterTaskDefinitionInput
-	serviceDefinition *ecs.CreateServiceInput
+	CanaryInstanceArn *string  `json:"canaryInstanceArn" type:"string"`
+	TaskDefinitionArn *string  `json:"nextTaskDefinitionArn" type:"string"`
+	DeployFilesDir    *string  `json:"deployFilesDir" type:"string"`
 }
 
 const kDefaultRegion = "us-west-2"
@@ -37,12 +37,12 @@ func EnsureEnvars(
 ) error {
 	// required
 	if dest.Cluster == "" {
-		return NewErrorf("--cluster [%s] is required", ClusterKey)
+		return fmt.Errorf("--cluster [%s] is required", ClusterKey)
 	} else if dest.Service == "" {
-		return NewErrorf("--service [%s] is required", ServiceKey)
+		return fmt.Errorf("--service [%s] is required", ServiceKey)
 	}
-	if dest.taskDefinition == nil {
-		return NewErrorf("--nextTaskDefinitionArn or deploy context must be provided")
+	if dest.DeployFilesDir == nil && dest.TaskDefinitionArn == nil {
+		return fmt.Errorf("--nextTaskDefinitionArn or deploy files dir (arg1) must be provided")
 	}
 	if dest.Region == "" {
 		log.Warnf("--region was not set. use default region: %s", kDefaultRegion)
@@ -57,14 +57,14 @@ func LoadEnvarsFromFiles(dir string) (*Envars, error) {
 	_, noSvc := os.Stat(svcPath)
 	_, noTd := os.Stat(tdPath)
 	if noSvc != nil || noTd != nil {
-		return nil, NewErrorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
+		return nil, fmt.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
 	}
 	dest := Envars{}
 	if _, err := ReadAndUnmarshalJson(svcPath, &dest.serviceDefinition); err != nil {
-		return nil, NewErrorf("failed to read and unmarshal service.json: %s", err)
+		return nil, fmt.Errorf("failed to read and unmarshal service.json: %s", err)
 	}
 	if _, err := ReadAndUnmarshalJson(tdPath, &dest.taskDefinition); err != nil {
-		return nil, NewErrorf("failed to read and unmarshal task-definition.json: %s", err)
+		return nil, fmt.Errorf("failed to read and unmarshal task-definition.json: %s", err)
 	}
 	dest.Cluster = *dest.serviceDefinition.Cluster
 	dest.Service = *dest.serviceDefinition.ServiceName
@@ -90,7 +90,7 @@ func MergeEnvars(dest *Envars, src *Envars) {
 }
 
 func ReadAndUnmarshalJson(path string, dest interface{}) ([]byte, error) {
-	if d, err := ReadFileAndApplyEnvars(path); err != nil {
+	if d, err := cage.ReadFileAndApplyEnvars(path); err != nil {
 		return d, err
 	} else {
 		if err := json.Unmarshal(d, dest); err != nil {

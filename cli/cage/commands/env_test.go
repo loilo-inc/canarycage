@@ -1,4 +1,4 @@
-package cage
+package commands
 
 import (
 	"github.com/aws/aws-sdk-go/service/ecs"

@@ -19,7 +19,6 @@ type RollOutResult struct {
 }
 
 func (c *cage) RollOut(ctx context.Context) *RollOutResult {
-	envars := c.env
 	ret := &RollOutResult{
 		StartTime:     now(),
 		ServiceIntact: true,
@@ -31,9 +30,9 @@ func (c *cage) RollOut(ctx context.Context) *RollOutResult {
 	}
 	var service *ecs.Service
 	if out, err := c.ecs.DescribeServices(&ecs.DescribeServicesInput{
-		Cluster: &envars.Cluster,
+		Cluster: &c.cluster,
 		Services: []*string{
-			&envars.Service,
+			&c.service,
 		},
 	}); err != nil {
 		log.Errorf("failed to describe current service due to: %s", err.Error())
@@ -41,8 +40,8 @@ func (c *cage) RollOut(ctx context.Context) *RollOutResult {
 	} else {
 		service = out.Services[0]
 	}
-	if *service.LaunchType == "EC2" && c.env.CanaryInstanceArn == "" {
-		return throw(fmt.Errorf("--canaryInstanceArn is required when LaunchType = 'EC2'"))
+	if *service.LaunchType == "EC2" && c.canaryInstanceArn == nil {
+		return throw(fmt.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'"))
 	}
 	var (
 		targetGroupArn *string
@@ -50,21 +49,21 @@ func (c *cage) RollOut(ctx context.Context) *RollOutResult {
 	if len(service.LoadBalancers) > 0 {
 		targetGroupArn = service.LoadBalancers[0].TargetGroupArn
 	}
-	log.Infof("ensuring next task definition...")
-	nextTaskDefinition, err := c.CreateNextTaskDefinition()
-	if err != nil {
-		log.Errorf("failed to register next task definition due to: %s", err)
-		return throw(err)
-	}
+	//log.Infof("ensuring next task definition...")
+	//nextTaskDefinition, err := c.CreateNextTaskDefinition()
+	//if err != nil {
+	//	log.Errorf("failed to register next task definition due to: %s", err)
+	//	return throw(err)
+	//}
 	log.Infof("starting canary task...")
 	var canaryTask *StartCanaryTaskOutput
-	if o, err := c.StartCanaryTask(nextTaskDefinition); err != nil {
+	if o, err := c.StartCanaryTask(c.taskDefinition); err != nil {
 		log.Errorf("failed to create next service due to: %s", err)
 		return throw(err)
 	} else {
 		canaryTask = o
 	}
-	log.Infof("canary task '%s' ensured.", canaryTask.task.TaskArn)
+	log.Infof("canary task '%s' ensured.", *canaryTask.task.TaskArn)
 	if targetGroupArn != nil {
 		log.Infof("ensuring canary task to become healthy...")
 		if err := c.EnsureTaskHealthy(
@@ -78,28 +77,28 @@ func (c *cage) RollOut(ctx context.Context) *RollOutResult {
 		log.Info("🤩 canary task is healthy!")
 	}
 	ret.ServiceIntact = false
-	log.Infof("updating '%s' 's task definition to '%s:%d'...", envars.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision)
+	log.Infof("updating '%s' 's task definition to '%s:%d'...", c.service, *c.taskDefinition.Family, *c.taskDefinition.Revision)
 	if _, err := c.ecs.UpdateService(&ecs.UpdateServiceInput{
-		Cluster:        &envars.Cluster,
-		Service:        &envars.Service,
-		TaskDefinition: nextTaskDefinition.TaskDefinitionArn,
+		Cluster:        &c.cluster,
+		Service:        &c.service,
+		TaskDefinition: c.taskDefinition.TaskDefinitionArn,
 	}); err != nil {
 		return throw(err)
 	}
-	log.Infof("waiting for service '%s' to be stable...", envars.Service)
+	log.Infof("waiting for service '%s' to be stable...", c.service)
 	if err := c.ecs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
-		Cluster:  &envars.Cluster,
-		Services: []*string{&envars.Service},
+		Cluster:  &c.cluster,
+		Services: []*string{&c.service},
 	}); err != nil {
 		return throw(err)
 	}
-	log.Infof("🥴 service '%s' has become to be stable!", envars.Service)
+	log.Infof("🥴 service '%s' has become to be stable!", c.service)
 	log.Infof("deleting canary task '%s'...", *canaryTask.task.TaskArn)
 	if err := c.StopCanaryTask(canaryTask); err != nil {
 		return throw(err)
 	}
 	log.Infof("canary task '%s' has successfully been stopped", *canaryTask.task.TaskArn)
-	log.Infof("🤗 service '%s' rolled out to '%s:%d'", envars.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision)
+	log.Infof("🤗 service '%s' rolled out to '%s:%d'", c.service, *c.taskDefinition.Family, *c.taskDefinition.Revision)
 	ret.EndTime = now()
 	return ret
 }
@@ -151,7 +150,7 @@ func (c *cage) EnsureTaskHealthy(
 		// delete canary service
 		log.Infof("stopping canary task '%s'...", taskArn)
 		_, err := c.ecs.StopTask(&ecs.StopTaskInput{
-			Cluster: &c.env.Cluster,
+			Cluster: &c.cluster,
 			Task:    taskArn,
 			Reason:  aws.String(fmt.Sprintf("cage: canary task didn't got healthy. recent state is '%s'", *recentState)),
 		})
@@ -173,28 +172,28 @@ func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetId *string, t
 	return nil
 }
 
-func (c *cage) CreateNextTaskDefinition() (*ecs.TaskDefinition, error) {
-	if c.env.TaskDefinitionArn != "" {
-		log.Infof("--taskDefinitionArn was set to '%s'. skip registering new task definition.", c.env.TaskDefinitionArn)
-		o, err := c.ecs.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{
-			TaskDefinition: &c.env.TaskDefinitionArn,
-		})
-		if err != nil {
-			log.Errorf(
-				"failed to describe next task definition '%s' due to: %s",
-				c.env.TaskDefinitionArn, err,
-			)
-			return nil, err
-		}
-		return o.TaskDefinition, nil
-	} else {
-		if out, err := c.ecs.RegisterTaskDefinition(c.env.taskDefinition); err != nil {
-			return nil, err
-		} else {
-			return out.TaskDefinition, nil
-		}
-	}
-}
+//func (c *cage) CreateNextTaskDefinition() (*ecs.TaskDefinition, error) {
+//	if c.taskDefinition != "" {
+//		log.Infof("--taskDefinitionArn was set to '%s'. skip registering new task definition.", c.env.TaskDefinitionArn)
+//		o, err := c.ecs.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{
+//			TaskDefinition: &c.env.TaskDefinitionArn,
+//		})
+//		if err != nil {
+//			log.Errorf(
+//				"failed to describe next task definition '%s' due to: %s",
+//				c.env.TaskDefinitionArn, err,
+//			)
+//			return nil, err
+//		}
+//		return o.TaskDefinition, nil
+//	} else {
+//		if out, err := c.ecs.RegisterTaskDefinition(c.env.taskDefinition); err != nil {
+//			return nil, err
+//		} else {
+//			return out.TaskDefinition, nil
+//		}
+//	}
+//}
 
 func (c *cage) DescribeSubnet(subnetId *string) (*ec2.Subnet, error) {
 	if o, err := c.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{
@@ -207,32 +206,33 @@ func (c *cage) DescribeSubnet(subnetId *string) (*ec2.Subnet, error) {
 }
 
 type StartCanaryTaskOutput struct {
-	task             *ecs.Task
-	targetGroupArn   *string
-	availabilityZone *string
-	targetId         *string
-	targetPort       *int64
+	task                *ecs.Task
+	registrationSkipped bool
+	targetGroupArn      *string
+	availabilityZone    *string
+	targetId            *string
+	targetPort          *int64
 }
 
 func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCanaryTaskOutput, error) {
 	var service *ecs.Service
 	if o, err := c.ecs.DescribeServices(&ecs.DescribeServicesInput{
-		Cluster:  &c.env.Cluster,
-		Services: []*string{&c.env.Service},
+		Cluster:  &c.cluster,
+		Services: []*string{&c.service},
 	}); err != nil {
 		return nil, err
 	} else {
 		service = o.Services[0]
 	}
 	startTask := &ecs.StartTaskInput{
-		Cluster:              &c.env.Cluster,
-		Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.env.Service)),
+		Cluster:              &c.cluster,
+		Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.service)),
 		NetworkConfiguration: service.NetworkConfiguration,
 		TaskDefinition:       nextTaskDefinition.TaskDefinitionArn,
 	}
-	if c.env.CanaryInstanceArn != "" {
+	if c.canaryInstanceArn != nil {
 		// ec2
-		startTask.ContainerInstances = []*string{&c.env.CanaryInstanceArn}
+		startTask.ContainerInstances = []*string{c.canaryInstanceArn}
 	}
 	var task *ecs.Task
 	if o, err := c.ecs.StartTask(startTask); err != nil {
@@ -240,17 +240,25 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 	} else {
 		task = o.Tasks[0]
 	}
-	log.Infof("waiting for canary task '%s' is running...", *task.TaskArn)
+	log.Infof("🥚 waiting for canary task '%s' is running...", *task.TaskArn)
 	if err := c.ecs.WaitUntilTasksRunning(&ecs.DescribeTasksInput{
-		Cluster: &c.env.Cluster,
+		Cluster: &c.cluster,
 		Tasks:   []*string{task.TaskArn},
 	}); err != nil {
 		return nil, err
 	}
+	log.Infof("🐣 canary task '%s' is running!️", *task.TaskArn)
+	if len(service.LoadBalancers) == 0 {
+		log.Infof("no load balancers is attached to service '%s'. skip registration to target group", *service.ServiceName)
+		return &StartCanaryTaskOutput{
+			task:                task,
+			registrationSkipped: true,
+		}, nil
+	}
 	var targetId *string
 	var targetPort *int64
+	var subnet *ec2.Subnet
 	for _, container := range nextTaskDefinition.ContainerDefinitions {
-		log.Debugf("%s, %s", *container.Name, *service.LoadBalancers[0].ContainerName)
 		if *container.Name == *service.LoadBalancers[0].ContainerName {
 			targetPort = container.PortMappings[0].HostPort
 		}
@@ -266,7 +274,6 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 				privateIp = v.Value
 			}
 		}
-		var subnet *ec2.Subnet
 		if o, err := c.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{
 			SubnetIds: []*string{subnetId},
 		}); err != nil {
@@ -274,22 +281,13 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 		} else {
 			subnet = o.Subnets[0]
 		}
-		if _, err := c.alb.RegisterTargets(&elbv2.RegisterTargetsInput{
-			TargetGroupArn: service.LoadBalancers[0].TargetGroupArn,
-			Targets: []*elbv2.TargetDescription{{
-				AvailabilityZone: subnet.AvailabilityZone,
-				Id:               privateIp,
-				Port:             targetPort,
-			}},
-		}); err != nil {
-			return nil, err
-		}
 		targetId = privateIp
+		log.Infof("canary task was placed: privateIp = '%s', hostPort = '%d', az = '%s'", *targetId, *targetPort, *subnet.AvailabilityZone)
 	} else {
 		var containerInstance *ecs.ContainerInstance
 		if outputs, err := c.ecs.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
-			Cluster:            &c.env.Cluster,
-			ContainerInstances: []*string{&c.env.CanaryInstanceArn},
+			Cluster:            &c.cluster,
+			ContainerInstances: []*string{c.canaryInstanceArn},
 		}); err != nil {
 			return nil, err
 		} else {
@@ -299,22 +297,23 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 			InstanceIds: []*string{containerInstance.Ec2InstanceId},
 		}); err != nil {
 			return nil, err
-		} else if subnet, err := c.DescribeSubnet(o.Reservations[0].Instances[0].SubnetId); err != nil {
+		} else if sn, err := c.DescribeSubnet(o.Reservations[0].Instances[0].SubnetId); err != nil {
 			return nil, err
 		} else {
-			_, err := c.alb.RegisterTargets(&elbv2.RegisterTargetsInput{
-				TargetGroupArn: service.LoadBalancers[0].TargetGroupArn,
-				Targets: []*elbv2.TargetDescription{{
-					AvailabilityZone: subnet.AvailabilityZone,
-					Id:               containerInstance.Ec2InstanceId,
-					Port:             targetPort,
-				}},
-			})
-			if err != nil {
-				return nil, err
-			}
 			targetId = containerInstance.Ec2InstanceId
+			subnet = sn
 		}
+		log.Infof("canary task was placed: instanceId = '%s', hostPort = '%d', az = '%s'", *targetId, *targetPort, *subnet.AvailabilityZone)
+	}
+	if _, err := c.alb.RegisterTargets(&elbv2.RegisterTargetsInput{
+		TargetGroupArn: service.LoadBalancers[0].TargetGroupArn,
+		Targets: []*elbv2.TargetDescription{{
+			AvailabilityZone: subnet.AvailabilityZone,
+			Id:               targetId,
+			Port:             targetPort,
+		}},
+	}); err != nil {
+		return nil, err
 	}
 	return &StartCanaryTaskOutput{
 		targetId:   targetId,
@@ -325,7 +324,7 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 
 func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
 	if _, err := c.ecs.StopTask(&ecs.StopTaskInput{
-		Cluster: &c.env.Cluster,
+		Cluster: &c.cluster,
 		Task:    input.task.TaskArn,
 	}); err != nil {
 		return err
@@ -351,7 +350,7 @@ func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
 		return err
 	}
 	if err := c.ecs.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
-		Cluster: &c.env.Cluster,
+		Cluster: &c.cluster,
 		Tasks:   []*string{input.task.TaskArn},
 	}); err != nil {
 		return err
