@@ -10,6 +10,7 @@ import (
 func TestEnsureEnvars(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		e := &Envars{
+			Region:              "us-west-2",
 			Cluster:             "cluster",
 			Service:             "service-next",
 			TaskDefinitionInput: &ecs.RegisterTaskDefinitionInput{},
@@ -20,6 +21,7 @@ func TestEnsureEnvars(t *testing.T) {
 	})
 	t.Run("with td arn", func(t *testing.T) {
 		e := &Envars{
+			Region:            "us-west-2",
 			Cluster:           "cluster",
 			Service:           "next",
 			TaskDefinitionArn: aws.String("arn://aaa"),
@@ -30,6 +32,7 @@ func TestEnsureEnvars(t *testing.T) {
 	})
 	t.Run("should return err if nor taskDefinitionArn neither TaskDefinitionInput is defined", func(t *testing.T) {
 		e := &Envars{
+			Region: "us-west-2",
 			Cluster: "cluster",
 			Service: "next",
 		}
@@ -40,6 +43,7 @@ func TestEnsureEnvars(t *testing.T) {
 	t.Run("should return err if required props are not defined", func(t *testing.T) {
 		dummy := "aaa"
 		arr := []string{
+			RegionKey,
 			ServiceKey,
 			ClusterKey,
 		}

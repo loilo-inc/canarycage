@@ -8,7 +8,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
-	"golang.org/x/sync/errgroup"
 	"time"
 )
 
@@ -111,23 +110,11 @@ func (c *cage) RollOut(ctx context.Context) *RollOutResult {
 		return throw(err)
 	}
 	log.Infof("waiting for service '%s' to be stable...", c.env.Service)
-	// avoid stdout sticking while CI
-	eg := errgroup.Group{}
-	eg.Go(func() error {
-		return c.ecs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
-			Cluster:  &c.env.Cluster,
-			Services: []*string{&c.env.Service},
-		})
-	})
-	eg.Go(func() error {
-		count := 0
-		for {
-			<-newTimer(time.Duration(15) * time.Second).C
-			count++
-			log.Infof("still waiting...(%ds elapsed)", count*15)
-		}
-	})
-	if err := eg.Wait(); err != nil {
+	//TODO: avoid stdout sticking while CI
+	if err := c.ecs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
+		Cluster:  &c.env.Cluster,
+		Services: []*string{&c.env.Service},
+	}); err != nil {
 		return throw(err)
 	}
 	log.Infof("🥴 service '%s' has become to be stable!", c.env.Service)

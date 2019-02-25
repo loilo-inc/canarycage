@@ -1,4 +1,5 @@
 test:
+	set -eo pipefail
 	go test -coverprofile=coverage.txt -covermode=count
 	if [[ ${CI} ]];then
 		bash <(curl -s https://codecov.io/bash)

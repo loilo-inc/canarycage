@@ -227,6 +227,18 @@ func (ctx *MockContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutp
 		Tasks: []*ecs.Task{ret},
 	}, nil
 }
+func (ctx *MockContext) RunTask(input *ecs.RunTaskInput) (*ecs.RunTaskOutput, error) {
+	o, err := ctx.StartTask(&ecs.StartTaskInput{
+		Cluster: input.Cluster,
+		Group: input.Group,
+		TaskDefinition: input.TaskDefinition,
+		NetworkConfiguration: input.NetworkConfiguration,
+	})
+	if err != nil { return nil, err }
+	return &ecs.RunTaskOutput{
+		Tasks: o.Tasks,
+	}, nil
+}
 
 func (ctx *MockContext) StopTask(input *ecs.StopTaskInput) (*ecs.StopTaskOutput, error) {
 	ctx.mux.Lock()
