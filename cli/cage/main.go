@@ -20,8 +20,8 @@ func main() {
 	app.Description = "A gradual roll-out deployment tool for AWS ECS"
 	ctx := context.Background()
 	cmds := commands.NewCageCommands(&commands.CageCommandsInput{
-		GlobalContext:ctx,
-		Session: ses,
+		GlobalContext: ctx,
+		Session:       ses,
 	})
 	app.Commands = cli.Commands{
 		cmds.RollOut(),

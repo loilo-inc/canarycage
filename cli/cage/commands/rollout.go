@@ -12,86 +12,27 @@ import (
 )
 
 func (c *cageCommands) RollOut() cli.Command {
-	var region string
-	var cluster string
-	var service string
-	var canaryInstanceArn string
-	var taskDefinitionArn string
+	var envars = cage.Envars{}
 	return cli.Command{
 		Name:        "rollout",
+		Usage:       "roll out ECS service to next task definition",
 		Description: "start rolling out next service with current service",
-		ArgsUsage:   "[deploy context path]",
+		ArgsUsage:   "[directory path of service.json and task-definition.json (default=.)]",
 		Flags: []cli.Flag{
-			cli.BoolFlag{
-				Name:  "dryRun",
-				Usage: "describe roll out plan without affecting any resources",
-			},
-			cli.StringFlag{
-				Name:        "region",
-				EnvVar:      cage.RegionKey,
-				Usage:       "aws region for ecs. if not specified, try to load from aws sessions automatically",
-				Destination: &region,
-			},
-			cli.StringFlag{
-				Name:        "cluster",
-				EnvVar:      cage.ClusterKey,
-				Usage:       "ecs cluster name. if not specified, load from service.json",
-				Destination: &cluster,
-			},
-			cli.StringFlag{
-				Name:        "service",
-				EnvVar:      cage.ServiceKey,
-				Usage:       "service name. if not specified, load from service.json",
-				Destination: &service,
-			},
+			RegionFlag(&envars.Region),
+			ClusterFlag(&envars.Cluster),
+			ServiceFlag(&envars.Service),
+			TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
 			cli.StringFlag{
 				Name:        "canaryInstanceArn",
 				EnvVar:      cage.CanaryInstanceArnKey,
 				Usage:       "EC2 instance ARN for placing canary task. required only when LaunchType is EC2",
-				Destination: &canaryInstanceArn,
-			},
-			cli.StringFlag{
-				Name:        "taskDefinitionArn",
-				EnvVar:      cage.TaskDefinitionArnKey,
-				Usage:       "full arn for next task definition. if not specified, use task-definition.json for registration",
-				Destination: &taskDefinitionArn,
+				Destination: &envars.CanaryInstanceArn,
 			},
 		},
 		Action: func(ctx *cli.Context) {
-			var _region string
-			if region != "" {
-				_region = region
-				log.Infof("🗺 region was set: %s", _region)
-			} else if *c.ses.Config.Region != "" {
-				_region = *c.ses.Config.Region
-				log.Infof("🗺 region was loaded from sessions: %s", _region)
-			} else {
-				log.Fatalf("🙄 region must specified by --region flag or aws session")
-			}
-			envars := &cage.Envars{
-				Region:            _region,
-				Service:           service,
-				Cluster:           cluster,
-				TaskDefinitionArn: &taskDefinitionArn,
-				CanaryInstanceArn: &canaryInstanceArn,
-			}
-			if ctx.NArg() > 0 {
-				dir := ctx.Args().Get(0)
-				td, svc, err := cage.LoadDefinitionsFromFiles(dir);
-				if err != nil {
-					log.Fatalf(err.Error())
-				}
-				cage.MergeEnvars(envars, &cage.Envars{
-					Cluster:                *svc.Cluster,
-					Service:                *svc.ServiceName,
-					TaskDefinitionInput:    td,
-					ServiceDefinitionInput: svc,
-				})
-			}
-			if err := cage.EnsureEnvars(envars); err != nil {
-				log.Fatalf(err.Error())
-			}
-			if err := Action(c.globalContext, envars, c.ses); err != nil {
+			c.AggregateEnvars(ctx, &envars)
+			if err := Action(c.globalContext, &envars, c.ses); err != nil {
 				log.Fatalf("failed: %s", err)
 			}
 		},
@@ -109,14 +50,14 @@ func Action(
 		EC2: ec2.New(ses),
 		ALB: elbv2.New(ses),
 	})
-	result := cagecli.RollOut(ctx)
-	if result.Error != nil {
+	result, err := cagecli.RollOut(ctx)
+	if err != nil {
 		if result.ServiceIntact {
-			log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed. error: %s", result.Error)
+			log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed. error: %s", err)
 		} else {
-			log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!. error: %s", result.Error)
+			log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!. error: %s", err)
 		}
-		return result.Error
+		return err
 	}
 	log.Infof("🎉service roll out has completed successfully!🎉")
 	return nil

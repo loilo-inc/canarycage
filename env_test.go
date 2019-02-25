@@ -1,7 +1,6 @@
 package cage
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -24,7 +23,7 @@ func TestEnsureEnvars(t *testing.T) {
 			Region:            "us-west-2",
 			Cluster:           "cluster",
 			Service:           "next",
-			TaskDefinitionArn: aws.String("arn://aaa"),
+			TaskDefinitionArn: "arn://aaa",
 		}
 		if err := EnsureEnvars(e); err != nil {
 			t.Fatalf(err.Error())
@@ -32,7 +31,7 @@ func TestEnsureEnvars(t *testing.T) {
 	})
 	t.Run("should return err if nor taskDefinitionArn neither TaskDefinitionInput is defined", func(t *testing.T) {
 		e := &Envars{
-			Region: "us-west-2",
+			Region:  "us-west-2",
 			Cluster: "cluster",
 			Service: "next",
 		}

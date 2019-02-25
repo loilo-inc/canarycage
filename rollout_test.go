@@ -110,9 +110,9 @@ func TestCage_RollOut(t *testing.T) {
 			EC2: ec2Mock,
 		})
 		ctx := context.Background()
-		result := cagecli.RollOut(ctx)
-		if result.Error != nil {
-			t.Fatalf("%s", result.Error)
+		result, err := cagecli.RollOut(ctx)
+		if err != nil {
+			t.Fatalf("%s", err)
 		}
 		assert.False(t, result.ServiceIntact)
 		assert.Equal(t, int64(1), mctx.ServiceSize())
@@ -153,10 +153,11 @@ func TestCage_RollOut2(t *testing.T) {
 		EC2: ec2Mock,
 	})
 	ctx := context.Background()
-	result := cagecli.RollOut(ctx)
-	if result.Error != nil {
-		t.Fatalf(result.Error.Error())
+	result, err := cagecli.RollOut(ctx)
+	if err != nil {
+		t.Fatalf(err.Error())
 	}
+	assert.NotNil(t,result)
 }
 func TestCage_RollOut3(t *testing.T) {
 	// canary taskがtgに登録されない場合は打ち切る
@@ -197,8 +198,8 @@ func TestCage_RollOut3(t *testing.T) {
 		ALB: albMock,
 	})
 	ctx := context.Background()
-	result := cagecli.RollOut(ctx)
-	assert.NotNil(t, result.Error)
+	_, err := cagecli.RollOut(ctx)
+	assert.NotNil(t, err)
 }
 
 func TestCage_StartGradualRollOut5(t *testing.T) {
@@ -216,8 +217,8 @@ func TestCage_StartGradualRollOut5(t *testing.T) {
 		ALB: albMock,
 	})
 	ctx := context.Background()
-	if res := cagecli.RollOut(ctx); res.Error != nil {
-		t.Fatalf(res.Error.Error())
+	if res, err := cagecli.RollOut(ctx); err != nil {
+		t.Fatalf(err.Error())
 	} else if res.ServiceIntact {
 		t.Fatalf("no")
 	}
@@ -232,7 +233,7 @@ func TestCage_RollOut_EC2(t *testing.T) {
 		canaryInstanceArn := "arn:aws:ecs:us-west-2:1234567689012:container-instance/abcdefg-hijk-lmn-opqrstuvwxyz"
 		attributeValue := "true"
 		envars := DefaultEnvars()
-		envars.CanaryInstanceArn = &canaryInstanceArn
+		envars.CanaryInstanceArn = canaryInstanceArn
 		ctrl := gomock.NewController(t)
 		mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, v, "ec2")
 		ecsMock.EXPECT().ListAttributes(gomock.Any()).Return(&ecs.ListAttributesOutput{
@@ -257,9 +258,9 @@ func TestCage_RollOut_EC2(t *testing.T) {
 			ALB: albMock,
 		})
 		ctx := context.Background()
-		result := cagecli.RollOut(ctx)
-		if result.Error != nil {
-			t.Fatalf("%s", result.Error)
+		result, err := cagecli.RollOut(ctx)
+		if err != nil {
+			t.Fatalf("%s", err)
 		}
 		assert.False(t, result.ServiceIntact)
 		assert.Equal(t, int64(1), mctx.ServiceSize())
@@ -288,11 +289,12 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 		ALB: albMock,
 	})
 	ctx := context.Background()
-	result := cagecli.RollOut(ctx)
-	if result.Error == nil {
+	result,err := cagecli.RollOut(ctx)
+	if err == nil {
 		t.Fatal("Rollout with no container instance should be error")
 	} else {
-		assert.True(t, regexp.MustCompile("canaryInstanceArn is required").MatchString(result.Error.Error()))
+		assert.True(t, regexp.MustCompile("canaryInstanceArn is required").MatchString(err.Error()))
+		assert.NotNil(t, result)
 	}
 }
 
@@ -303,7 +305,7 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 	log.Info("====")
 	canaryInstanceArn := "arn:aws:ecs:us-west-2:1234567689012:container-instance/abcdefg-hijk-lmn-opqrstuvwxyz"
 	envars := DefaultEnvars()
-	envars.CanaryInstanceArn = &canaryInstanceArn
+	envars.CanaryInstanceArn = canaryInstanceArn
 	ctrl := gomock.NewController(t)
 	mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 1, "EC2")
 	if mctx.ServiceSize() != 1 {
@@ -323,9 +325,9 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 		ALB: albMock,
 	})
 	ctx := context.Background()
-	result := cagecli.RollOut(ctx)
-	if result.Error != nil {
-		t.Fatalf("%s", result.Error)
+	result,err := cagecli.RollOut(ctx)
+	if err != nil {
+		t.Fatalf("%s", err)
 	}
 	assert.False(t, result.ServiceIntact)
 	assert.Equal(t, int64(1), mctx.ServiceSize())
@@ -334,7 +336,7 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 
 func TestCage_CreateNextTaskDefinition(t *testing.T) {
 	envars := &Envars{
-		TaskDefinitionArn: aws.String("arn://task"),
+		TaskDefinitionArn: "arn://task",
 	}
 	ctrl := gomock.NewController(t)
 	e := mock_ecsiface.NewMockECSAPI(ctrl)
@@ -348,5 +350,5 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	assert.Equal(t, *envars.TaskDefinitionArn, *o.TaskDefinitionArn)
+	assert.Equal(t, envars.TaskDefinitionArn, *o.TaskDefinitionArn)
 }

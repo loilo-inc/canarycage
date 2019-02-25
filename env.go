@@ -14,8 +14,8 @@ type Envars struct {
 	Region                 string   `json:"region" type:"string"`
 	Cluster                string   `json:"cluster" type:"string" required:"true"`
 	Service                string   `json:"service" type:"string" required:"true"`
-	CanaryInstanceArn      *string
-	TaskDefinitionArn      *string `json:"nextTaskDefinitionArn" type:"string"`
+	CanaryInstanceArn      string
+	TaskDefinitionArn      string `json:"nextTaskDefinitionArn" type:"string"`
 	TaskDefinitionInput    *ecs.RegisterTaskDefinitionInput
 	ServiceDefinitionInput *ecs.CreateServiceInput
 }
@@ -40,7 +40,7 @@ func EnsureEnvars(
 	} else if dest.Service == "" {
 		return NewErrorf("--service [%s] is required", ServiceKey)
 	}
-	if dest.TaskDefinitionArn == nil && dest.TaskDefinitionInput == nil {
+	if dest.TaskDefinitionArn == "" && dest.TaskDefinitionInput == nil {
 		return NewErrorf("--nextTaskDefinitionArn or deploy context must be provided")
 	}
 	if dest.Region == "" {
@@ -82,10 +82,10 @@ func MergeEnvars(dest *Envars, src *Envars) {
 	if src.Service != "" {
 		dest.Service = src.Service
 	}
-	if src.CanaryInstanceArn != nil {
+	if src.CanaryInstanceArn != "" {
 		dest.CanaryInstanceArn = src.CanaryInstanceArn
 	}
-	if src.TaskDefinitionArn != nil {
+	if src.TaskDefinitionArn != "" {
 		dest.TaskDefinitionArn = src.TaskDefinitionArn
 	}
 }

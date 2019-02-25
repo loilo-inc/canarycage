@@ -8,7 +8,8 @@ import (
 )
 
 type Cage interface {
-	RollOut(ctx context.Context) *RollOutResult
+	Up(ctx context.Context) (*UpResult, error)
+	RollOut(ctx context.Context) (*RollOutResult, error)
 }
 
 type cage struct {
