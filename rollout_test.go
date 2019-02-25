@@ -25,11 +25,11 @@ func DefaultEnvars() *Envars {
 		log.Fatalf(err.Error())
 	}
 	return &Envars{
-		Region:            "us-west-2",
-		Cluster:           "cage-test",
-		Service:           "service",
-		taskDefinition:    &taskDefinition,
-		serviceDefinition: ReadServiceDefinition("fixtures/service.json"),
+		Region:                 "us-west-2",
+		Cluster:                "cage-test",
+		Service:                "service",
+		ServiceDefinitionInput: ReadServiceDefinition("fixtures/service.json"),
+		TaskDefinitionInput:    &taskDefinition,
 	}
 }
 
@@ -75,10 +75,10 @@ func Setup(ctrl *gomock.Controller, envars *Envars, currentTaskCount int64, laun
 	ec2Mock.EXPECT().DescribeSubnets(gomock.Any()).DoAndReturn(mocker.DescribeSubnets).AnyTimes()
 	ec2Mock.EXPECT().DescribeInstances(gomock.Any()).DoAndReturn(mocker.DescribeInstances).AnyTimes()
 
-	td, _ := mocker.RegisterTaskDefinition(envars.taskDefinition)
+	td, _ := mocker.RegisterTaskDefinition(envars.TaskDefinitionInput)
 	a := &ecs.CreateServiceInput{
 		ServiceName:    &envars.Service,
-		LoadBalancers:  envars.serviceDefinition.LoadBalancers,
+		LoadBalancers:  envars.ServiceDefinitionInput.LoadBalancers,
 		TaskDefinition: td.TaskDefinition.TaskDefinitionArn,
 		DesiredCount:   aws.Int64(currentTaskCount),
 		LaunchType:     aws.String(launchType),
@@ -124,7 +124,6 @@ func TestCage_RollOut2(t *testing.T) {
 	newTimer = fakeTimer
 	defer recoverTimer()
 	envars := DefaultEnvars()
-	envars.serviceDefinition = ReadServiceDefinition("fixtures/service.json")
 	ctrl := gomock.NewController(t)
 	mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
 	albMock := mock_elbv2iface.NewMockELBV2API(ctrl)
@@ -163,7 +162,6 @@ func TestCage_RollOut3(t *testing.T) {
 	newTimer = fakeTimer
 	defer recoverTimer()
 	envars := DefaultEnvars()
-	envars.serviceDefinition = ReadServiceDefinition("fixtures/service.json")
 	ctrl := gomock.NewController(t)
 	mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
 	albMock := mock_elbv2iface.NewMockELBV2API(ctrl)
@@ -207,8 +205,7 @@ func TestCage_StartGradualRollOut5(t *testing.T) {
 	envars := DefaultEnvars()
 	newTimer = fakeTimer
 	defer recoverTimer()
-	envars.serviceDefinition = ReadServiceDefinition("fixtures/service.json")
-	envars.serviceDefinition.LoadBalancers = nil
+	envars.ServiceDefinitionInput.LoadBalancers = nil
 	ctrl := gomock.NewController(t)
 	_, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
 	cagecli := NewCage(&Input{
@@ -234,7 +231,7 @@ func TestCage_RollOut_EC2(t *testing.T) {
 		canaryInstanceArn := "arn:aws:ecs:us-west-2:1234567689012:container-instance/abcdefg-hijk-lmn-opqrstuvwxyz"
 		attributeValue := "true"
 		envars := DefaultEnvars()
-		envars.CanaryInstanceArn = canaryInstanceArn
+		envars.CanaryInstanceArn = &canaryInstanceArn
 		ctrl := gomock.NewController(t)
 		mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, v, "ec2")
 		ecsMock.EXPECT().ListAttributes(gomock.Any()).Return(&ecs.ListAttributesOutput{
@@ -305,7 +302,7 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 	log.Info("====")
 	canaryInstanceArn := "arn:aws:ecs:us-west-2:1234567689012:container-instance/abcdefg-hijk-lmn-opqrstuvwxyz"
 	envars := DefaultEnvars()
-	envars.CanaryInstanceArn = canaryInstanceArn
+	envars.CanaryInstanceArn = &canaryInstanceArn
 	ctrl := gomock.NewController(t)
 	mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 1, "EC2")
 	if mctx.ServiceSize() != 1 {
@@ -336,7 +333,7 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 
 func TestCage_CreateNextTaskDefinition(t *testing.T) {
 	envars := &Envars{
-		TaskDefinitionArn: "arn://task",
+		TaskDefinitionArn: aws.String("arn://task"),
 	}
 	ctrl := gomock.NewController(t)
 	e := mock_ecsiface.NewMockECSAPI(ctrl)
@@ -350,5 +347,5 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	assert.Equal(t, envars.TaskDefinitionArn, *o.TaskDefinitionArn)
+	assert.Equal(t, *envars.TaskDefinitionArn, *o.TaskDefinitionArn)
 }

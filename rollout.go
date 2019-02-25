@@ -30,9 +30,9 @@ func (c *cage) RollOut(ctx context.Context) *RollOutResult {
 	}
 	var service *ecs.Service
 	if out, err := c.ecs.DescribeServices(&ecs.DescribeServicesInput{
-		Cluster: &c.cluster,
+		Cluster: &c.env.Cluster,
 		Services: []*string{
-			&c.service,
+			&c.env.Service,
 		},
 	}); err != nil {
 		log.Errorf("failed to describe current service due to: %s", err.Error())
@@ -40,7 +40,7 @@ func (c *cage) RollOut(ctx context.Context) *RollOutResult {
 	} else {
 		service = out.Services[0]
 	}
-	if *service.LaunchType == "EC2" && c.canaryInstanceArn == nil {
+	if *service.LaunchType == "EC2" && c.env.CanaryInstanceArn == nil {
 		return throw(fmt.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'"))
 	}
 	var (
@@ -49,15 +49,15 @@ func (c *cage) RollOut(ctx context.Context) *RollOutResult {
 	if len(service.LoadBalancers) > 0 {
 		targetGroupArn = service.LoadBalancers[0].TargetGroupArn
 	}
-	//log.Infof("ensuring next task definition...")
-	//nextTaskDefinition, err := c.CreateNextTaskDefinition()
-	//if err != nil {
-	//	log.Errorf("failed to register next task definition due to: %s", err)
-	//	return throw(err)
-	//}
+	log.Infof("ensuring next task definition...")
+	nextTaskDefinition, err := c.CreateNextTaskDefinition()
+	if err != nil {
+		log.Errorf("failed to register next task definition due to: %s", err)
+		return throw(err)
+	}
 	log.Infof("starting canary task...")
 	var canaryTask *StartCanaryTaskOutput
-	if o, err := c.StartCanaryTask(c.taskDefinition); err != nil {
+	if o, err := c.StartCanaryTask(nextTaskDefinition); err != nil {
 		log.Errorf("failed to create next service due to: %s", err)
 		return throw(err)
 	} else {
@@ -77,28 +77,34 @@ func (c *cage) RollOut(ctx context.Context) *RollOutResult {
 		log.Info("🤩 canary task is healthy!")
 	}
 	ret.ServiceIntact = false
-	log.Infof("updating '%s' 's task definition to '%s:%d'...", c.service, *c.taskDefinition.Family, *c.taskDefinition.Revision)
+	log.Infof(
+		"updating '%s' 's task definition to '%s:%d'...",
+		c.env.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision,
+	)
 	if _, err := c.ecs.UpdateService(&ecs.UpdateServiceInput{
-		Cluster:        &c.cluster,
-		Service:        &c.service,
-		TaskDefinition: c.taskDefinition.TaskDefinitionArn,
+		Cluster:        &c.env.Cluster,
+		Service:        &c.env.Service,
+		TaskDefinition: nextTaskDefinition.TaskDefinitionArn,
 	}); err != nil {
 		return throw(err)
 	}
-	log.Infof("waiting for service '%s' to be stable...", c.service)
+	log.Infof("waiting for service '%s' to be stable...", c.env.Service)
 	if err := c.ecs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
-		Cluster:  &c.cluster,
-		Services: []*string{&c.service},
+		Cluster:  &c.env.Cluster,
+		Services: []*string{&c.env.Service},
 	}); err != nil {
 		return throw(err)
 	}
-	log.Infof("🥴 service '%s' has become to be stable!", c.service)
+	log.Infof("🥴 service '%s' has become to be stable!", c.env.Service)
 	log.Infof("deleting canary task '%s'...", *canaryTask.task.TaskArn)
 	if err := c.StopCanaryTask(canaryTask); err != nil {
 		return throw(err)
 	}
 	log.Infof("canary task '%s' has successfully been stopped", *canaryTask.task.TaskArn)
-	log.Infof("🤗 service '%s' rolled out to '%s:%d'", c.service, *c.taskDefinition.Family, *c.taskDefinition.Revision)
+	log.Infof(
+		"🤗 service '%s' rolled out to '%s:%d'",
+		c.env.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision,
+	)
 	ret.EndTime = now()
 	return ret
 }
@@ -150,7 +156,7 @@ func (c *cage) EnsureTaskHealthy(
 		// delete canary service
 		log.Infof("stopping canary task '%s'...", taskArn)
 		_, err := c.ecs.StopTask(&ecs.StopTaskInput{
-			Cluster: &c.cluster,
+			Cluster: &c.env.Cluster,
 			Task:    taskArn,
 			Reason:  aws.String(fmt.Sprintf("cage: canary task didn't got healthy. recent state is '%s'", *recentState)),
 		})
@@ -172,28 +178,28 @@ func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetId *string, t
 	return nil
 }
 
-//func (c *cage) CreateNextTaskDefinition() (*ecs.TaskDefinition, error) {
-//	if c.taskDefinition != "" {
-//		log.Infof("--taskDefinitionArn was set to '%s'. skip registering new task definition.", c.env.TaskDefinitionArn)
-//		o, err := c.ecs.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{
-//			TaskDefinition: &c.env.TaskDefinitionArn,
-//		})
-//		if err != nil {
-//			log.Errorf(
-//				"failed to describe next task definition '%s' due to: %s",
-//				c.env.TaskDefinitionArn, err,
-//			)
-//			return nil, err
-//		}
-//		return o.TaskDefinition, nil
-//	} else {
-//		if out, err := c.ecs.RegisterTaskDefinition(c.env.taskDefinition); err != nil {
-//			return nil, err
-//		} else {
-//			return out.TaskDefinition, nil
-//		}
-//	}
-//}
+func (c *cage) CreateNextTaskDefinition() (*ecs.TaskDefinition, error) {
+	if c.env.TaskDefinitionArn != nil {
+		log.Infof("--taskDefinitionArn was set to '%s'. skip registering new task definition.", *c.env.TaskDefinitionArn)
+		o, err := c.ecs.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{
+			TaskDefinition: c.env.TaskDefinitionArn,
+		})
+		if err != nil {
+			log.Errorf(
+				"failed to describe next task definition '%s' due to: %s",
+				c.env.TaskDefinitionArn, err,
+			)
+			return nil, err
+		}
+		return o.TaskDefinition, nil
+	} else {
+		if out, err := c.ecs.RegisterTaskDefinition(c.env.TaskDefinitionInput); err != nil {
+			return nil, err
+		} else {
+			return out.TaskDefinition, nil
+		}
+	}
+}
 
 func (c *cage) DescribeSubnet(subnetId *string) (*ec2.Subnet, error) {
 	if o, err := c.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{
@@ -217,22 +223,22 @@ type StartCanaryTaskOutput struct {
 func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCanaryTaskOutput, error) {
 	var service *ecs.Service
 	if o, err := c.ecs.DescribeServices(&ecs.DescribeServicesInput{
-		Cluster:  &c.cluster,
-		Services: []*string{&c.service},
+		Cluster:  &c.env.Cluster,
+		Services: []*string{&c.env.Service},
 	}); err != nil {
 		return nil, err
 	} else {
 		service = o.Services[0]
 	}
 	startTask := &ecs.StartTaskInput{
-		Cluster:              &c.cluster,
-		Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.service)),
+		Cluster:              &c.env.Cluster,
+		Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.env.Service)),
 		NetworkConfiguration: service.NetworkConfiguration,
 		TaskDefinition:       nextTaskDefinition.TaskDefinitionArn,
 	}
-	if c.canaryInstanceArn != nil {
+	if c.env.CanaryInstanceArn != nil {
 		// ec2
-		startTask.ContainerInstances = []*string{c.canaryInstanceArn}
+		startTask.ContainerInstances = []*string{c.env.CanaryInstanceArn}
 	}
 	var task *ecs.Task
 	if o, err := c.ecs.StartTask(startTask); err != nil {
@@ -242,7 +248,7 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 	}
 	log.Infof("🥚 waiting for canary task '%s' is running...", *task.TaskArn)
 	if err := c.ecs.WaitUntilTasksRunning(&ecs.DescribeTasksInput{
-		Cluster: &c.cluster,
+		Cluster: &c.env.Cluster,
 		Tasks:   []*string{task.TaskArn},
 	}); err != nil {
 		return nil, err
@@ -286,8 +292,8 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 	} else {
 		var containerInstance *ecs.ContainerInstance
 		if outputs, err := c.ecs.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
-			Cluster:            &c.cluster,
-			ContainerInstances: []*string{c.canaryInstanceArn},
+			Cluster:            &c.env.Cluster,
+			ContainerInstances: []*string{c.env.CanaryInstanceArn},
 		}); err != nil {
 			return nil, err
 		} else {
@@ -324,7 +330,7 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 
 func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
 	if _, err := c.ecs.StopTask(&ecs.StopTaskInput{
-		Cluster: &c.cluster,
+		Cluster: &c.env.Cluster,
 		Task:    input.task.TaskArn,
 	}); err != nil {
 		return err
@@ -350,7 +356,7 @@ func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
 		return err
 	}
 	if err := c.ecs.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
-		Cluster: &c.cluster,
+		Cluster: &c.env.Cluster,
 		Tasks:   []*string{input.task.TaskArn},
 	}); err != nil {
 		return err
