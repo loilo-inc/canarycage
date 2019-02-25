@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/loilo-inc/canarycage/cli/cage/commands"
 	"github.com/urfave/cli"
@@ -11,9 +10,7 @@ import (
 )
 
 func main() {
-	ses, err := session.NewSession(&aws.Config{
-		Region: aws.String("us-west-2"),
-	})
+	ses, err := session.NewSession()
 	if err != nil {
 		log.Fatalf(err.Error())
 	}

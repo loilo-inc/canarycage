@@ -2,6 +2,7 @@ package cage
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"os"
@@ -18,8 +19,6 @@ type Envars struct {
 	TaskDefinitionInput    *ecs.RegisterTaskDefinitionInput
 	ServiceDefinitionInput *ecs.CreateServiceInput
 }
-
-const kDefaultRegion = "us-west-2"
 
 // required
 const ClusterKey = "CAGE_CLUSTER"
@@ -45,30 +44,32 @@ func EnsureEnvars(
 		return NewErrorf("--nextTaskDefinitionArn or deploy context must be provided")
 	}
 	if dest.Region == "" {
-		log.Warnf("--region was not set. use default region: %s", kDefaultRegion)
-		dest.Region = kDefaultRegion
+		log.Fatalf("region must be specified. set --region flag or see also https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html")
 	}
 	return nil
 }
 
-func LoadEnvarsFromFiles(dir string) (*Envars, error) {
+func LoadDefinitionsFromFiles(dir string) (
+	*ecs.RegisterTaskDefinitionInput,
+	*ecs.CreateServiceInput,
+	error,
+) {
 	svcPath := filepath.Join(dir, "service.json")
 	tdPath := filepath.Join(dir, "task-definition.json")
 	_, noSvc := os.Stat(svcPath)
 	_, noTd := os.Stat(tdPath)
+	var service ecs.CreateServiceInput
+	var td ecs.RegisterTaskDefinitionInput
 	if noSvc != nil || noTd != nil {
-		return nil, NewErrorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
+		return nil, nil, fmt.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
 	}
-	dest := Envars{}
-	if _, err := ReadAndUnmarshalJson(svcPath, &dest.ServiceDefinitionInput); err != nil {
-		return nil, NewErrorf("failed to read and unmarshal service.json: %s", err)
+	if _, err := ReadAndUnmarshalJson(svcPath, &service); err != nil {
+		return nil, nil, fmt.Errorf("failed to read and unmarshal service.json: %s", err)
 	}
-	if _, err := ReadAndUnmarshalJson(tdPath, &dest.TaskDefinitionInput); err != nil {
-		return nil, NewErrorf("failed to read and unmarshal task-definition.json: %s", err)
+	if _, err := ReadAndUnmarshalJson(tdPath, &td); err != nil {
+		return nil, nil, fmt.Errorf("failed to read and unmarshal task-definition.json: %s", err)
 	}
-	dest.Cluster = *dest.ServiceDefinitionInput.Cluster
-	dest.Service = *dest.ServiceDefinitionInput.ServiceName
-	return &dest, nil
+	return &td, &service, nil
 }
 
 func MergeEnvars(dest *Envars, src *Envars) {

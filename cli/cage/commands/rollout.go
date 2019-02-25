@@ -12,7 +12,11 @@ import (
 )
 
 func (c *cageCommands) RollOut() cli.Command {
-	envarsFromCli := cage.Envars{}
+	var region string
+	var cluster string
+	var service string
+	var canaryInstanceArn string
+	var taskDefinitionArn string
 	return cli.Command{
 		Name:        "rollout",
 		Description: "start rolling out next service with current service",
@@ -25,52 +29,69 @@ func (c *cageCommands) RollOut() cli.Command {
 			cli.StringFlag{
 				Name:        "region",
 				EnvVar:      cage.RegionKey,
-				Value:       "us-west-2",
-				Usage:       "aws region for ecs",
-				Destination: &envarsFromCli.Region,
+				Usage:       "aws region for ecs. if not specified, try to load from aws sessions automatically",
+				Destination: &region,
 			},
 			cli.StringFlag{
 				Name:        "cluster",
 				EnvVar:      cage.ClusterKey,
-				Usage:       "ecs cluster name",
-				Destination: &envarsFromCli.Cluster,
+				Usage:       "ecs cluster name. if not specified, load from service.json",
+				Destination: &cluster,
 			},
 			cli.StringFlag{
 				Name:        "service",
 				EnvVar:      cage.ServiceKey,
-				Usage:       "service name",
-				Destination: &envarsFromCli.Service,
+				Usage:       "service name. if not specified, load from service.json",
+				Destination: &service,
 			},
 			cli.StringFlag{
 				Name:        "canaryInstanceArn",
 				EnvVar:      cage.CanaryInstanceArnKey,
-				Usage:       "canary instance ARN (required only EC2 ECS)",
-				Destination: &envarsFromCli.CanaryInstanceArn,
+				Usage:       "EC2 instance ARN for placing canary task. required only when LaunchType is EC2",
+				Destination: &canaryInstanceArn,
 			},
 			cli.StringFlag{
 				Name:        "taskDefinitionArn",
 				EnvVar:      cage.TaskDefinitionArnKey,
-				Usage:       "full arn for next task definition",
-				Destination: &envarsFromCli.TaskDefinitionArn,
+				Usage:       "full arn for next task definition. if not specified, use task-definition.json for registration",
+				Destination: &taskDefinitionArn,
 			},
 		},
 		Action: func(ctx *cli.Context) {
-			envars := envarsFromCli
-			if ctx.NArg() > 0 {
-				// deployコンテクストを指定した場合
-				dir := ctx.Args().Get(0)
-				var envarsFromFiles *cage.Envars
-				if d, err := cage.LoadEnvarsFromFiles(dir); err != nil {
-					log.Fatalf(err.Error())
-				} else {
-					envarsFromFiles = d
-				}
-				cage.MergeEnvars(&envars, envarsFromFiles)
+			var _region string
+			if region != "" {
+				_region = region
+				log.Infof("🗺 region was set: %s", _region)
+			} else if *c.ses.Config.Region != "" {
+				_region = *c.ses.Config.Region
+				log.Infof("🗺 region was loaded from sessions: %s", _region)
+			} else {
+				log.Fatalf("🙄 region must specified by --region flag or aws session")
 			}
-			if err := cage.EnsureEnvars(&envars); err != nil {
+			envars := &cage.Envars{
+				Region:            _region,
+				Service:           service,
+				Cluster:           cluster,
+				TaskDefinitionArn: &taskDefinitionArn,
+				CanaryInstanceArn: &canaryInstanceArn,
+			}
+			if ctx.NArg() > 0 {
+				dir := ctx.Args().Get(0)
+				td, svc, err := cage.LoadDefinitionsFromFiles(dir);
+				if err != nil {
+					log.Fatalf(err.Error())
+				}
+				cage.MergeEnvars(envars, &cage.Envars{
+					Cluster:                *svc.Cluster,
+					Service:                *svc.ServiceName,
+					TaskDefinitionInput:    td,
+					ServiceDefinitionInput: svc,
+				})
+			}
+			if err := cage.EnsureEnvars(envars); err != nil {
 				log.Fatalf(err.Error())
 			}
-			if err := Action(c.globalContext, &envars, c.ses); err != nil {
+			if err := Action(c.globalContext, envars, c.ses); err != nil {
 				log.Fatalf("failed: %s", err)
 			}
 		},
@@ -80,9 +101,10 @@ func (c *cageCommands) RollOut() cli.Command {
 func Action(
 	ctx context.Context,
 	envars *cage.Envars,
-	ses *session.Session) error {
+	ses *session.Session,
+) error {
 	cagecli := cage.NewCage(&cage.Input{
-		Env:envars,
+		Env: envars,
 		ECS: ecs.New(ses),
 		EC2: ec2.New(ses),
 		ALB: elbv2.New(ses),
