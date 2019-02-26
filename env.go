@@ -88,6 +88,12 @@ func MergeEnvars(dest *Envars, src *Envars) {
 	if src.TaskDefinitionArn != "" {
 		dest.TaskDefinitionArn = src.TaskDefinitionArn
 	}
+	if src.TaskDefinitionInput != nil {
+		dest.TaskDefinitionInput = src.TaskDefinitionInput
+	}
+	if src.ServiceDefinitionInput != nil {
+		dest.ServiceDefinitionInput = src.ServiceDefinitionInput
+	}
 }
 
 func ReadAndUnmarshalJson(path string, dest interface{}) ([]byte, error) {

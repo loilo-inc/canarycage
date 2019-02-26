@@ -157,7 +157,7 @@ func TestCage_RollOut2(t *testing.T) {
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	assert.NotNil(t,result)
+	assert.NotNil(t, result)
 }
 func TestCage_RollOut3(t *testing.T) {
 	// canary taskがtgに登録されない場合は打ち切る
@@ -289,7 +289,7 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 		ALB: albMock,
 	})
 	ctx := context.Background()
-	result,err := cagecli.RollOut(ctx)
+	result, err := cagecli.RollOut(ctx)
 	if err == nil {
 		t.Fatal("Rollout with no container instance should be error")
 	} else {
@@ -325,7 +325,7 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 		ALB: albMock,
 	})
 	ctx := context.Background()
-	result,err := cagecli.RollOut(ctx)
+	result, err := cagecli.RollOut(ctx)
 	if err != nil {
 		t.Fatalf("%s", err)
 	}

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli"
 )
@@ -39,13 +40,20 @@ func TaskDefinitionArnFlag(dest *string) cli.Flag {
 	}
 }
 
-func (c *cageCommands) AggregateEnvars(ctx *cli.Context, envars *cage.Envars) {
+func (c *cageCommands) aggregateEnvars(
+	ctx *cli.Context,
+	envars *cage.Envars,
+) {
 	var _region string
+	ses, err := session.NewSession()
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
 	if envars.Region != "" {
 		_region = envars.Region
 		log.Infof("🗺 region was set: %s", _region)
-	} else if *c.ses.Config.Region != "" {
-		_region = *c.ses.Config.Region
+	} else if *ses.Config.Region != "" {
+		_region = *ses.Config.Region
 		log.Infof("🗺 region was loaded from sessions: %s", _region)
 	} else {
 		log.Fatalf("🙄 region must specified by --region flag or aws session")

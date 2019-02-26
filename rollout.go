@@ -300,11 +300,9 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 	}
 	if *task.LaunchType == "FARGATE" {
 		details := task.Attachments[0].Details
-		log.Infof("%+v", task.Attachments)
 		var subnetId *string
 		var privateIp *string
 		for _, v := range details {
-			log.Infof("%+v", v)
 			if *v.Name == "subnetId" {
 				subnetId = v.Value
 			} else if *v.Name == "privateIPv4Address" {

@@ -1,8 +1,8 @@
 package commands
 
 import (
-	"context"
 	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
@@ -30,35 +30,33 @@ func (c *cageCommands) RollOut() cli.Command {
 				Destination: &envars.CanaryInstanceArn,
 			},
 		},
-		Action: func(ctx *cli.Context) {
-			c.AggregateEnvars(ctx, &envars)
-			if err := Action(c.globalContext, &envars, c.ses); err != nil {
-				log.Fatalf("failed: %s", err)
+		Action: func(ctx *cli.Context) error {
+			c.aggregateEnvars(ctx, &envars)
+			var ses *session.Session
+			if o, err := session.NewSession(&aws.Config{
+				Region: &envars.Region,
+			}); err != nil {
+				return err
+			} else {
+				ses = o
 			}
+			cagecli := cage.NewCage(&cage.Input{
+				Env: &envars,
+				ECS: ecs.New(ses),
+				EC2: ec2.New(ses),
+				ALB: elbv2.New(ses),
+			})
+			result, err := cagecli.RollOut(c.ctx)
+			if err != nil {
+				if result.ServiceIntact {
+					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed. error: %s", envars.Service, err)
+				} else {
+					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!. error: %s", envars.Service, err)
+				}
+				return err
+			}
+			log.Infof("🎉service roll out has completed successfully!🎉")
+			return nil
 		},
 	}
-}
-
-func Action(
-	ctx context.Context,
-	envars *cage.Envars,
-	ses *session.Session,
-) error {
-	cagecli := cage.NewCage(&cage.Input{
-		Env: envars,
-		ECS: ecs.New(ses),
-		EC2: ec2.New(ses),
-		ALB: elbv2.New(ses),
-	})
-	result, err := cagecli.RollOut(ctx)
-	if err != nil {
-		if result.ServiceIntact {
-			log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed. error: %s", err)
-		} else {
-			log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!. error: %s", err)
-		}
-		return err
-	}
-	log.Infof("🎉service roll out has completed successfully!🎉")
-	return nil
 }
