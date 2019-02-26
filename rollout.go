@@ -317,7 +317,6 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 			subnet = o.Subnets[0]
 		}
 		targetId = privateIp
-		log.Infof("%s,%s,%+v", targetId, targetPort, subnet)
 		log.Infof("canary task was placed: privateIp = '%s', hostPort = '%d', az = '%s'", *targetId, *targetPort, *subnet.AvailabilityZone)
 	} else {
 		var containerInstance *ecs.ContainerInstance
