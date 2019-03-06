@@ -1,180 +1,156 @@
 package cage
 
 import (
-	"encoding/base64"
-	"encoding/json"
-	"errors"
+	"context"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
-	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
-	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 	"time"
 )
-
-type Context struct {
-	Ecs ecsiface.ECSAPI
-	Alb elbv2iface.ELBV2API
-}
 
 type RollOutResult struct {
 	StartTime     time.Time
 	EndTime       time.Time
 	ServiceIntact bool
-	Error         error
 }
 
-func (envars *Envars) RollOut(
-	ctx *Context,
-) *RollOutResult {
+func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	ret := &RollOutResult{
 		StartTime:     now(),
 		ServiceIntact: true,
 	}
-	throw := func(err error) *RollOutResult {
+	var aggregatedError error
+	throw := func(err error) (*RollOutResult, error) {
 		ret.EndTime = now()
-		ret.Error = err
-		return ret
+		aggregatedError = err
+		return ret, err
 	}
-	out, err := ctx.Ecs.DescribeServices(&ecs.DescribeServicesInput{
-		Cluster: envars.Cluster,
+	defer func(result *RollOutResult) {
+		ret.EndTime = now()
+	}(ret)
+	var service *ecs.Service
+	if out, err := c.ecs.DescribeServices(&ecs.DescribeServicesInput{
+		Cluster: &c.env.Cluster,
 		Services: []*string{
-			envars.Service,
+			&c.env.Service,
 		},
-	})
-	if err != nil {
+	}); err != nil {
 		log.Errorf("failed to describe current service due to: %s", err.Error())
 		return throw(err)
+	} else {
+		service = out.Services[0]
 	}
-	service := out.Services[0]
+	if *service.LaunchType == "EC2" && c.env.CanaryInstanceArn == "" {
+		return throw(fmt.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'"))
+	}
 	var (
 		targetGroupArn *string
-		targetPort     *int64
 	)
 	if len(service.LoadBalancers) > 0 {
 		targetGroupArn = service.LoadBalancers[0].TargetGroupArn
-		targetPort = service.LoadBalancers[0].ContainerPort
 	}
 	log.Infof("ensuring next task definition...")
-	nextTaskDefinition, err := envars.CreateNextTaskDefinition(ctx.Ecs)
+	nextTaskDefinition, err := c.CreateNextTaskDefinition()
 	if err != nil {
 		log.Errorf("failed to register next task definition due to: %s", err)
 		return throw(err)
 	}
-	log.Infof("ensuring canary service '%s'...", *envars.CanaryService)
-	if err := envars.CreateCanaryService(ctx.Ecs, nextTaskDefinition.TaskDefinitionArn); err != nil {
-		log.Errorf("failed to create next service due to: %s", err)
+	log.Infof("starting canary task...")
+	var canaryTask *StartCanaryTaskOutput
+	if o, err := c.StartCanaryTask(nextTaskDefinition); err != nil {
+		log.Errorf("failed to start canary task due to: %s", err)
 		return throw(err)
+	} else {
+		canaryTask = o
 	}
-	log.Infof("service '%s' ensured.", *envars.CanaryService)
+	// ensure canary task stopped after rolling out
+	defer func(task *StartCanaryTaskOutput, result *RollOutResult) {
+		if task == nil {
+			return
+		}
+		log.Infof("stopping canary task '%s'...", *canaryTask.task.TaskArn)
+		if err := c.StopCanaryTask(canaryTask); err != nil {
+			log.Fatalf("failed to stop canary task '%s': %s", *canaryTask.task.TaskArn, err)
+		}
+		log.Infof("canary task '%s' has successfully been stopped", *canaryTask.task.TaskArn)
+		if aggregatedError == nil {
+			log.Infof(
+				"🐥 service '%s' successfully rolled out to '%s:%d'!",
+				c.env.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision,
+			)
+		} else {
+			log.Errorf(
+				"😥 %s", aggregatedError,
+			)
+		}
+	}(canaryTask, ret)
+	log.Infof("canary task '%s' ensured.", *canaryTask.task.TaskArn)
 	if targetGroupArn != nil {
-		log.Infof("ensuring canary task to become healthy...")
-		if err := envars.EnsureTaskHealthy(ctx, targetGroupArn, targetPort); err != nil {
+		log.Infof("😷 ensuring canary task to become healthy...")
+		if err := c.EnsureTaskHealthy(
+			canaryTask.task.TaskArn,
+			targetGroupArn,
+			canaryTask.targetId,
+			canaryTask.targetPort,
+		); err != nil {
 			return throw(err)
 		}
 		log.Info("🤩 canary task is healthy!")
 	}
 	ret.ServiceIntact = false
-	log.Infof("updating '%s' 's task definition to '%s:%d'...", *envars.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision)
-	if _, err := ctx.Ecs.UpdateService(&ecs.UpdateServiceInput{
-		Cluster:        envars.Cluster,
-		Service:        envars.Service,
+	log.Infof(
+		"updating '%s' 's task definition to '%s:%d'...",
+		c.env.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision,
+	)
+	if _, err := c.ecs.UpdateService(&ecs.UpdateServiceInput{
+		Cluster:        &c.env.Cluster,
+		Service:        &c.env.Service,
 		TaskDefinition: nextTaskDefinition.TaskDefinitionArn,
 	}); err != nil {
 		return throw(err)
 	}
-	log.Infof("waiting for service '%s' to be stable...", *envars.Service)
-	if err := ctx.Ecs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
-		Cluster:  envars.Cluster,
-		Services: []*string{envars.Service},
+	log.Infof("waiting for service '%s' to be stable...", c.env.Service)
+	//TODO: avoid stdout sticking while CI
+	if err := c.ecs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
+		Cluster:  &c.env.Cluster,
+		Services: []*string{&c.env.Service},
 	}); err != nil {
 		return throw(err)
 	}
-	log.Infof("🥴 service '%s' has become to be stable!", *envars.Service)
-	log.Infof("deleting canary service '%s'...", *envars.CanaryService)
-	if _, err := ctx.Ecs.DeleteService(&ecs.DeleteServiceInput{
-		Cluster: envars.Cluster,
-		Service: envars.CanaryService,
-		Force:   aws.Bool(true),
-	}); err != nil {
-		return throw(err)
-	}
-	log.Infof("canary service '%s' has successfully deleted", *envars.CanaryService)
-	log.Infof("🤗 service '%s' rolled out to '%s:%d'", *envars.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision)
+	log.Infof("🥴 service '%s' has become to be stable!", c.env.Service)
 	ret.EndTime = now()
-	return ret
+	return ret, nil
 }
 
-func (envars *Envars) EnsureTaskHealthy(
-	ctx *Context,
+func (c *cage) EnsureTaskHealthy(
+	taskArn *string,
 	tgArn *string,
+	targetId *string,
 	targetPort *int64,
 ) error {
-	var canaryTaskId *string
-	var canaryTaskArn *string
-	if o, err := ctx.Ecs.ListTasks(&ecs.ListTasksInput{
-		Cluster:     envars.Cluster,
-		ServiceName: envars.CanaryService,
-	}); err != nil {
-		return err
-	} else if o, err := ctx.Ecs.DescribeTasks(&ecs.DescribeTasksInput{
-		Cluster: envars.Cluster,
-		Tasks:   o.TaskArns,
-	}); err != nil {
-		return err
-	} else {
-		canaryTaskArn = o.Tasks[0].TaskArn
-		launchType := o.Tasks[0].LaunchType
-		if launchType == nil {
-			errMsg := "launch type is nil"
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-		if *launchType == "FARGATE" {
-			for _, d := range o.Tasks[0].Attachments[0].Details {
-				switch *d.Name {
-				case "privateIPv4Address":
-					canaryTaskId = d.Value
-					break
-				}
-			}
-		} else if *launchType == "EC2" {
-			if outputs, err := ctx.Ecs.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
-				Cluster:            envars.Cluster,
-				ContainerInstances: []*string{envars.CanaryInstanceArn},
-			}); err != nil {
-				return err
-			} else {
-				canaryTaskId = outputs.ContainerInstances[0].Ec2InstanceId
-			}
-		} else {
-			errMsg := fmt.Sprintf("launch type is unknown (%s)", *launchType)
-			log.Error(errMsg)
-			return errors.New(errMsg)
-		}
-	}
 	log.Infof("checking canary task's health state...")
 	var unusedCount = 0
 	var initialized = false
 	var recentState *string
 	for {
 		<-newTimer(time.Duration(15) * time.Second).C
-		if o, err := ctx.Alb.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{
+		if o, err := c.alb.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{
 			TargetGroupArn: tgArn,
 			Targets: []*elbv2.TargetDescription{{
-				Id:   canaryTaskId,
+				Id:   targetId,
 				Port: targetPort,
 			}},
 		}); err != nil {
 			return err
 		} else {
-			recentState = GetTargetIsHealthy(o, canaryTaskId, targetPort)
+			recentState = GetTargetIsHealthy(o, targetId, targetPort)
 			if recentState == nil {
-				return NewErrorf("'%s' is not registered to target group '%s'", *canaryTaskId, *tgArn)
+				return fmt.Errorf("'%s' is not registered to target group '%s'", *targetId, *tgArn)
 			}
-			log.Infof("canary task '%s' (%s) state is: %s", *canaryTaskArn, *canaryTaskId, *recentState)
+			log.Infof("canary task '%s' (%s:%d) state is: %s", *taskArn, *targetId, *targetPort, *recentState)
 			switch *recentState {
 			case "healthy":
 				return nil
@@ -183,16 +159,19 @@ func (envars *Envars) EnsureTaskHealthy(
 				log.Infof("still checking state...")
 				continue
 			case "unused":
-				// 20回以上=300秒間unusedになった場合はエラーにする
 				unusedCount++
-				if !initialized && unusedCount < 20 {
+				if !initialized && unusedCount < 5 {
 					continue
 				}
 			default:
 			}
 		}
 		// unhealthy, draining, unused
-		return NewErrorf("canary task '%s' (%s) hasn't become to healthy. Recent state: %s", *canaryTaskArn, *canaryTaskId, *recentState)
+		log.Errorf("😨 canary task '%s' is unhealthy", *taskArn)
+		return fmt.Errorf(
+			"canary task '%s' (%s:%d) hasn't become to be healthy. recent state: %s",
+			*taskArn, *targetId, *targetPort, *recentState,
+		)
 	}
 }
 
@@ -206,155 +185,211 @@ func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetId *string, t
 	return nil
 }
 
-func (envars *Envars) CreateNextTaskDefinition(awsEcs ecsiface.ECSAPI) (*ecs.TaskDefinition, error) {
-	if !isEmpty(envars.TaskDefinitionArn) {
-		o, err := awsEcs.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{
-			TaskDefinition: envars.TaskDefinitionArn,
+func (c *cage) CreateNextTaskDefinition() (*ecs.TaskDefinition, error) {
+	if c.env.TaskDefinitionArn != "" {
+		log.Infof("--taskDefinitionArn was set to '%s'. skip registering new task definition.", c.env.TaskDefinitionArn)
+		o, err := c.ecs.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{
+			TaskDefinition: &c.env.TaskDefinitionArn,
 		})
 		if err != nil {
 			log.Errorf(
 				"failed to describe next task definition '%s' due to: %s",
-				*envars.TaskDefinitionArn, err,
+				c.env.TaskDefinitionArn, err,
 			)
 			return nil, err
 		}
 		return o.TaskDefinition, nil
-	}
-	data, err := base64.StdEncoding.DecodeString(*envars.TaskDefinitionBase64)
-	if err != nil {
-		log.Errorf("failed to decode task definition base64 due to :%s", err)
-		return nil, err
-	}
-	td := &ecs.RegisterTaskDefinitionInput{}
-	if err := json.Unmarshal(data, td); err != nil {
-		log.Errorf("failed to unmarshal task definition due to: %s", err)
-		return nil, err
-	}
-	if out, err := awsEcs.RegisterTaskDefinition(td); err != nil {
-		return nil, err
 	} else {
-		return out.TaskDefinition, nil
+		if out, err := c.ecs.RegisterTaskDefinition(c.env.TaskDefinitionInput); err != nil {
+			return nil, err
+		} else {
+			return out.TaskDefinition, nil
+		}
 	}
 }
 
-func (envars *Envars) CreateCanaryService(
-	awsEcs ecsiface.ECSAPI,
-	nextTaskDefinitionArn *string,
-) error {
-	service := &ecs.CreateServiceInput{}
-	if envars.ServiceDefinitionBase64 == nil {
-		// サービス定義が与えられなかった場合はタスク定義と名前だけ変えたservice-currentのレプリカを作成する
-		log.Infof("nextServiceDefinitionBase64 not provided. try to create replica service")
-		out, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
-			Cluster:  envars.Cluster,
-			Services: []*string{envars.Service},
-		})
-		if len(out.Failures) > 0 || err != nil {
-			log.Errorf("failed to describe current service due to: %s", err)
-			return err
-		}
-		s := out.Services[0]
-		service = &ecs.CreateServiceInput{
-			Cluster:                       envars.Cluster,
-			DeploymentConfiguration:       s.DeploymentConfiguration,
-			DesiredCount:                  aws.Int64(1),
-			HealthCheckGracePeriodSeconds: s.HealthCheckGracePeriodSeconds,
-			LaunchType:                    s.LaunchType,
-			LoadBalancers:                 s.LoadBalancers,
-			NetworkConfiguration:          s.NetworkConfiguration,
-			PlacementConstraints:          s.PlacementConstraints,
-			PlacementStrategy:             s.PlacementStrategy,
-			PlatformVersion:               s.PlatformVersion,
-			SchedulingStrategy:            s.SchedulingStrategy,
-			ServiceName:                   envars.CanaryService,
-			ServiceRegistries:             s.ServiceRegistries,
-			TaskDefinition:                nextTaskDefinitionArn,
-		}
-	} else {
-		data, err := base64.StdEncoding.DecodeString(*envars.ServiceDefinitionBase64)
-		if err != nil {
-			log.Errorf("failed to decode service definition base64 due to : %s", err)
-			return err
-		}
-		if err := json.Unmarshal(data, service); err != nil {
-			log.Errorf("failed to unmarshal service definition base64 due to: %s", err)
-			return err
-		}
-		service.ServiceName = envars.CanaryService
-		service.TaskDefinition = nextTaskDefinitionArn
-		*service.DesiredCount = 1
-	}
-	if *service.LaunchType == "EC2" {
-		if envars.CanaryInstanceArn == nil {
-			return errors.New("canaryInstanceArn option is required when rollout to EC2")
-		}
-		attributeName := *envars.CanaryService
-		attributeValue := "true"
-		if err := envars.EnsureCanaryInstanceAttribute(awsEcs, &attributeName, &attributeValue); err != nil {
-			return err
-		}
-		constraintsExpression := fmt.Sprintf("attribute:%s == %s", attributeName, attributeValue)
-		constraintsType := "memberOf"
-		service.PlacementConstraints = []*ecs.PlacementConstraint{
-			{
-				Expression: &constraintsExpression,
-				Type:       &constraintsType,
-			},
-		}
-	}
-	log.Infof("creating canary service '%s' with desiredCount=1", *envars.CanaryService)
-	if _, err := awsEcs.CreateService(service); err != nil {
-		log.Errorf("failed to create canary service due to: %s", err)
-		return err
-	}
-	log.Infof("standing up for 10 seconds for '%s' become to be ready...", *service.ServiceName)
-	<-newTimer(time.Duration(10) * time.Second).C
-	log.Infof("waiting for service '%s' to become STABLE", *envars.CanaryService)
-	if err := awsEcs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
-		Cluster:  envars.Cluster,
-		Services: []*string{envars.CanaryService},
+func (c *cage) DescribeSubnet(subnetId *string) (*ec2.Subnet, error) {
+	if o, err := c.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{
+		SubnetIds: []*string{subnetId},
 	}); err != nil {
-		log.Errorf("'%s' hasn't reached STABLE state within maximum attempt windows due to: %s", err)
-		return err
+		return nil, err
+	} else {
+		return o.Subnets[0], nil
 	}
-	log.Infof("service '%s' has reached STABLE state", *envars.CanaryService)
-	return nil
 }
-func (envars *Envars) EnsureCanaryInstanceAttribute(
-	awsEcs ecsiface.ECSAPI,
-	attributeName *string,
-	attributeValue *string,
-) error {
-	log.Infof("ensuring canary instance(%s) attribute", *envars.CanaryInstanceArn)
-	targetType := "container-instance"
-	if out, err := awsEcs.ListAttributes(&ecs.ListAttributesInput{
-		Cluster:       envars.Cluster,
-		AttributeName: attributeName,
-		TargetType:    &targetType,
+
+type StartCanaryTaskOutput struct {
+	task                *ecs.Task
+	registrationSkipped bool
+	targetGroupArn      *string
+	availabilityZone    *string
+	targetId            *string
+	targetPort          *int64
+}
+
+func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCanaryTaskOutput, error) {
+	var service *ecs.Service
+	if o, err := c.ecs.DescribeServices(&ecs.DescribeServicesInput{
+		Cluster:  &c.env.Cluster,
+		Services: []*string{&c.env.Service},
+	}); err != nil {
+		return nil, err
+	} else {
+		service = o.Services[0]
+	}
+	var taskArn *string
+	if c.env.CanaryInstanceArn != "" {
+		// ec2
+		startTask := &ecs.StartTaskInput{
+			Cluster:              &c.env.Cluster,
+			Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.env.Service)),
+			NetworkConfiguration: service.NetworkConfiguration,
+			TaskDefinition:       nextTaskDefinition.TaskDefinitionArn,
+			ContainerInstances:   []*string{&c.env.CanaryInstanceArn},
+		}
+		if o, err := c.ecs.StartTask(startTask); err != nil {
+			return nil, err
+		} else {
+			taskArn = o.Tasks[0].TaskArn
+		}
+	} else {
+		// fargate
+		if o, err := c.ecs.RunTask(&ecs.RunTaskInput{
+			Cluster:              &c.env.Cluster,
+			Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.env.Service)),
+			NetworkConfiguration: service.NetworkConfiguration,
+			TaskDefinition:       nextTaskDefinition.TaskDefinitionArn,
+			LaunchType:           aws.String("FARGATE"),
+		}); err != nil {
+			return nil, err
+		} else {
+			taskArn = o.Tasks[0].TaskArn
+		}
+	}
+	log.Infof("🥚 waiting for canary task '%s' is running...", *taskArn)
+	if err := c.ecs.WaitUntilTasksRunning(&ecs.DescribeTasksInput{
+		Cluster: &c.env.Cluster,
+		Tasks:   []*string{taskArn},
+	}); err != nil {
+		return nil, err
+	}
+	log.Infof("🐣 canary task '%s' is running!️", *taskArn)
+	var task *ecs.Task
+	if o, err := c.ecs.DescribeTasks(&ecs.DescribeTasksInput{
+		Cluster: &c.env.Cluster,
+		Tasks:   []*string{taskArn},
+	}); err != nil {
+		return nil, err
+	} else {
+		task = o.Tasks[0]
+	}
+	if len(service.LoadBalancers) == 0 {
+		log.Infof("no load balancer is attached to service '%s'. skip registration to target group", *service.ServiceName)
+		return &StartCanaryTaskOutput{
+			task:                task,
+			registrationSkipped: true,
+		}, nil
+	}
+	var targetId *string
+	var targetPort *int64
+	var subnet *ec2.Subnet
+	for _, container := range nextTaskDefinition.ContainerDefinitions {
+		if *container.Name == *service.LoadBalancers[0].ContainerName {
+			targetPort = container.PortMappings[0].HostPort
+		}
+	}
+	if *task.LaunchType == "FARGATE" {
+		details := task.Attachments[0].Details
+		var subnetId *string
+		var privateIp *string
+		for _, v := range details {
+			if *v.Name == "subnetId" {
+				subnetId = v.Value
+			} else if *v.Name == "privateIPv4Address" {
+				privateIp = v.Value
+			}
+		}
+		if o, err := c.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{
+			SubnetIds: []*string{subnetId},
+		}); err != nil {
+			return nil, err
+		} else {
+			subnet = o.Subnets[0]
+		}
+		targetId = privateIp
+		log.Infof("canary task was placed: privateIp = '%s', hostPort = '%d', az = '%s'", *targetId, *targetPort, *subnet.AvailabilityZone)
+	} else {
+		var containerInstance *ecs.ContainerInstance
+		if outputs, err := c.ecs.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
+			Cluster:            &c.env.Cluster,
+			ContainerInstances: []*string{&c.env.CanaryInstanceArn},
+		}); err != nil {
+			return nil, err
+		} else {
+			containerInstance = outputs.ContainerInstances[0]
+		}
+		if o, err := c.ec2.DescribeInstances(&ec2.DescribeInstancesInput{
+			InstanceIds: []*string{containerInstance.Ec2InstanceId},
+		}); err != nil {
+			return nil, err
+		} else if sn, err := c.DescribeSubnet(o.Reservations[0].Instances[0].SubnetId); err != nil {
+			return nil, err
+		} else {
+			targetId = containerInstance.Ec2InstanceId
+			subnet = sn
+		}
+		log.Infof("canary task was placed: instanceId = '%s', hostPort = '%d', az = '%s'", *targetId, *targetPort, *subnet.AvailabilityZone)
+	}
+	if _, err := c.alb.RegisterTargets(&elbv2.RegisterTargetsInput{
+		TargetGroupArn: service.LoadBalancers[0].TargetGroupArn,
+		Targets: []*elbv2.TargetDescription{{
+			AvailabilityZone: subnet.AvailabilityZone,
+			Id:               targetId,
+			Port:             targetPort,
+		}},
+	}); err != nil {
+		return nil, err
+	}
+	return &StartCanaryTaskOutput{
+		targetGroupArn: service.LoadBalancers[0].TargetGroupArn,
+		targetId:       targetId,
+		targetPort:     targetPort,
+		task:           task,
+	}, nil
+}
+
+func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
+	if _, err := c.ecs.StopTask(&ecs.StopTaskInput{
+		Cluster: &c.env.Cluster,
+		Task:    input.task.TaskArn,
 	}); err != nil {
 		return err
-	} else {
-		canaryInstanceAttribute := make([]*ecs.Attribute, 0)
-		for _, attr := range out.Attributes {
-			if *attr.TargetId == *envars.CanaryInstanceArn && *attr.Value == "true" {
-				canaryInstanceAttribute = append(canaryInstanceAttribute, attr)
-			}
-		}
-		if len(canaryInstanceAttribute) < 1 {
-			log.Infof("put attribute to canary instance(%s)", *envars.CanaryInstanceArn)
-			if _, err := awsEcs.PutAttributes(&ecs.PutAttributesInput{
-				Cluster: envars.Cluster,
-				Attributes: []*ecs.Attribute{
-					{
-						Name:     attributeName,
-						Value:    attributeValue,
-						TargetId: envars.CanaryInstanceArn,
-					},
-				},
-			}); err != nil {
-				return err
-			}
-		}
+	}
+	if _, err := c.alb.DeregisterTargets(&elbv2.DeregisterTargetsInput{
+		TargetGroupArn: input.targetGroupArn,
+		Targets: []*elbv2.TargetDescription{{
+			AvailabilityZone: input.availabilityZone,
+			Id:               input.targetId,
+			Port:             input.targetPort,
+		}},
+	}); err != nil {
+		return err
+	}
+	if err := c.alb.WaitUntilTargetDeregistered(&elbv2.DescribeTargetHealthInput{
+		TargetGroupArn: input.targetGroupArn,
+		Targets: []*elbv2.TargetDescription{{
+			AvailabilityZone: input.availabilityZone,
+			Id:               input.targetId,
+			Port:             input.targetPort,
+		}},
+	}); err != nil {
+		return err
+	}
+	if err := c.ecs.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
+		Cluster: &c.env.Cluster,
+		Tasks:   []*string{input.task.TaskArn},
+	}); err != nil {
+		return err
 	}
 	return nil
 }

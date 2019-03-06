@@ -1,41 +1,62 @@
 package cage
 
 import (
-	"encoding/base64"
+	"context"
 	"encoding/json"
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/golang/mock/gomock"
-	"github.com/loilo-inc/canarycage/mock/mock_ecs"
-	"github.com/loilo-inc/canarycage/mock/mock_elbv2"
+	"github.com/loilo-inc/canarycage/mocks/github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/loilo-inc/canarycage/mocks/github.com/aws/aws-sdk-go/service/ecs/ecsiface"
+	"github.com/loilo-inc/canarycage/mocks/github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
+	"regexp"
 	"testing"
 )
 
 func DefaultEnvars() *Envars {
 	d, _ := ioutil.ReadFile("fixtures/task-definition.json")
-	o := base64.StdEncoding.EncodeToString(d)
+	var taskDefinition ecs.RegisterTaskDefinitionInput
+	if err := json.Unmarshal(d, &taskDefinition); err != nil {
+		log.Fatalf(err.Error())
+	}
 	return &Envars{
-		Region:               aws.String("us-west-2"),
-		Cluster:              aws.String("cage-test"),
-		Service:              aws.String("service"),
-		CanaryService:        aws.String("service-canary"),
-		TaskDefinitionBase64: &o,
+		Region:                 "us-west-2",
+		Cluster:                "cage-test",
+		Service:                "service",
+		ServiceDefinitionInput: ReadServiceDefinition("fixtures/service.json"),
+		TaskDefinitionInput:    &taskDefinition,
 	}
 }
 
-func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64, launchType string) (*test.MockContext, *mock_ecs.MockECSAPI, *mock_elbv2.MockELBV2API) {
-	ecsMock := mock_ecs.NewMockECSAPI(ctrl)
-	albMock := mock_elbv2.NewMockELBV2API(ctrl)
+func ReadServiceDefinition(path string) *ecs.CreateServiceInput {
+	d, _ := ioutil.ReadFile(path)
+	var dest ecs.CreateServiceInput
+	if err := json.Unmarshal(d, &dest); err != nil {
+		log.Fatalf(err.Error())
+	}
+	return &dest
+}
+
+func Setup(ctrl *gomock.Controller, envars *Envars, currentTaskCount int64, launchType string) (
+	*test.MockContext,
+	*mock_ecsiface.MockECSAPI,
+	*mock_elbv2iface.MockELBV2API,
+	*mock_ec2iface.MockEC2API,
+) {
+	ecsMock := mock_ecsiface.NewMockECSAPI(ctrl)
+	albMock := mock_elbv2iface.NewMockELBV2API(ctrl)
+	ec2Mock := mock_ec2iface.NewMockEC2API(ctrl)
 	mocker := test.NewMockContext()
 	ecsMock.EXPECT().CreateService(gomock.Any()).DoAndReturn(mocker.CreateService).AnyTimes()
 	ecsMock.EXPECT().UpdateService(gomock.Any()).DoAndReturn(mocker.UpdateService).AnyTimes()
 	ecsMock.EXPECT().DeleteService(gomock.Any()).DoAndReturn(mocker.DeleteService).AnyTimes()
 	ecsMock.EXPECT().StartTask(gomock.Any()).DoAndReturn(mocker.StartTask).AnyTimes()
+	ecsMock.EXPECT().RunTask(gomock.Any()).DoAndReturn(mocker.RunTask).AnyTimes()
 	ecsMock.EXPECT().StopTask(gomock.Any()).DoAndReturn(mocker.StopTask).AnyTimes()
 	ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any()).DoAndReturn(mocker.RegisterTaskDefinition).AnyTimes()
 	ecsMock.EXPECT().WaitUntilServicesStable(gomock.Any()).DoAndReturn(mocker.WaitUntilServicesStable).AnyTimes()
@@ -49,35 +70,25 @@ func (envars *Envars) Setup(ctrl *gomock.Controller, currentTaskCount int64, lau
 	albMock.EXPECT().DescribeTargetGroups(gomock.Any()).DoAndReturn(mocker.DescribeTargetGroups).AnyTimes()
 	albMock.EXPECT().DescribeTargetHealth(gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes()
 	albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any()).DoAndReturn(mocker.DescribeTargetGroupAttibutes).AnyTimes()
-	o, _ := base64.StdEncoding.DecodeString(*envars.TaskDefinitionBase64)
-	var register *ecs.RegisterTaskDefinitionInput
-	_ = json.Unmarshal(o, register)
-	td, _ := mocker.RegisterTaskDefinition(register)
+	albMock.EXPECT().RegisterTargets(gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
+	albMock.EXPECT().DeregisterTargets(gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
+	albMock.EXPECT().WaitUntilTargetDeregistered(gomock.Any()).Return(nil).AnyTimes()
+	ec2Mock.EXPECT().DescribeSubnets(gomock.Any()).DoAndReturn(mocker.DescribeSubnets).AnyTimes()
+	ec2Mock.EXPECT().DescribeInstances(gomock.Any()).DoAndReturn(mocker.DescribeInstances).AnyTimes()
+
+	td, _ := mocker.RegisterTaskDefinition(envars.TaskDefinitionInput)
 	a := &ecs.CreateServiceInput{
-		ServiceName: envars.Service,
-		LoadBalancers: []*ecs.LoadBalancer{
-			{
-				TargetGroupArn: aws.String("arn://aaa/hoge/targetgroup/aaa/bbb"),
-				ContainerName:  aws.String("container"),
-				ContainerPort:  aws.Int64(80),
-			},
-		},
+		ServiceName:    &envars.Service,
+		LoadBalancers:  envars.ServiceDefinitionInput.LoadBalancers,
 		TaskDefinition: td.TaskDefinition.TaskDefinitionArn,
 		DesiredCount:   aws.Int64(currentTaskCount),
 		LaunchType:     aws.String(launchType),
 	}
 	_, _ = mocker.CreateService(a)
-	return mocker, ecsMock, albMock
+	return mocker, ecsMock, albMock, ec2Mock
 }
 
-func MakeContext(ecsMock *mock_ecs.MockECSAPI, albMock *mock_elbv2.MockELBV2API) *Context {
-	return &Context{
-		Ecs: ecsMock,
-		Alb: albMock,
-	}
-}
-
-func TestEnvars_RollOut(t *testing.T) {
+func TestCage_RollOut(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	newTimer = fakeTimer
 	defer recoverTimer()
@@ -85,17 +96,23 @@ func TestEnvars_RollOut(t *testing.T) {
 		log.Info("====")
 		envars := DefaultEnvars()
 		ctrl := gomock.NewController(t)
-		mctx, ecsMock, albMock := envars.Setup(ctrl, v, "FARGATE")
-		ctx := MakeContext(ecsMock, albMock)
+		mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, v, "FARGATE")
 		if mctx.ServiceSize() != 1 {
 			t.Fatalf("current service not setup")
 		}
 		if taskCnt := mctx.TaskSize(); taskCnt != v {
 			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
 		}
-		result := envars.RollOut(ctx)
-		if result.Error != nil {
-			t.Fatalf("%s", result.Error)
+		cagecli := NewCage(&Input{
+			Env: envars,
+			ECS: ecsMock,
+			ALB: albMock,
+			EC2: ec2Mock,
+		})
+		ctx := context.Background()
+		result, err := cagecli.RollOut(ctx)
+		if err != nil {
+			t.Fatalf("%s", err)
 		}
 		assert.False(t, result.ServiceIntact)
 		assert.Equal(t, int64(1), mctx.ServiceSize())
@@ -103,36 +120,17 @@ func TestEnvars_RollOut(t *testing.T) {
 	}
 }
 
-func TestEnvars_StartGradualRollOut2(t *testing.T) {
-	// service definitionのjsonから読み込む
-	log.SetLevel(log.InfoLevel)
-	newTimer = fakeTimer
-	defer recoverTimer()
-	envars := DefaultEnvars()
-	d, _ := ioutil.ReadFile("fixtures/service.json")
-	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
-	ctrl := gomock.NewController(t)
-	mocker, ecsMock, albMock := envars.Setup(ctrl, 2, "FARGATE")
-	ctx := MakeContext(ecsMock, albMock)
-	result := envars.RollOut(ctx)
-	if result.Error != nil {
-		t.Fatalf(result.Error.Error())
-	}
-	assert.False(t, result.ServiceIntact)
-	assert.Equal(t, int64(1), mocker.ServiceSize())
-	assert.Equal(t, int64(2), mocker.TaskSize())
-}
-
-func TestEnvars_RollOut2(t *testing.T) {
+func TestCage_RollOut2(t *testing.T) {
 	// canary taskがtgに登録されるまで少し待つ
 	newTimer = fakeTimer
 	defer recoverTimer()
 	envars := DefaultEnvars()
-	d, _ := ioutil.ReadFile("fixtures/service.json")
-	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
 	ctrl := gomock.NewController(t)
-	mocker, ecsMock, _ := envars.Setup(ctrl, 2, "FARGATE")
-	albMock := mock_elbv2.NewMockELBV2API(ctrl)
+	mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
+	albMock := mock_elbv2iface.NewMockELBV2API(ctrl)
+	albMock.EXPECT().RegisterTargets(gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
+	albMock.EXPECT().DeregisterTargets(gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
+	albMock.EXPECT().WaitUntilTargetDeregistered(gomock.Any()).Return(nil).AnyTimes()
 	gomock.InOrder(
 		albMock.EXPECT().DescribeTargetHealth(gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 			TargetHealthDescriptions: []*elbv2.TargetHealthDescription{{
@@ -148,22 +146,30 @@ func TestEnvars_RollOut2(t *testing.T) {
 		}, nil).Times(2),
 		albMock.EXPECT().DescribeTargetHealth(gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
 	)
-	ctx := MakeContext(ecsMock, albMock)
-	result := envars.RollOut(ctx)
-	if result.Error != nil {
-		t.Fatalf(result.Error.Error())
+	cagecli := NewCage(&Input{
+		Env: envars,
+		ECS: ecsMock,
+		ALB: albMock,
+		EC2: ec2Mock,
+	})
+	ctx := context.Background()
+	result, err := cagecli.RollOut(ctx)
+	if err != nil {
+		t.Fatalf(err.Error())
 	}
+	assert.NotNil(t, result)
 }
-func TestEnvars_RollOut3(t *testing.T) {
+func TestCage_RollOut3(t *testing.T) {
 	// canary taskがtgに登録されない場合は打ち切る
 	newTimer = fakeTimer
 	defer recoverTimer()
 	envars := DefaultEnvars()
-	d, _ := ioutil.ReadFile("fixtures/service.json")
-	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(d))
 	ctrl := gomock.NewController(t)
-	_, ecsMock, _ := envars.Setup(ctrl, 2, "FARGATE")
-	albMock := mock_elbv2.NewMockELBV2API(ctrl)
+	mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
+	albMock := mock_elbv2iface.NewMockELBV2API(ctrl)
+	albMock.EXPECT().RegisterTargets(gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
+	albMock.EXPECT().DeregisterTargets(gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
+	albMock.EXPECT().WaitUntilTargetDeregistered(gomock.Any()).Return(nil).AnyTimes()
 	albMock.EXPECT().DescribeTargetHealth(gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 		TargetHealthDescriptions: []*elbv2.TargetHealthDescription{{
 			Target: &elbv2.TargetDescription{
@@ -185,31 +191,40 @@ func TestEnvars_RollOut3(t *testing.T) {
 			},
 		}},
 	}, nil).AnyTimes()
-	ctx := MakeContext(ecsMock, albMock)
-	result := envars.RollOut(ctx)
-	assert.NotNil(t, result.Error)
+	cagecli := NewCage(&Input{
+		Env: envars,
+		ECS: ecsMock,
+		EC2: ec2Mock,
+		ALB: albMock,
+	})
+	ctx := context.Background()
+	_, err := cagecli.RollOut(ctx)
+	assert.NotNil(t, err)
 }
-func TestEnvars_StartGradualRollOut5(t *testing.T) {
+
+func TestCage_StartGradualRollOut5(t *testing.T) {
 	// lbがないサービスの場合もロールアウトする
 	envars := DefaultEnvars()
-	d, _ := ioutil.ReadFile("fixtures/service.json")
-	input := &ecs.CreateServiceInput{}
-	_ = json.Unmarshal(d, input)
-	input.LoadBalancers = nil
 	newTimer = fakeTimer
 	defer recoverTimer()
-	o, _ := json.Marshal(input)
-	envars.ServiceDefinitionBase64 = aws.String(base64.StdEncoding.EncodeToString(o))
+	envars.ServiceDefinitionInput.LoadBalancers = nil
 	ctrl := gomock.NewController(t)
-	_, ecsMock, albMock := envars.Setup(ctrl, 2, "FARGATE")
-	ctx := MakeContext(ecsMock, albMock)
-	if res := envars.RollOut(ctx); res.Error != nil {
-		t.Fatalf(res.Error.Error())
+	_, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
+	cagecli := NewCage(&Input{
+		Env: envars,
+		ECS: ecsMock,
+		EC2: ec2Mock,
+		ALB: albMock,
+	})
+	ctx := context.Background()
+	if res, err := cagecli.RollOut(ctx); err != nil {
+		t.Fatalf(err.Error())
 	} else if res.ServiceIntact {
 		t.Fatalf("no")
 	}
 }
-func TestEnvars_RollOut_EC2(t *testing.T) {
+
+func TestCage_RollOut_EC2(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	newTimer = fakeTimer
 	defer recoverTimer()
@@ -218,66 +233,81 @@ func TestEnvars_RollOut_EC2(t *testing.T) {
 		canaryInstanceArn := "arn:aws:ecs:us-west-2:1234567689012:container-instance/abcdefg-hijk-lmn-opqrstuvwxyz"
 		attributeValue := "true"
 		envars := DefaultEnvars()
-		envars.CanaryInstanceArn = &canaryInstanceArn
+		envars.CanaryInstanceArn = canaryInstanceArn
 		ctrl := gomock.NewController(t)
-		mctx, ecsMock, albMock := envars.Setup(ctrl, v, "EC2")
+		mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, v, "ec2")
 		ecsMock.EXPECT().ListAttributes(gomock.Any()).Return(&ecs.ListAttributesOutput{
 			Attributes: []*ecs.Attribute{
 				{
-					Name:     envars.CanaryService,
+					Name:     &envars.Service,
 					Value:    &attributeValue,
 					TargetId: &canaryInstanceArn,
 				},
 			},
 		}, nil).AnyTimes()
-		ctx := MakeContext(ecsMock, albMock)
 		if mctx.ServiceSize() != 1 {
 			t.Fatalf("current service not setup")
 		}
 		if taskCnt := mctx.TaskSize(); taskCnt != v {
 			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
 		}
-		result := envars.RollOut(ctx)
-		if result.Error != nil {
-			t.Fatalf("%s", result.Error)
+		cagecli := NewCage(&Input{
+			Env: envars,
+			ECS: ecsMock,
+			EC2: ec2Mock,
+			ALB: albMock,
+		})
+		ctx := context.Background()
+		result, err := cagecli.RollOut(ctx)
+		if err != nil {
+			t.Fatalf("%s", err)
 		}
 		assert.False(t, result.ServiceIntact)
 		assert.Equal(t, int64(1), mctx.ServiceSize())
 		assert.Equal(t, v, mctx.TaskSize())
 	}
 }
-func TestEnvars_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
+
+func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	newTimer = fakeTimer
 	defer recoverTimer()
 	log.Info("====")
 	envars := DefaultEnvars()
 	ctrl := gomock.NewController(t)
-	mctx, ecsMock, albMock := envars.Setup(ctrl, 1, "EC2")
-	ctx := MakeContext(ecsMock, albMock)
+	mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 1, "EC2")
 	if mctx.ServiceSize() != 1 {
 		t.Fatalf("current service not setup")
 	}
 	if taskCnt := mctx.TaskSize(); taskCnt != 1 {
 		t.Fatalf("current tasks not setup: %d/%d", 1, taskCnt)
 	}
-	result := envars.RollOut(ctx)
-	if result.Error == nil {
+	cagecli := NewCage(&Input{
+		Env: envars,
+		ECS: ecsMock,
+		EC2: ec2Mock,
+		ALB: albMock,
+	})
+	ctx := context.Background()
+	result, err := cagecli.RollOut(ctx)
+	if err == nil {
 		t.Fatal("Rollout with no container instance should be error")
 	} else {
-		assert.Equal(t, "canaryInstanceArn option is required when rollout to EC2", result.Error.Error())
+		assert.True(t, regexp.MustCompile("canaryInstanceArn is required").MatchString(err.Error()))
+		assert.NotNil(t, result)
 	}
 }
-func TestEnvars_RollOut_EC2_no_attribute(t *testing.T) {
+
+func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	newTimer = fakeTimer
 	defer recoverTimer()
 	log.Info("====")
 	canaryInstanceArn := "arn:aws:ecs:us-west-2:1234567689012:container-instance/abcdefg-hijk-lmn-opqrstuvwxyz"
 	envars := DefaultEnvars()
-	envars.CanaryInstanceArn = &canaryInstanceArn
+	envars.CanaryInstanceArn = canaryInstanceArn
 	ctrl := gomock.NewController(t)
-	mctx, ecsMock, albMock := envars.Setup(ctrl, 1, "EC2")
+	mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 1, "EC2")
 	if mctx.ServiceSize() != 1 {
 		t.Fatalf("current service not setup")
 	}
@@ -288,48 +318,37 @@ func TestEnvars_RollOut_EC2_no_attribute(t *testing.T) {
 		Attributes: []*ecs.Attribute{},
 	}, nil).AnyTimes()
 	ecsMock.EXPECT().PutAttributes(gomock.Any()).Return(&ecs.PutAttributesOutput{}, nil).AnyTimes()
-	ctx := MakeContext(ecsMock, albMock)
-	result := envars.RollOut(ctx)
-	if result.Error != nil {
-		t.Fatalf("%s", result.Error)
+	cagecli := NewCage(&Input{
+		Env: envars,
+		ECS: ecsMock,
+		EC2: ec2Mock,
+		ALB: albMock,
+	})
+	ctx := context.Background()
+	result, err := cagecli.RollOut(ctx)
+	if err != nil {
+		t.Fatalf("%s", err)
 	}
 	assert.False(t, result.ServiceIntact)
 	assert.Equal(t, int64(1), mctx.ServiceSize())
 	assert.Equal(t, int64(1), mctx.TaskSize())
 }
-func TestEnvars_CreateNextTaskDefinition(t *testing.T) {
+
+func TestCage_CreateNextTaskDefinition(t *testing.T) {
 	envars := &Envars{
-		TaskDefinitionArn: aws.String("arn://task"),
+		TaskDefinitionArn: "arn://task",
 	}
 	ctrl := gomock.NewController(t)
-	e := mock_ecs.NewMockECSAPI(ctrl)
+	e := mock_ecsiface.NewMockECSAPI(ctrl)
 	e.EXPECT().DescribeTaskDefinition(gomock.Any()).Return(
 		&ecs.DescribeTaskDefinitionOutput{
 			TaskDefinition: &ecs.TaskDefinition{TaskDefinitionArn: aws.String("arn://task")},
 		}, nil)
 	// nextTaskDefinitionArnがある場合はdescribeTaskDefinitionから返す
-	o, err := envars.CreateNextTaskDefinition(e)
+	cagecli := &cage{env: envars, ecs: e}
+	o, err := cagecli.CreateNextTaskDefinition()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	assert.Equal(t, *envars.TaskDefinitionArn, *o.TaskDefinitionArn)
-}
-
-func TestEnvars_CreateNextTaskDefinition2(t *testing.T) {
-	d, _ := ioutil.ReadFile("fixtures/service.json")
-	j := base64.StdEncoding.EncodeToString(d)
-	envars := &Envars{
-		TaskDefinitionBase64: aws.String(j),
-	}
-	ctrl := gomock.NewController(t)
-	e := mock_ecs.NewMockECSAPI(ctrl)
-	e.EXPECT().RegisterTaskDefinition(gomock.Any()).Return(&ecs.RegisterTaskDefinitionOutput{
-		TaskDefinition: &ecs.TaskDefinition{TaskDefinitionArn: aws.String("arn://next")},
-	}, nil)
-	// nextTaskDefinitionBase64がある場合は新規作成
-	o, err := envars.CreateNextTaskDefinition(e)
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-	assert.Equal(t, "arn://next", *o.TaskDefinitionArn)
+	assert.Equal(t, envars.TaskDefinitionArn, *o.TaskDefinitionArn)
 }

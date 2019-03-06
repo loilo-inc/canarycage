@@ -1,74 +1,48 @@
 package commands
 
 import (
-	"encoding/json"
-	"github.com/apex/log"
+	"context"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
-	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
+	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli"
-	"path/filepath"
 )
 
-func UpCommand(ses *session.Session) cli.Command {
+func (c *cageCommands) Up() cli.Command {
+	envars := cage.Envars{}
 	return cli.Command{
 		Name: "up",
-		ArgsUsage: "[up context path (default=.)]",
-		Action: func(ctx *cli.Context) {
-			dir := "."
-			if ctx.NArg() > 0 {
-				dir = ctx.Args().Get(0)
+		Usage: "create new ECS service with specified task definition",
+		Description: "create new ECS service with specified task definition",
+		ArgsUsage: "[directory path of service.json and task-definition.json (default=.)]",
+		Flags: []cli.Flag{
+			RegionFlag(&envars.Region),
+			ClusterFlag(&envars.Cluster),
+			ServiceFlag(&envars.Service),
+			TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
+		},
+		Action: func(ctx *cli.Context) error {
+			c.aggregateEnvars(ctx, &envars)
+			var ses *session.Session
+			if o, err := session.NewSession(&aws.Config{
+				Region: &envars.Region,
+			}); err != nil {
+				return err
+			} else {
+				ses = o
 			}
-			Up(ecs.New(ses), dir)
+			cagecli := cage.NewCage(&cage.Input{
+				Env: &envars,
+				ECS: ecs.New(ses),
+				ALB: elbv2.New(ses),
+				EC2: ec2.New(ses),
+			})
+			_, err := cagecli.Up(context.Background())
+			return err
 		},
 	}
 }
 
-func Up(
-	ecscli ecsiface.ECSAPI,
-	dir string,
-) {
-	serviceDefPath := filepath.Join(dir, "service.json")
-	taskDefPath := filepath.Join(dir, "task-definition.json")
-	var tdArn *string
-	if td, err := cage.ReadFileAndApplyEnvars(taskDefPath); err != nil {
-		log.Fatalf("failed to read %s: %s", serviceDefPath, err)
-	} else {
-		input := &ecs.RegisterTaskDefinitionInput{}
-		if err := json.Unmarshal([]byte(td), input); err != nil {
-			log.Fatalf("failed to unmarshal ecs.RegisterTaskDefinitionInput: %s", err)
-		}
-		log.Infof("registering task definition...")
-		if o, err := ecscli.RegisterTaskDefinition(input); err != nil {
-			log.Fatalf("failed to register task definition: %s", err)
-		} else {
-			log.Infof("registered: %s", *o.TaskDefinition.TaskDefinitionArn)
-			tdArn = o.TaskDefinition.TaskDefinitionArn
-		}
-	}
-	if svc, err := cage.ReadFileAndApplyEnvars(serviceDefPath); err != nil {
-		log.Fatalf("failed to read %s: %s", serviceDefPath, err)
-	} else {
-		input := &ecs.CreateServiceInput{}
-		if err := json.Unmarshal([]byte(svc), input); err != nil {
-			log.Fatalf("failed to unmarshal ecs.CreateServiceInput: %s", err)
-		}
-		input.TaskDefinition = tdArn
-		log.Infof("creating service '%s' with task-definition '%s'...", *input.ServiceName, *tdArn)
-		if o, err := ecscli.CreateService(input); err != nil {
-			log.Fatalf("failed to create service '%s': %s", *input.ServiceName, err.Error())
-		} else {
-			log.Infof("service created: '%s'", *o.Service.ServiceArn)
-		}
-		log.Infof("waiting for service '%s' to be STABLE", *input.ServiceName)
-		if err := ecscli.WaitUntilServicesStable(&ecs.DescribeServicesInput{
-			Cluster:  input.Cluster,
-			Services: []*string{input.ServiceName},
-		}); err != nil {
-			log.Fatalf(err.Error())
-		} else {
-			log.Infof("become: STABLE")
-		}
-	}
-}

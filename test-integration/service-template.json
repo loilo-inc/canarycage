@@ -9,7 +9,7 @@
       "containerPort": 80
     }
   ],
-  "desiredCount": 2,
+  "desiredCount": 1,
   "launchType": "FARGATE",
   "deploymentConfiguration": {
     "maximumPercent": 200,

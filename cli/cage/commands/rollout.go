@@ -1,142 +1,62 @@
 package commands
 
 import (
-	"encoding/json"
-	"fmt"
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli"
-	"os"
 )
 
-func RollOutCommand() cli.Command {
-	dest := &cage.Envars{
-		Region:                  aws.String(""),
-		Cluster:                 aws.String(""),
-		Service:                 aws.String(""),
-		CanaryService:           aws.String(""),
-		CanaryInstanceArn:       aws.String(""),
-		ServiceDefinitionBase64: aws.String(""),
-		TaskDefinitionBase64:    aws.String(""),
-		TaskDefinitionArn:       aws.String(""),
-	}
+func (c *cageCommands) RollOut() cli.Command {
+	var envars = cage.Envars{}
 	return cli.Command{
 		Name:        "rollout",
+		Usage:       "roll out ECS service to next task definition",
 		Description: "start rolling out next service with current service",
-		ArgsUsage:   "[deploy context path]",
+		ArgsUsage:   "[directory path of service.json and task-definition.json (default=.)]",
 		Flags: []cli.Flag{
-			cli.BoolFlag{
-				Name:  "skeleton",
-				Usage: "generate config file skeleton json",
-			},
-			cli.BoolFlag{
-				Name:  "dryRun",
-				Usage: "describe roll out plan without affecting any resources",
-			},
-			cli.StringFlag{
-				Name:        "region",
-				EnvVar:      cage.RegionKey,
-				Value:       "us-west-2",
-				Usage:       "aws region for ecs",
-				Destination: dest.Region,
-			},
-			cli.StringFlag{
-				Name:        "cluster",
-				EnvVar:      cage.ClusterKey,
-				Usage:       "ecs cluster name",
-				Destination: dest.Cluster,
-			},
-			cli.StringFlag{
-				Name:        "service",
-				EnvVar:      cage.ServiceKey,
-				Usage:       "service name",
-				Destination: dest.Service,
-			},
-			cli.StringFlag{
-				Name:        "canaryService",
-				EnvVar:      cage.CanaryServiceKey,
-				Usage:       "canary service name",
-				Destination: dest.CanaryService,
-			},
+			RegionFlag(&envars.Region),
+			ClusterFlag(&envars.Cluster),
+			ServiceFlag(&envars.Service),
+			TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
 			cli.StringFlag{
 				Name:        "canaryInstanceArn",
 				EnvVar:      cage.CanaryInstanceArnKey,
-				Usage:       "canary instance ARN (required only EC2 ECS)",
-				Destination: dest.CanaryInstanceArn,
-			},
-			cli.StringFlag{
-				Name:        "serviceDefinitionBase64",
-				EnvVar:      cage.ServiceDefinitionBase64Key,
-				Usage:       "base64 encoded service definition for next service",
-				Destination: dest.ServiceDefinitionBase64,
-			},
-			cli.StringFlag{
-				Name:        "taskDefinitionBase64",
-				EnvVar:      cage.TaskDefinitionBase64Key,
-				Usage:       "base64 encoded task definition for next task definition",
-				Destination: dest.TaskDefinitionBase64,
-			},
-			cli.StringFlag{
-				Name:        "taskDefinitionArn",
-				EnvVar:      cage.TaskDefinitionArnKey,
-				Usage:       "full arn for next task definition",
-				Destination: dest.TaskDefinitionArn,
+				Usage:       "EC2 instance ARN for placing canary task. required only when LaunchType is EC2",
+				Destination: &envars.CanaryInstanceArn,
 			},
 		},
-		Action: func(ctx *cli.Context) {
-			if ctx.Bool("skeleton") {
-				d, err := json.MarshalIndent(dest, "", "\t")
-				if err != nil {
-					log.Fatalf("failed to marshal json due to: %s", err)
-				}
-				fmt.Fprint(os.Stdout, string(d))
-				os.Exit(0)
+		Action: func(ctx *cli.Context) error {
+			c.aggregateEnvars(ctx, &envars)
+			var ses *session.Session
+			if o, err := session.NewSession(&aws.Config{
+				Region: &envars.Region,
+			}); err != nil {
+				return err
+			} else {
+				ses = o
 			}
-			envars := &cage.Envars{}
-			if ctx.NArg() > 0 {
-				// deployコンテクストを指定した場合
-				dir := ctx.Args().Get(0)
-				if err := envars.LoadFromFiles(dir); err != nil {
-					log.Fatalf(err.Error())
-				}
-				if err := envars.Merge(dest); err != nil {
-					log.Fatalf("failed to merge envars from files and cli: %s", err)
-				}
-			}
-			ses, err := session.NewSession(&aws.Config{
-				Region: envars.Region,
+			cagecli := cage.NewCage(&cage.Input{
+				Env: &envars,
+				ECS: ecs.New(ses),
+				EC2: ec2.New(ses),
+				ALB: elbv2.New(ses),
 			})
+			result, err := cagecli.RollOut(c.ctx)
 			if err != nil {
-				log.Fatalf("failed to create new AWS session due to: %s", err)
+				if result.ServiceIntact {
+					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed. error: %s", envars.Service, err)
+				} else {
+					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!. error: %s", envars.Service, err)
+				}
+				return err
 			}
-			cageCtx := &cage.Context{
-				Ecs: ecs.New(ses),
-				Alb: elbv2.New(ses),
-			}
-			if err := cage.EnsureEnvars(envars); err != nil {
-				log.Fatalf(err.Error())
-			}
-			if err := Action(envars, cageCtx); err != nil {
-				log.Fatalf("failed: %s", err)
-			}
+			log.Infof("🎉service roll out has completed successfully!🎉")
+			return nil
 		},
 	}
-}
-
-func Action(envars *cage.Envars, ctx *cage.Context) error {
-	result := envars.RollOut(ctx)
-	if result.Error != nil {
-		if result.ServiceIntact {
-			log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed. error: %s", result.Error)
-		} else {
-			log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!. error: %s", result.Error)
-		}
-		return result.Error
-	}
-	log.Infof("🎉service roll out has completed successfully!🎉")
-	return nil
 }

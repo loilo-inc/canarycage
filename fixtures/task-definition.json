@@ -5,7 +5,7 @@
     "networkMode": "awsvpc",
     "containerDefinitions": [
         {
-            "name": "",
+            "name": "container",
             "image": "",
             "repositoryCredentials": {
                 "credentialsParameter": ""
@@ -18,9 +18,8 @@
             ],
             "portMappings": [
                 {
-                    "containerPort": 0,
-                    "hostPort": 0,
-                    "protocol": "udp"
+                    "containerPort": 8000,
+                    "hostPort": 80
                 }
             ],
             "essential": true,

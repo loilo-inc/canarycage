@@ -6,6 +6,7 @@ import (
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/google/uuid"
@@ -84,8 +85,8 @@ func (ctx *MockContext) CreateService(input *ecs.CreateServiceInput) (*ecs.Creat
 		DesiredCount:                  input.DesiredCount,
 		TaskDefinition:                input.TaskDefinition,
 		HealthCheckGracePeriodSeconds: aws.Int64(0),
-		Status:                        &st,
-		ServiceArn:                    &idstr,
+		Status:     &st,
+		ServiceArn: &idstr,
 	}
 	ctx.mux.Lock()
 	ctx.Services[*input.ServiceName] = ret
@@ -181,13 +182,12 @@ func (ctx *MockContext) RegisterTaskDefinition(input *ecs.RegisterTaskDefinition
 			TaskDefinitionArn: &idstr,
 			Family:            aws.String("family"),
 			Revision:          aws.Int64(1),
+			ContainerDefinitions: input.ContainerDefinitions,
 		},
 	}, nil
 }
 
 func (ctx *MockContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutput, error) {
-	regex := regexp.MustCompile("service:(.+?)$")
-	m := regex.FindStringSubmatch(*input.Group)
 	id := uuid.New()
 	idstr := id.String()
 	attachments := []*ecs.Attachment{{
@@ -205,16 +205,38 @@ func (ctx *MockContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutp
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	ctx.Tasks[idstr] = ret
-	s := ctx.Services[m[1]]
-	*s.RunningCount += 1
-	ret.LaunchType = s.LaunchType
-	if *(s.LaunchType) == "FARGATE" {
+	s, ok := ctx.Services[*input.Group]
+	var launchType *string
+	if ok {
+		*s.RunningCount += 1
+		launchType = s.LaunchType
+	} else {
+		if len(input.ContainerInstances) > 0 {
+			launchType = aws.String("EC2")
+		} else {
+			launchType = aws.String("FARGATE")
+		}
+	}
+	ret.LaunchType = launchType
+	if *launchType == "FARGATE" {
 		ret.Attachments = attachments
 	} else {
 		ret.ContainerInstanceArn = aws.String("arn:aws:ecs:us-west-2:1234567890:container-instance/12345678-hoge-hoge-1234-1f2o3o4ba5r")
 	}
 	return &ecs.StartTaskOutput{
 		Tasks: []*ecs.Task{ret},
+	}, nil
+}
+func (ctx *MockContext) RunTask(input *ecs.RunTaskInput) (*ecs.RunTaskOutput, error) {
+	o, err := ctx.StartTask(&ecs.StartTaskInput{
+		Cluster: input.Cluster,
+		Group: input.Group,
+		TaskDefinition: input.TaskDefinition,
+		NetworkConfiguration: input.NetworkConfiguration,
+	})
+	if err != nil { return nil, err }
+	return &ecs.RunTaskOutput{
+		Tasks: o.Tasks,
 	}, nil
 }
 
@@ -224,10 +246,10 @@ func (ctx *MockContext) StopTask(input *ecs.StopTaskInput) (*ecs.StopTaskOutput,
 	log.Debugf("stop: %s", input)
 	ret := ctx.Tasks[*input.Task]
 	delete(ctx.Tasks, *input.Task)
-	reg := regexp.MustCompile("service:(.+?)$")
-	m := reg.FindStringSubmatch(*ret.Group)
-	service := ctx.Services[m[1]]
-	*service.RunningCount -= 1
+	service, ok := ctx.Services[*ret.Group]
+	if ok {
+		*service.RunningCount -= 1
+	}
 	return &ecs.StopTaskOutput{
 		Task: ret,
 	}, nil
@@ -374,5 +396,34 @@ func (ctx *MockContext) DescribeTargetHealth(input *elbv2.DescribeTargetHealthIn
 	}
 	return &elbv2.DescribeTargetHealthOutput{
 		TargetHealthDescriptions: ret,
+	}, nil
+}
+
+
+func (ctx *MockContext) RegisterTarget(input *elbv2.RegisterTargetsInput) (*elbv2.RegisterTargetsOutput, error) {
+	return &elbv2.RegisterTargetsOutput{
+	}, nil
+}
+
+func (ctx *MockContext) DeregisterTarget(input *elbv2.DeregisterTargetsInput) (*elbv2.DeregisterTargetsOutput, error) {
+	return &elbv2.DeregisterTargetsOutput{
+	}, nil
+}
+
+func (ctx *MockContext) DescribeInstances(input *ec2.DescribeInstancesInput) (*ec2.DescribeInstancesOutput, error) {
+	return &ec2.DescribeInstancesOutput{
+		Reservations: []*ec2.Reservation{{
+			Instances: []*ec2.Instance{{
+				SubnetId: aws.String("us-west-2a"),
+			}},
+		}},
+	}, nil
+}
+
+func (ctx *MockContext) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
+	return &ec2.DescribeSubnetsOutput{
+		Subnets: []*ec2.Subnet{{
+			AvailabilityZone: aws.String("us-west-2"),
+		}},
 	}, nil
 }
