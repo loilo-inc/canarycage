@@ -18,5 +18,9 @@ func main() {
 		cmds.RollOut(),
 		cmds.Up(),
 	}
-	app.Run(os.Args)
+	err := app.Run(os.Args)
+	if err != nil {
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
