@@ -41,7 +41,10 @@ func (c *cageCommands) Up() cli.Command {
 				EC2: ec2.New(ses),
 			})
 			_, err := cagecli.Up(context.Background())
-			return err
+			if err != nil {
+				return cli.NewExitError(err, 1)
+			}
+			return nil
 		},
 	}
 }

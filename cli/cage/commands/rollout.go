@@ -53,7 +53,7 @@ func (c *cageCommands) RollOut() cli.Command {
 				} else {
 					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!. error: %s", envars.Service, err)
 				}
-				return err
+				return cli.NewExitError(err, 1)
 			}
 			log.Infof("🎉service roll out has completed successfully!🎉")
 			return nil
