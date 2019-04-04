@@ -10,7 +10,7 @@ import (
 func main() {
 	app := cli.NewApp()
 	app.Name = "canarycage"
-	app.Version = "3.0.0"
+	app.Version = "3.0.1"
 	app.Description = "A gradual roll-out deployment tool for AWS ECS"
 	ctx := context.Background()
 	cmds := commands.NewCageCommands(ctx)
@@ -18,5 +18,9 @@ func main() {
 		cmds.RollOut(),
 		cmds.Up(),
 	}
-	app.Run(os.Args)
+	err := app.Run(os.Args)
+	if err != nil {
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
