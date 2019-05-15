@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
@@ -113,11 +114,14 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 		return throw(err)
 	}
 	log.Infof("waiting for service '%s' to be stable...", c.env.Service)
+	waiterOption := request.WaiterOption(func(waiter *request.Waiter) {
+		waiter.MaxAttempts = 60
+	})
 	//TODO: avoid stdout sticking while CI
-	if err := c.ecs.WaitUntilServicesStable(&ecs.DescribeServicesInput{
+	if err := c.ecs.WaitUntilServicesStableWithContext(aws.BackgroundContext(), &ecs.DescribeServicesInput{
 		Cluster:  &c.env.Cluster,
 		Services: []*string{&c.env.Service},
-	}); err != nil {
+	}, waiterOption); err != nil {
 		return throw(err)
 	}
 	log.Infof("🥴 service '%s' has become to be stable!", c.env.Service)
