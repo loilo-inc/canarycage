@@ -59,7 +59,7 @@ func Setup(ctrl *gomock.Controller, envars *Envars, currentTaskCount int64, laun
 	ecsMock.EXPECT().RunTask(gomock.Any()).DoAndReturn(mocker.RunTask).AnyTimes()
 	ecsMock.EXPECT().StopTask(gomock.Any()).DoAndReturn(mocker.StopTask).AnyTimes()
 	ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any()).DoAndReturn(mocker.RegisterTaskDefinition).AnyTimes()
-	ecsMock.EXPECT().WaitUntilServicesStable(gomock.Any()).DoAndReturn(mocker.WaitUntilServicesStable).AnyTimes()
+	ecsMock.EXPECT().WaitUntilServicesStableWithContext(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.WaitUntilServicesStableWithContext).AnyTimes()
 	ecsMock.EXPECT().WaitUntilServicesInactive(gomock.Any()).DoAndReturn(mocker.WaitUntilServicesInactive).AnyTimes()
 	ecsMock.EXPECT().DescribeServices(gomock.Any()).DoAndReturn(mocker.DescribeServices).AnyTimes()
 	ecsMock.EXPECT().DescribeTasks(gomock.Any()).DoAndReturn(mocker.DescribeTasks).AnyTimes()

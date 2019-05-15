@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
@@ -270,7 +271,7 @@ func (ctx *MockContext) ListTasks(input *ecs.ListTasksInput) (*ecs.ListTasksOutp
 	}, nil
 }
 
-func (ctx *MockContext) WaitUntilServicesStable(input *ecs.DescribeServicesInput) error {
+func (ctx *MockContext) WaitUntilServicesStableWithContext(awsCtx aws.Context, input *ecs.DescribeServicesInput, opts ...request.WaiterOption) error {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	for _, v := range input.Services {
