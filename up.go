@@ -17,7 +17,7 @@ func (c *cage) Up(ctx context.Context) (*UpResult, error) {
 		return nil, err
 	}
 	c.env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinitionArn
-	log.Infof("creating service '%s' with task-definition '%s'...", c.env.Service)
+	log.Infof("creating service '%s' with task-definition '%s'...", c.env.Service, *td.TaskDefinitionArn)
 	if o, err := c.ecs.CreateService(c.env.ServiceDefinitionInput); err != nil {
 		log.Fatalf("failed to create service '%s': %s", c.env.Service, err.Error())
 	} else {
