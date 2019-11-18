@@ -1,0 +1,17 @@
+name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-go@v1
+        with:
+          go-version: '1.13'
+      - run: go mod download
+      - run: go build
+      - run: go build github.com/loilo-inc/canarycage/cli/cage
+      - run: go test -coverprofile=coverage.txt -covermode=count
+      - name: Upload Coverage
+        run: bash <(curl -s https://codecov.io/bash)
+
