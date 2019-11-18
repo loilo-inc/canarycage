@@ -28,7 +28,8 @@ jobs:
           mv bin/goreleaser ${HOME}/bin/
           rm -rf bin
           echo "::add-path::${HOME}/bin"
-          goreleaser -v
+      - name: Gorelease version
+        run: goreleaser -v
       - name: Release
         run: |
           goreleaser release --rm-dist
