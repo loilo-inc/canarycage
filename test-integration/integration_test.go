@@ -1,7 +1,6 @@
 package test_integration
 
 import (
-	".."
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
+	"github.com/loilo-inc/canarycage"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"

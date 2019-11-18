@@ -1,8 +1,8 @@
 package main
 
 import (
-	"./commands"
 	"context"
+	"github.com/loilo-inc/canarycage/cli/cage/commands"
 	"github.com/urfave/cli"
 	"os"
 )

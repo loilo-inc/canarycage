@@ -1,9 +1,9 @@
 package commands
 
 import (
-	"../../.."
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli"
 )
 
