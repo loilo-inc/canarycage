@@ -11,7 +11,7 @@ release:
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v ${HOME}/.aws:/root/.aws \
 		-w /go/src/github.com/loilo-inc/canarycage \
-		-e GITHUB_TOKEN=$(lake decrypt -f .github_token.enc) \
+		-e GITHUB_TOKEN=`lake decrypt -f .github_token.enc` \
 		goreleaser/goreleaser release --rm-dist
 version:
 	go run cli/cage/main.go -v | cut -f 3 -d ' '
