@@ -24,7 +24,7 @@ jobs:
       - name: Install Goreleaser
         run: |
           curl -sfL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | sh
-          goreleaser -v
+          ./bin/goreleaser -v
       - name: Release
         run: |
-          goreleaser release --rm-dist
+          ./bin/goreleaser release --rm-dist
