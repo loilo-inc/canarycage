@@ -1,6 +1,7 @@
 package test_integration
 
 import (
+	".."
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,7 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
-	"github.com/loilo-inc/canarycage"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"
@@ -110,13 +110,13 @@ func setupEnvars(
 		Region:            "us-east-2",
 		Cluster:           "cage-test",
 		Service:           service,
-		TaskDefinitionArn: &tdArn,
+		TaskDefinitionArn: tdArn,
 	}
 	cage.EnsureEnvars(envars)
 	return envars
 }
 
-func testInternal(t *testing.T, envars *cage.Envars) (*cage.RollOutResult) {
+func testInternal(t *testing.T, envars *cage.Envars) *cage.RollOutResult {
 	if err := cage.EnsureEnvars(envars); err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -131,7 +131,11 @@ func testInternal(t *testing.T, envars *cage.Envars) (*cage.RollOutResult) {
 		ALB: _alb,
 	})
 	ctx := context.Background()
-	return cagecli.RollOut(ctx)
+	result, err := cagecli.RollOut(ctx)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	return result
 }
 
 func testAbnormal(t *testing.T, tdarn string, servicePostfix string) {
@@ -142,7 +146,6 @@ func testAbnormal(t *testing.T, tdarn string, servicePostfix string) {
 	)
 	result := testInternal(t, envars)
 	assert.True(t, result.ServiceIntact)
-	assert.NotNil(t, result.Error)
 	ses, _ := session.NewSession(&aws.Config{Region:aws.String("us-west-2")})
 	_ecs := ecs.New(ses)
 	defer cleanupService(_ecs, envars, &envars.Service)
@@ -160,7 +163,6 @@ func TestHealthyToHealthy(t *testing.T) {
 	ses, _ := session.NewSession(&aws.Config{Region:aws.String("us-west-2")})
 	_ecs := ecs.New(ses)
 	defer cleanupService(_ecs, envars, &envars.Service)
-	assert.Nil(t, result.Error)
 	assert.False(t, result.ServiceIntact)
 }
 
