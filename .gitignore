@@ -13,7 +13,6 @@
 *.out
 
 .idea/
-vendor/
 dist/
 
 coverage.txt
