@@ -23,6 +23,7 @@ func (c *cageCommands) Up() cli.Command {
 			ClusterFlag(&envars.Cluster),
 			ServiceFlag(&envars.Service),
 			TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
+			CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
 		},
 		Action: func(ctx *cli.Context) error {
 			c.aggregateEnvars(ctx, &envars)

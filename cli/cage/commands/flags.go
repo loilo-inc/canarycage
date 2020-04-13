@@ -40,6 +40,16 @@ func TaskDefinitionArnFlag(dest *string) cli.Flag {
 	}
 }
 
+func CanaryTaskIdleDurationFlag(dest *int) cli.Flag {
+	return cli.IntFlag{
+		Name: "canaryTaskIdleDuration",
+		EnvVar:  cage.CanaryTaskIdleDuration,
+		Usage : "Idle duration seconds for ensuring canary task that has no attached load balancer",
+		Destination: dest,
+		Value: 10,
+	}
+}
+
 func (c *cageCommands) aggregateEnvars(
 	ctx *cli.Context,
 	envars *cage.Envars,

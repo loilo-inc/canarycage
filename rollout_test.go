@@ -208,6 +208,7 @@ func TestCage_StartGradualRollOut5(t *testing.T) {
 	newTimer = fakeTimer
 	defer recoverTimer()
 	envars.ServiceDefinitionInput.LoadBalancers = nil
+	envars.CanaryTaskIdleDuration = 1
 	ctrl := gomock.NewController(t)
 	_, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
 	cagecli := NewCage(&Input{
