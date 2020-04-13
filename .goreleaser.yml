@@ -9,33 +9,15 @@ builds:
     goarch:
       - amd64
       - 386
-archive:
-  format: zip
-  name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+archives:
+  - format: zip
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 release:
   github:
     owner: loilo-inc
     name: canarycage
-s3:
-# You can have multiple s3 configs
-- # Bucket name (without the s3:// prefix)
-  # Default is empty.
-  bucket: loilo-public
-  # AWS Region to use.
-  # Defaults is us-east-1
-  region: us-west-2
-  # Template for the path/name inside the bucket.
-  # Default is `{{ .ProjectName }}/{{ .Tag }}`
-  folder: "oss/{{ .ProjectName }}/{{.Version}}"
-  # Set a custom profile to use for this s3 config. If you have multiple
-  # profiles setup in you ~/.aws config, this shall help defining which
-  # profile to use in which s3 bucket.
-  # Default is empty.
-  profile: default
-  # Endpoint allows you to set a custom endpoint, which is useful if you
-  # want to push your artifacts to a minio server for example.
-  # Default is AWS S3 URL.
-  #  endpoint: "http://minio.foo.com"
-  # Sets the ACL of the object using the specified canned ACL.
-  # Default is private.
-  acl: public-read
+blobs:
+  - provider: s3
+    bucket: loilo-public
+    region: us-west-2
+    folder: "oss/{{ .ProjectName }}/{{.Version}}"
