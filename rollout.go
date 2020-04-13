@@ -72,11 +72,9 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 		if task == nil {
 			return
 		}
-		log.Infof("stopping canary task '%s'...", *canaryTask.task.TaskArn)
 		if err := c.StopCanaryTask(canaryTask); err != nil {
 			log.Fatalf("failed to stop canary task '%s': %s", *canaryTask.task.TaskArn, err)
 		}
-		log.Infof("canary task '%s' has successfully been stopped", *canaryTask.task.TaskArn)
 		if aggregatedError == nil {
 			log.Infof(
 				"🐥 service '%s' successfully rolled out to '%s:%d'!",
@@ -363,12 +361,19 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 }
 
 func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
+	log.Infof("Stopping canary task '%s'...", *input.task.TaskArn)
 	if _, err := c.ecs.StopTask(&ecs.StopTaskInput{
 		Cluster: &c.env.Cluster,
 		Task:    input.task.TaskArn,
 	}); err != nil {
 		return err
 	}
+	log.Infof("Canary task '%s' has successfully been stopped", *input.task.TaskArn)
+	if input.registrationSkipped {
+		log.Info("No load balancer attached to service. Skip de-registering.")
+		return nil
+	}
+	log.Infof("De-registering canary task from target group '%s'...", *input.targetId)
 	if _, err := c.alb.DeregisterTargets(&elbv2.DeregisterTargetsInput{
 		TargetGroupArn: input.targetGroupArn,
 		Targets: []*elbv2.TargetDescription{{
@@ -395,5 +400,6 @@ func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
 	}); err != nil {
 		return err
 	}
+	log.Infof("Canary task '%s' has successfully been de-registered from target group '%s'", *input.targetId)
 	return nil
 }
