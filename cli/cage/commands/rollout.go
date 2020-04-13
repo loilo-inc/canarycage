@@ -23,6 +23,7 @@ func (c *cageCommands) RollOut() cli.Command {
 			ClusterFlag(&envars.Cluster),
 			ServiceFlag(&envars.Service),
 			TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
+			CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
 			cli.StringFlag{
 				Name:        "canaryInstanceArn",
 				EnvVar:      cage.CanaryInstanceArnKey,

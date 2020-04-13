@@ -286,7 +286,34 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 		task = o.Tasks[0]
 	}
 	if len(service.LoadBalancers) == 0 {
-		log.Infof("no load balancer is attached to service '%s'. skip registration to target group", *service.ServiceName)
+		log.Infof("No load balancer is attached to service '%s'. skip registration to target group", *service.ServiceName)
+		log.Infof("Waiting for %s to check task doesn't failed to start and to be stable", c.env.CanaryTaskIdleDuration)
+		wait := make(chan bool)
+		go func() {
+			duration := c.env.CanaryTaskIdleDuration
+			for duration > 0 {
+				log.Infof("Still waiting...%ds left", duration)
+				wt := 10
+				if duration < 10 {
+					wt = duration
+				}
+				<-time.NewTimer(time.Duration(wt) * time.Second).C
+				duration -= 10
+			}
+			wait <- true
+		}()
+		<-wait
+		o, err := c.ecs.DescribeTasks(&ecs.DescribeTasksInput{
+			Cluster: &c.env.Cluster,
+			Tasks:   []*string{taskArn},
+		})
+		if err != nil {
+			return nil, err
+		}
+		task := o.Tasks[0]
+		if *task.LastStatus != "RUNNING" {
+			return nil, fmt.Errorf("😫 Canary task has been stopped: %s", *task.StoppedReason)
+		}
 		return &StartCanaryTaskOutput{
 			task:                task,
 			registrationSkipped: true,

@@ -224,6 +224,7 @@ func (ctx *MockContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutp
 	} else {
 		ret.ContainerInstanceArn = aws.String("arn:aws:ecs:us-west-2:1234567890:container-instance/12345678-hoge-hoge-1234-1f2o3o4ba5r")
 	}
+	ret.LastStatus = aws.String("RUNNING")
 	return &ecs.StartTaskOutput{
 		Tasks: []*ecs.Task{ret},
 	}, nil
