@@ -262,6 +262,7 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 			NetworkConfiguration: service.NetworkConfiguration,
 			TaskDefinition:       nextTaskDefinition.TaskDefinitionArn,
 			LaunchType:           aws.String("FARGATE"),
+			PlatformVersion:      service.PlatformVersion,
 		}); err != nil {
 			return nil, err
 		} else {
