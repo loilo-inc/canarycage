@@ -14,10 +14,10 @@ import (
 func (c *cageCommands) Up() cli.Command {
 	envars := cage.Envars{}
 	return cli.Command{
-		Name: "up",
-		Usage: "create new ECS service with specified task definition",
+		Name:        "up",
+		Usage:       "create new ECS service with specified task definition",
 		Description: "create new ECS service with specified task definition",
-		ArgsUsage: "[directory path of service.json and task-definition.json (default=.)]",
+		ArgsUsage:   "[directory path of service.json and task-definition.json (default=.)]",
 		Flags: []cli.Flag{
 			RegionFlag(&envars.Region),
 			ClusterFlag(&envars.Cluster),
@@ -46,4 +46,3 @@ func (c *cageCommands) Up() cli.Command {
 		},
 	}
 }
-
