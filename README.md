@@ -34,14 +34,6 @@ $ chmod +x cage
 $ mv cage /usr/local/bin/cage
 ```
 
-or from S3
-```bash 
-$ curl -oL https://s3-us-west-2.amazonaws.com/loilo-public/oss/canarycage/${VERSION}/canarycage_{linux|darwin}_{amd64|386}.zip
-$ unzip canarycage_linux_amd64.zip
-$ chmod +x cage
-$ mv cage /usr/local/bin/cage
-```
-
 ## Definition Files
 
 cage has just 2 commands, `up` and `rollout`.  
