@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -42,6 +43,9 @@ func (c *cageCommands) Up() cli.Command {
 				EC2: ec2.New(ses),
 			})
 			_, err := cagecli.Up(context.Background())
+			if err != nil {
+				log.Error(err.Error())
+			}
 			return err
 		},
 	}
