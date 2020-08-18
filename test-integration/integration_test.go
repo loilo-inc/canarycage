@@ -30,7 +30,7 @@ func setup() (ecsiface.ECSAPI, elbv2iface.ELBV2API, ec2iface.EC2API) {
 	return ecs.New(ses), elbv2.New(ses), ec2.New(ses)
 }
 
-func ensureCurrentService(awsEcs ecsiface.ECSAPI, envars *cage.Envars) (error) {
+func ensureCurrentService(awsEcs ecsiface.ECSAPI, envars *cage.Envars) error {
 	d, err := ioutil.ReadFile("service-template.json")
 	if err != nil {
 		return err
@@ -75,7 +75,7 @@ func ensureCurrentService(awsEcs ecsiface.ECSAPI, envars *cage.Envars) (error) {
 	return nil
 }
 
-func cleanupService(awsEcs ecsiface.ECSAPI, envars *cage.Envars, serviceName *string) (error) {
+func cleanupService(awsEcs ecsiface.ECSAPI, envars *cage.Envars, serviceName *string) error {
 	log.Infof("cleaning up service '%s'...", *serviceName)
 	if o, err := awsEcs.DescribeServices(&ecs.DescribeServicesInput{
 		Cluster:  &envars.Cluster,
@@ -146,7 +146,7 @@ func testAbnormal(t *testing.T, tdarn string, servicePostfix string) {
 	)
 	result := testInternal(t, envars)
 	assert.True(t, result.ServiceIntact)
-	ses, _ := session.NewSession(&aws.Config{Region:aws.String("us-west-2")})
+	ses, _ := session.NewSession(&aws.Config{Region: aws.String("us-west-2")})
 	_ecs := ecs.New(ses)
 	defer cleanupService(_ecs, envars, &envars.Service)
 	o, _ := _ecs.DescribeServices(&ecs.DescribeServicesInput{
@@ -160,7 +160,7 @@ func testAbnormal(t *testing.T, tdarn string, servicePostfix string) {
 func TestHealthyToHealthy(t *testing.T) {
 	envars := setupEnvars("service-healthy2healthy", kHealthyTDArn)
 	result := testInternal(t, envars)
-	ses, _ := session.NewSession(&aws.Config{Region:aws.String("us-west-2")})
+	ses, _ := session.NewSession(&aws.Config{Region: aws.String("us-west-2")})
 	_ecs := ecs.New(ses)
 	defer cleanupService(_ecs, envars, &envars.Service)
 	assert.False(t, result.ServiceIntact)

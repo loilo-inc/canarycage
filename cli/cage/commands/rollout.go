@@ -49,10 +49,11 @@ func (c *cageCommands) RollOut() cli.Command {
 			})
 			result, err := cagecli.RollOut(c.ctx)
 			if err != nil {
+				log.Error(err.Error())
 				if result.ServiceIntact {
-					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed. error: %s", envars.Service, err)
+					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", envars.Service)
 				} else {
-					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!. error: %s", envars.Service, err)
+					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!", envars.Service)
 				}
 				return err
 			}

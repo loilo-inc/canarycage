@@ -6,11 +6,9 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/mock v1.4.3
 	github.com/google/uuid v0.0.0-20161128191214-064e2069ce9c
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/testify v1.5.1
 	github.com/urfave/cli v1.20.0
 	golang.org/x/text v0.3.2 // indirect
-	rsc.io/sampler v1.99.99 // indirect
 )
 
 go 1.13

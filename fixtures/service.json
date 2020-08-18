@@ -1,6 +1,6 @@
 {
     "cluster": "cluster",
-    "serviceName": "service-next",
+    "serviceName": "service",
     "taskDefinition": "hoge",
     "loadBalancers": [
         {

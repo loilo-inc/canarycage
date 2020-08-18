@@ -41,6 +41,8 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	}); err != nil {
 		log.Errorf("failed to describe current service due to: %s", err.Error())
 		return throw(err)
+	} else if len(out.Services) == 0 {
+		return throw(fmt.Errorf("service '%s' doesn't exist. Run 'cage up' or create service before rolling out", c.env.Service))
 	} else {
 		service = out.Services[0]
 	}
