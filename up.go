@@ -25,7 +25,10 @@ func (c *cage) Up(ctx context.Context) (*UpResult, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("couldn't describe service: %s", err.Error())
 	} else if len(o.Services) > 0 {
-		return nil, fmt.Errorf("service '%s' already exists. Use 'cage rollout' instead", c.env.Service)
+		svc := o.Services[0]
+		if *svc.Status != "INACTIVE" {
+			return nil, fmt.Errorf("service '%s' already exists. Use 'cage rollout' instead", c.env.Service)
+		}
 	}
 	c.env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinitionArn
 	log.Infof("creating service '%s' with task-definition '%s'...", c.env.Service, *td.TaskDefinitionArn)
