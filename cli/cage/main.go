@@ -10,7 +10,7 @@ import (
 func main() {
 	app := cli.NewApp()
 	app.Name = "canarycage"
-	app.Version = "3.4.0"
+	app.Version = "3.4.1"
 	app.Description = "A gradual roll-out deployment tool for AWS ECS"
 	ctx := context.Background()
 	cmds := commands.NewCageCommands(ctx)

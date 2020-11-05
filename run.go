@@ -32,7 +32,7 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 		return nil, err
 	}
 	if !containerExistsInDefinition(td, input.Container) {
-		return nil, fmt.Errorf("'%s' not found in container definitions", *input.Container)
+		return nil, fmt.Errorf("🚫 '%s' not found in container definitions", *input.Container)
 	}
 	o, err := c.ecs.RunTaskWithContext(ctx, &ecs.RunTaskInput{
 		Cluster:              &c.env.Cluster,
@@ -69,11 +69,14 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 		}
 		for _, container := range task.Containers {
 			if *container.Name == *input.Container {
+				if container.ExitCode == nil {
+					return nil, fmt.Errorf("🚫 container '%s' hasn't exit", *input.Container)
+				}
 				exitCode = *container.ExitCode
 				goto next
 			}
 		}
-		return nil, fmt.Errorf("container '%s' not found in results", *input.Container)
+		return nil, fmt.Errorf("🚫 container '%s' not found in results", *input.Container)
 	}
 	return nil, fmt.Errorf("🚫 max attempts exceeded")
 next:
