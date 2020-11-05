@@ -10,13 +10,14 @@ import (
 func main() {
 	app := cli.NewApp()
 	app.Name = "canarycage"
-	app.Version = "3.3.4"
+	app.Version = "3.4.0"
 	app.Description = "A gradual roll-out deployment tool for AWS ECS"
 	ctx := context.Background()
 	cmds := commands.NewCageCommands(ctx)
 	app.Commands = cli.Commands{
-		cmds.RollOut(),
-		cmds.Up(),
+		*cmds.RollOut(),
+		*cmds.Up(),
+		*cmds.Run(),
 	}
 	err := app.Run(os.Args)
 	if err != nil {

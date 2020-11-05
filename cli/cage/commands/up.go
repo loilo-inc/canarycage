@@ -12,9 +12,9 @@ import (
 	"github.com/urfave/cli"
 )
 
-func (c *cageCommands) Up() cli.Command {
+func (c *cageCommands) Up() *cli.Command {
 	envars := cage.Envars{}
-	return cli.Command{
+	return &cli.Command{
 		Name:        "up",
 		Usage:       "create new ECS service with specified task definition",
 		Description: "create new ECS service with specified task definition",

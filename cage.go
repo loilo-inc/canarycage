@@ -9,6 +9,7 @@ import (
 
 type Cage interface {
 	Up(ctx context.Context) (*UpResult, error)
+	Run(ctx context.Context, input *RunInput) (*RunResult, error)
 	RollOut(ctx context.Context) (*RollOutResult, error)
 }
 
@@ -31,5 +32,6 @@ func NewCage(input *Input) Cage {
 		env: input.Env,
 		ecs: input.ECS,
 		alb: input.ALB,
-		ec2: input.EC2}
+		ec2: input.EC2,
+	}
 }
