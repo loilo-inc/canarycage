@@ -11,9 +11,9 @@ import (
 	"github.com/urfave/cli"
 )
 
-func (c *cageCommands) RollOut() cli.Command {
+func (c *cageCommands) RollOut() *cli.Command {
 	var envars = cage.Envars{}
-	return cli.Command{
+	return &cli.Command{
 		Name:        "rollout",
 		Usage:       "roll out ECS service to next task definition",
 		Description: "start rolling out next service with current service",
