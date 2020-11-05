@@ -138,6 +138,37 @@ func TestCage_Run(t *testing.T) {
 		assert.Nil(t, result)
 		assert.EqualError(t, err, "🚫 task exited with 1")
 	})
+	t.Run("should error if exit code is nil", func(t *testing.T) {
+		env := DefaultEnvars()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		overrides := &ecs.TaskOverride{}
+		container := "container"
+		ctx := context.Background()
+		ecsMock := setupForBasic(ctx, ctrl, []*ecs.DescribeTasksOutput{
+			{Tasks: []*ecs.Task{
+				{LastStatus: aws.String("STOPPED"),
+					Containers: []*ecs.Container{{
+						Name:     &container,
+						ExitCode: nil,
+					}}},
+			}},
+		})
+		cagecli := NewCage(&Input{
+			Env: env,
+			ECS: ecsMock,
+			ALB: nil,
+			EC2: nil,
+		})
+		newTimer = fakeTimer
+		defer recoverTimer()
+		result, err := cagecli.Run(ctx, &RunInput{
+			Container: &container,
+			Overrides: overrides,
+		})
+		assert.Nil(t, result)
+		assert.EqualError(t, err, "🚫 container 'container' hasn't exit")
+	})
 	t.Run("should error if container doesn't exist in definition", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -166,6 +197,6 @@ func TestCage_Run(t *testing.T) {
 			Overrides: overrides,
 		})
 		assert.Nil(t, result)
-		assert.EqualError(t, err, "'foo' not found in container definitions")
+		assert.EqualError(t, err, "🚫 'foo' not found in container definitions")
 	})
 }
