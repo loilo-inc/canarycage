@@ -17,10 +17,22 @@ type RunResult struct {
 	ExitCode int64
 }
 
+func containerExistsInDefinition(td *ecs.TaskDefinition, container *string) bool {
+	for _, v := range td.ContainerDefinitions {
+		if *v.Name == *container {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 	td, err := c.CreateNextTaskDefinition()
 	if err != nil {
 		return nil, err
+	}
+	if !containerExistsInDefinition(td, input.Container) {
+		return nil, fmt.Errorf("'%s' not found in container definitions", *input.Container)
 	}
 	o, err := c.ecs.RunTaskWithContext(ctx, &ecs.RunTaskInput{
 		Cluster:              &c.env.Cluster,
@@ -39,10 +51,10 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 	maxCount := 30
 	interval := time.Second * 10
 	var exitCode int64 = -1
-	log.Infof("🥚 waiting until task '%s' is running...", *taskArn)
+	log.Infof("🤖 waiting until task '%s' is running...", *taskArn)
 	for count < maxCount {
-		<-time.NewTimer(interval).C
-		o, err := c.ecs.DescribeTasks(&ecs.DescribeTasksInput{
+		<-newTimer(interval).C
+		o, err := c.ecs.DescribeTasksWithContext(ctx, &ecs.DescribeTasksInput{
 			Cluster: &c.env.Cluster,
 			Tasks:   []*string{taskArn},
 		})
@@ -50,6 +62,7 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 			return nil, err
 		}
 		task := o.Tasks[0]
+		log.Infof("🤖 task status is '%s'", *task.LastStatus)
 		if *task.LastStatus != "STOPPED" {
 			count++
 			continue
@@ -59,9 +72,10 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 				exitCode = *container.ExitCode
 				goto next
 			}
-			return nil, fmt.Errorf("container \"%s\" not found in results", *input.Container)
 		}
+		return nil, fmt.Errorf("container '%s' not found in results", *input.Container)
 	}
+	return nil, fmt.Errorf("🚫 max attempts exceeded")
 next:
 	if exitCode != 0 {
 		return nil, fmt.Errorf("🚫 task exited with %d", exitCode)
