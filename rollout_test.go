@@ -244,6 +244,28 @@ func TestCage_StartGradualRollOut5(t *testing.T) {
 	}
 }
 
+func TestCage_RollOut5(t *testing.T) {
+	envars := DefaultEnvars()
+	newTimer = fakeTimer
+	defer recoverTimer()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ecsMock := mock_ecsiface.NewMockECSAPI(ctrl)
+	ecsMock.EXPECT().DescribeServices(gomock.Any()).Return(
+		&ecs.DescribeServicesOutput{
+			Services: []*ecs.Service{
+				{Status: aws.String("INACTIVE")},
+			},
+		}, nil,
+	)
+	cagecli := NewCage(&Input{
+		Env: envars,
+		ECS: ecsMock,
+	})
+	_, err := cagecli.RollOut(context.Background())
+	assert.EqualError(t, err, "😵 'service' status is 'INACTIVE'. Stop rolling out")
+}
+
 func TestCage_RollOut_EC2(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	newTimer = fakeTimer
