@@ -11,9 +11,9 @@ import (
 	"github.com/urfave/cli"
 )
 
-func (c *cageCommands) RollOut() cli.Command {
+func (c *cageCommands) RollOut() *cli.Command {
 	var envars = cage.Envars{}
-	return cli.Command{
+	return &cli.Command{
 		Name:        "rollout",
 		Usage:       "roll out ECS service to next task definition",
 		Description: "start rolling out next service with current service",
@@ -23,6 +23,7 @@ func (c *cageCommands) RollOut() cli.Command {
 			ClusterFlag(&envars.Cluster),
 			ServiceFlag(&envars.Service),
 			TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
+			CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
 			cli.StringFlag{
 				Name:        "canaryInstanceArn",
 				EnvVar:      cage.CanaryInstanceArnKey,
@@ -48,10 +49,11 @@ func (c *cageCommands) RollOut() cli.Command {
 			})
 			result, err := cagecli.RollOut(c.ctx)
 			if err != nil {
+				log.Error(err.Error())
 				if result.ServiceIntact {
-					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed. error: %s", envars.Service, err)
+					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", envars.Service)
 				} else {
-					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!. error: %s", envars.Service, err)
+					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!", envars.Service)
 				}
 				return err
 			}

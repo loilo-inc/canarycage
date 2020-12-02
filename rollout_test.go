@@ -202,12 +202,32 @@ func TestCage_RollOut3(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+// Show error if service doesn't exist
+func TestCage_RollOut4(t *testing.T) {
+	newTimer = fakeTimer
+	defer recoverTimer()
+	envars := DefaultEnvars()
+	ctrl := gomock.NewController(t)
+	mocker, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
+	delete(mocker.Services, envars.Service)
+	cagecli := NewCage(&Input{
+		Env: envars,
+		ECS: ecsMock,
+		EC2: ec2Mock,
+		ALB: albMock,
+	})
+	ctx := context.Background()
+	_, err := cagecli.RollOut(ctx)
+	assert.EqualError(t, err, "service 'service' doesn't exist. Run 'cage up' or create service before rolling out")
+}
+
 func TestCage_StartGradualRollOut5(t *testing.T) {
 	// lbがないサービスの場合もロールアウトする
 	envars := DefaultEnvars()
 	newTimer = fakeTimer
 	defer recoverTimer()
 	envars.ServiceDefinitionInput.LoadBalancers = nil
+	envars.CanaryTaskIdleDuration = 1
 	ctrl := gomock.NewController(t)
 	_, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
 	cagecli := NewCage(&Input{

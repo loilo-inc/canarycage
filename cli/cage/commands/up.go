@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -11,18 +12,19 @@ import (
 	"github.com/urfave/cli"
 )
 
-func (c *cageCommands) Up() cli.Command {
+func (c *cageCommands) Up() *cli.Command {
 	envars := cage.Envars{}
-	return cli.Command{
-		Name: "up",
-		Usage: "create new ECS service with specified task definition",
+	return &cli.Command{
+		Name:        "up",
+		Usage:       "create new ECS service with specified task definition",
 		Description: "create new ECS service with specified task definition",
-		ArgsUsage: "[directory path of service.json and task-definition.json (default=.)]",
+		ArgsUsage:   "[directory path of service.json and task-definition.json (default=.)]",
 		Flags: []cli.Flag{
 			RegionFlag(&envars.Region),
 			ClusterFlag(&envars.Cluster),
 			ServiceFlag(&envars.Service),
 			TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
+			CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
 		},
 		Action: func(ctx *cli.Context) error {
 			c.aggregateEnvars(ctx, &envars)
@@ -41,8 +43,10 @@ func (c *cageCommands) Up() cli.Command {
 				EC2: ec2.New(ses),
 			})
 			_, err := cagecli.Up(context.Background())
+			if err != nil {
+				log.Error(err.Error())
+			}
 			return err
 		},
 	}
 }
-

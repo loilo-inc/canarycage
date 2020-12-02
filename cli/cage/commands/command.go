@@ -6,8 +6,9 @@ import (
 )
 
 type CageCommands interface {
-	Up() cli.Command
-	RollOut() cli.Command
+	Up() *cli.Command
+	RollOut() *cli.Command
+	Run() *cli.Command
 }
 
 type cageCommands struct {

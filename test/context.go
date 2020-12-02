@@ -86,8 +86,8 @@ func (ctx *MockContext) CreateService(input *ecs.CreateServiceInput) (*ecs.Creat
 		DesiredCount:                  input.DesiredCount,
 		TaskDefinition:                input.TaskDefinition,
 		HealthCheckGracePeriodSeconds: aws.Int64(0),
-		Status:     &st,
-		ServiceArn: &idstr,
+		Status:                        &st,
+		ServiceArn:                    &idstr,
 	}
 	ctx.mux.Lock()
 	ctx.Services[*input.ServiceName] = ret
@@ -180,9 +180,9 @@ func (ctx *MockContext) RegisterTaskDefinition(input *ecs.RegisterTaskDefinition
 	idstr := uuid.New().String()
 	return &ecs.RegisterTaskDefinitionOutput{
 		TaskDefinition: &ecs.TaskDefinition{
-			TaskDefinitionArn: &idstr,
-			Family:            aws.String("family"),
-			Revision:          aws.Int64(1),
+			TaskDefinitionArn:    &idstr,
+			Family:               aws.String("family"),
+			Revision:             aws.Int64(1),
 			ContainerDefinitions: input.ContainerDefinitions,
 		},
 	}, nil
@@ -224,18 +224,21 @@ func (ctx *MockContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutp
 	} else {
 		ret.ContainerInstanceArn = aws.String("arn:aws:ecs:us-west-2:1234567890:container-instance/12345678-hoge-hoge-1234-1f2o3o4ba5r")
 	}
+	ret.LastStatus = aws.String("RUNNING")
 	return &ecs.StartTaskOutput{
 		Tasks: []*ecs.Task{ret},
 	}, nil
 }
 func (ctx *MockContext) RunTask(input *ecs.RunTaskInput) (*ecs.RunTaskOutput, error) {
 	o, err := ctx.StartTask(&ecs.StartTaskInput{
-		Cluster: input.Cluster,
-		Group: input.Group,
-		TaskDefinition: input.TaskDefinition,
+		Cluster:              input.Cluster,
+		Group:                input.Group,
+		TaskDefinition:       input.TaskDefinition,
 		NetworkConfiguration: input.NetworkConfiguration,
 	})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return &ecs.RunTaskOutput{
 		Tasks: o.Tasks,
 	}, nil
@@ -400,15 +403,12 @@ func (ctx *MockContext) DescribeTargetHealth(input *elbv2.DescribeTargetHealthIn
 	}, nil
 }
 
-
 func (ctx *MockContext) RegisterTarget(input *elbv2.RegisterTargetsInput) (*elbv2.RegisterTargetsOutput, error) {
-	return &elbv2.RegisterTargetsOutput{
-	}, nil
+	return &elbv2.RegisterTargetsOutput{}, nil
 }
 
 func (ctx *MockContext) DeregisterTarget(input *elbv2.DeregisterTargetsInput) (*elbv2.DeregisterTargetsOutput, error) {
-	return &elbv2.DeregisterTargetsOutput{
-	}, nil
+	return &elbv2.DeregisterTargetsOutput{}, nil
 }
 
 func (ctx *MockContext) DescribeInstances(input *ec2.DescribeInstancesInput) (*ec2.DescribeInstancesOutput, error) {

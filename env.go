@@ -18,6 +18,7 @@ type Envars struct {
 	TaskDefinitionArn      string `json:"nextTaskDefinitionArn" type:"string"`
 	TaskDefinitionInput    *ecs.RegisterTaskDefinitionInput
 	ServiceDefinitionInput *ecs.CreateServiceInput
+	CanaryTaskIdleDuration int
 }
 
 // required
@@ -30,6 +31,7 @@ const TaskDefinitionArnKey = "CAGE_TASK_DEFINITION_ARN"
 // optional
 const CanaryInstanceArnKey = "CAGE_CANARY_INSTANCE_ARN"
 const RegionKey = "CAGE_REGION"
+const CanaryTaskIdleDuration = "CAGE_CANARY_TASK_IDLE_DURATION"
 
 func EnsureEnvars(
 	dest *Envars,
