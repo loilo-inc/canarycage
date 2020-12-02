@@ -44,6 +44,9 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	} else {
 		service = out.Services[0]
 	}
+	if *service.Status != "ACTIVE" {
+		return throw(fmt.Errorf("😵 '%s' status is '%s'. Stop rolling out", c.env.Service, *service.Status))
+	}
 	if *service.LaunchType == "EC2" && c.env.CanaryInstanceArn == "" {
 		return throw(fmt.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'"))
 	}
