@@ -2,7 +2,6 @@
 docker run --rm --privileged \
     -v ${PWD}:/go/src/github.com/loilo-inc/canarycage \
     -v /var/run/docker.sock:/var/run/docker.sock \
-    -v ${HOME}/.aws:/root/.aws \
     -w /go/src/github.com/loilo-inc/canarycage \
     -e GITHUB_TOKEN=${GITHUB_TOKEN} \
     goreleaser/goreleaser release --rm-dist
