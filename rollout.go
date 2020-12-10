@@ -430,6 +430,9 @@ func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
 	}); err != nil {
 		return err
 	}
-	log.Infof("Canary task '%s' has successfully been de-registered from target group '%s'", *input.targetId)
+	log.Infof(
+		"Canary task '%s' has successfully been de-registered from target group '%s'",
+		*input.task.TaskArn, *input.targetId,
+	)
 	return nil
 }
