@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/loilo-inc/canarycage"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 func (c *cageCommands) Up() *cli.Command {

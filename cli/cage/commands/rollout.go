@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/loilo-inc/canarycage"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 func (c *cageCommands) RollOut() *cli.Command {
@@ -24,9 +24,9 @@ func (c *cageCommands) RollOut() *cli.Command {
 			ServiceFlag(&envars.Service),
 			TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
 			CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
-			cli.StringFlag{
+			&cli.StringFlag{
 				Name:        "canaryInstanceArn",
-				EnvVar:      cage.CanaryInstanceArnKey,
+				EnvVars:      []string{cage.CanaryInstanceArnKey},
 				Usage:       "EC2 instance ARN for placing canary task. required only when LaunchType is EC2",
 				Destination: &envars.CanaryInstanceArn,
 			},

@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"github.com/loilo-inc/canarycage/cli/cage/commands"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 	"os"
 )
 
@@ -15,9 +15,9 @@ func main() {
 	ctx := context.Background()
 	cmds := commands.NewCageCommands(ctx)
 	app.Commands = cli.Commands{
-		*cmds.RollOut(),
-		*cmds.Up(),
-		*cmds.Run(),
+		cmds.RollOut(),
+		cmds.Up(),
+		cmds.Run(),
 	}
 	err := app.Run(os.Args)
 	if err != nil {
