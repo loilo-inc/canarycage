@@ -4,46 +4,46 @@ import (
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/loilo-inc/canarycage"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
-func RegionFlag(dest *string) cli.Flag {
-	return cli.StringFlag{
+func RegionFlag(dest *string) *cli.StringFlag {
+	return &cli.StringFlag{
 		Name:        "region",
-		EnvVar:      cage.RegionKey,
+		EnvVars:      []string{cage.RegionKey},
 		Usage:       "aws region for ecs. if not specified, try to load from aws sessions automatically",
 		Destination: dest,
 	}
 }
-func ClusterFlag(dest *string) cli.Flag {
-	return cli.StringFlag{
+func ClusterFlag(dest *string) *cli.StringFlag {
+	return &cli.StringFlag{
 		Name:        "cluster",
-		EnvVar:      cage.ClusterKey,
+		EnvVars:      []string{cage.ClusterKey},
 		Usage:       "ecs cluster name. if not specified, load from service.json",
 		Destination: dest,
 	}
 }
-func ServiceFlag(dest *string) cli.Flag {
-	return cli.StringFlag{
+func ServiceFlag(dest *string) *cli.StringFlag {
+	return &cli.StringFlag{
 		Name:        "service",
-		EnvVar:      cage.ServiceKey,
+		EnvVars:      []string{cage.ServiceKey},
 		Usage:       "service name. if not specified, load from service.json",
 		Destination: dest,
 	}
 }
-func TaskDefinitionArnFlag(dest *string) cli.Flag {
-	return cli.StringFlag{
+func TaskDefinitionArnFlag(dest *string) *cli.StringFlag {
+	return &cli.StringFlag{
 		Name:        "taskDefinitionArn",
-		EnvVar:      cage.TaskDefinitionArnKey,
+		EnvVars:      []string{cage.TaskDefinitionArnKey},
 		Usage:       "full arn for next task definition. if not specified, use task-definition.json for registration",
 		Destination: dest,
 	}
 }
 
-func CanaryTaskIdleDurationFlag(dest *int) cli.Flag {
-	return cli.IntFlag{
+func CanaryTaskIdleDurationFlag(dest *int) *cli.IntFlag {
+	return &cli.IntFlag{
 		Name:        "canaryTaskIdleDuration",
-		EnvVar:      cage.CanaryTaskIdleDuration,
+		EnvVars:      []string{cage.CanaryTaskIdleDuration},
 		Usage:       "Idle duration seconds for ensuring canary task that has no attached load balancer",
 		Destination: dest,
 		Value:       10,
