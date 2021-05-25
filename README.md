@@ -3,7 +3,7 @@ canarycage
 ====
 
 [![CircleCI](https://circleci.com/gh/loilo-inc/canarycage.svg?style=svg&circle-token=b3c00e40df37ed80bc83670173d32f2e5708d25f)](https://circleci.com/gh/loilo-inc/canarycage)
-[![codecov](https://codecov.io/gh/loilo-inc/canarycage/branch/master/graph/badge.svg?token=WRW1qemxSR)](https://codecov.io/gh/loilo-inc/canarycage)
+[![codecov](https://codecov.io/gh/loilo-inc/canarycage/branch/main/graph/badge.svg?token=WRW1qemxSR)](https://codecov.io/gh/loilo-inc/canarycage)
 ![https://img.shields.io/github/tag/loilo-inc/canarycage.svg](https://img.shields.io/github/tag/loilo-inc/canarycage.svg)
 [![license](https://img.shields.io/github/license/loilo-inc/canarycage.svg)](https://github.com/loilo-inc/canarycage)
 
@@ -139,7 +139,7 @@ It resulted in protection of healthy service during continual delivery in develo
 
 ## Licence
 
-[MIT](https://github.com/tcnksm/tool/blob/master/LICENCE)
+[MIT](https://github.com/tcnksm/tool/blob//LICENCE)
 
 ## Author
 
