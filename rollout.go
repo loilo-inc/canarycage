@@ -3,13 +3,14 @@ package cage
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
-	"time"
 )
 
 type RollOutResult struct {
@@ -394,6 +395,36 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 }
 
 func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
+	if input.registrationSkipped {
+		log.Info("No load balancer attached to service. Skip de-registering.")
+	} else {
+		log.Infof("De-registering canary task from target group '%s'...", *input.targetId)
+		if _, err := c.alb.DeregisterTargets(&elbv2.DeregisterTargetsInput{
+			TargetGroupArn: input.targetGroupArn,
+			Targets: []*elbv2.TargetDescription{{
+				AvailabilityZone: input.availabilityZone,
+				Id:               input.targetId,
+				Port:             input.targetPort,
+			}},
+		}); err != nil {
+			return err
+		}
+		if err := c.alb.WaitUntilTargetDeregistered(&elbv2.DescribeTargetHealthInput{
+			TargetGroupArn: input.targetGroupArn,
+			Targets: []*elbv2.TargetDescription{{
+				AvailabilityZone: input.availabilityZone,
+				Id:               input.targetId,
+				Port:             input.targetPort,
+			}},
+		}); err != nil {
+			return err
+		}
+		log.Infof(
+			"Canary task '%s' has successfully been de-registered from target group '%s'",
+			*input.task.TaskArn, *input.targetId,
+		)
+	}
+
 	log.Infof("Stopping canary task '%s'...", *input.task.TaskArn)
 	if _, err := c.ecs.StopTask(&ecs.StopTaskInput{
 		Cluster: &c.env.Cluster,
@@ -402,40 +433,11 @@ func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
 		return err
 	}
 	log.Infof("Canary task '%s' has successfully been stopped", *input.task.TaskArn)
-	if input.registrationSkipped {
-		log.Info("No load balancer attached to service. Skip de-registering.")
-		return nil
-	}
-	log.Infof("De-registering canary task from target group '%s'...", *input.targetId)
-	if _, err := c.alb.DeregisterTargets(&elbv2.DeregisterTargetsInput{
-		TargetGroupArn: input.targetGroupArn,
-		Targets: []*elbv2.TargetDescription{{
-			AvailabilityZone: input.availabilityZone,
-			Id:               input.targetId,
-			Port:             input.targetPort,
-		}},
-	}); err != nil {
-		return err
-	}
-	if err := c.alb.WaitUntilTargetDeregistered(&elbv2.DescribeTargetHealthInput{
-		TargetGroupArn: input.targetGroupArn,
-		Targets: []*elbv2.TargetDescription{{
-			AvailabilityZone: input.availabilityZone,
-			Id:               input.targetId,
-			Port:             input.targetPort,
-		}},
-	}); err != nil {
-		return err
-	}
 	if err := c.ecs.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
 		Cluster: &c.env.Cluster,
 		Tasks:   []*string{input.task.TaskArn},
 	}); err != nil {
 		return err
 	}
-	log.Infof(
-		"Canary task '%s' has successfully been de-registered from target group '%s'",
-		*input.task.TaskArn, *input.targetId,
-	)
 	return nil
 }
