@@ -1,4 +1,5 @@
 MOCKGEN := go run github.com/golang/mock/mockgen@v1.6.0
+.PHONY: test
 test:
 	go test -coverprofile=coverage.txt -covermode=count
 test-container:
