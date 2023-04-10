@@ -107,7 +107,7 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	}
 	ret.ServiceIntact = false
 	log.Infof(
-		"updating '%s' 's task definition to '%s:%d'...",
+		"updating the task definition of '%s' into '%s:%d'...",
 		c.env.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision,
 	)
 	if _, err := c.ecs.UpdateService(&ecs.UpdateServiceInput{
@@ -139,7 +139,7 @@ func (c *cage) EnsureTaskHealthy(
 	targetId *string,
 	targetPort *int64,
 ) error {
-	log.Infof("checking canary task's health state...")
+	log.Infof("checking the health state of canary task...")
 	var unusedCount = 0
 	var initialized = false
 	var recentState *string
@@ -156,7 +156,7 @@ func (c *cage) EnsureTaskHealthy(
 		} else {
 			recentState = GetTargetIsHealthy(o, targetId, targetPort)
 			if recentState == nil {
-				return fmt.Errorf("'%s' is not registered to target group '%s'", *targetId, *tgArn)
+				return fmt.Errorf("'%s' is not registered to the target group '%s'", *targetId, *tgArn)
 			}
 			log.Infof("canary task '%s' (%s:%d) state is: %s", *taskArn, *targetId, *targetPort, *recentState)
 			switch *recentState {
@@ -164,7 +164,7 @@ func (c *cage) EnsureTaskHealthy(
 				return nil
 			case "initial":
 				initialized = true
-				log.Infof("still checking state...")
+				log.Infof("still checking the state...")
 				continue
 			case "unused":
 				unusedCount++
@@ -177,7 +177,7 @@ func (c *cage) EnsureTaskHealthy(
 		// unhealthy, draining, unused
 		log.Errorf("😨 canary task '%s' is unhealthy", *taskArn)
 		return fmt.Errorf(
-			"canary task '%s' (%s:%d) hasn't become to be healthy. recent state: %s",
+			"canary task '%s' (%s:%d) hasn't become to be healthy. The most recent state: %s",
 			*taskArn, *targetId, *targetPort, *recentState,
 		)
 	}
@@ -293,13 +293,13 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 		task = o.Tasks[0]
 	}
 	if len(service.LoadBalancers) == 0 {
-		log.Infof("No load balancer is attached to service '%s'. skip registration to target group", *service.ServiceName)
-		log.Infof("Waiting for %s to check task doesn't failed to start and to be stable", c.env.CanaryTaskIdleDuration)
+		log.Infof("no load balancer is attached to service '%s'. skip registration to target group", *service.ServiceName)
+		log.Infof("wait %d seconds for ensuring the task goes stable", c.env.CanaryTaskIdleDuration)
 		wait := make(chan bool)
 		go func() {
 			duration := c.env.CanaryTaskIdleDuration
 			for duration > 0 {
-				log.Infof("Still waiting...%ds left", duration)
+				log.Infof("still waiting...; %d seconds left", duration)
 				wt := 10
 				if duration < 10 {
 					wt = duration
@@ -319,7 +319,7 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 		}
 		task := o.Tasks[0]
 		if *task.LastStatus != "RUNNING" {
-			return nil, fmt.Errorf("😫 Canary task has been stopped: %s", *task.StoppedReason)
+			return nil, fmt.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
 		}
 		return &StartCanaryTaskOutput{
 			task:                task,
@@ -396,9 +396,9 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 
 func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
 	if input.registrationSkipped {
-		log.Info("No load balancer attached to service. Skip de-registering.")
+		log.Info("no load balancer is attached to service. Skip deregisteration.")
 	} else {
-		log.Infof("De-registering canary task from target group '%s'...", *input.targetId)
+		log.Infof("deregistering the canary task from target group '%s'...", *input.targetId)
 		if _, err := c.alb.DeregisterTargets(&elbv2.DeregisterTargetsInput{
 			TargetGroupArn: input.targetGroupArn,
 			Targets: []*elbv2.TargetDescription{{
@@ -420,24 +420,24 @@ func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
 			return err
 		}
 		log.Infof(
-			"Canary task '%s' has successfully been de-registered from target group '%s'",
+			"canary task '%s' has successfully been deregistered from target group '%s'",
 			*input.task.TaskArn, *input.targetId,
 		)
 	}
 
-	log.Infof("Stopping canary task '%s'...", *input.task.TaskArn)
+	log.Infof("stopping the canary task '%s'...", *input.task.TaskArn)
 	if _, err := c.ecs.StopTask(&ecs.StopTaskInput{
 		Cluster: &c.env.Cluster,
 		Task:    input.task.TaskArn,
 	}); err != nil {
 		return err
 	}
-	log.Infof("Canary task '%s' has successfully been stopped", *input.task.TaskArn)
 	if err := c.ecs.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
 		Cluster: &c.env.Cluster,
 		Tasks:   []*string{input.task.TaskArn},
 	}); err != nil {
 		return err
 	}
+	log.Infof("canary task '%s' has successfully been stopped", *input.task.TaskArn)
 	return nil
 }

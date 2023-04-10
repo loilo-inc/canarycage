@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
+	"os"
+
 	"github.com/loilo-inc/canarycage/cli/cage/commands"
 	"github.com/urfave/cli/v2"
-	"os"
 )
 
 func main() {
 	app := cli.NewApp()
 	app.Name = "canarycage"
-	app.Version = "3.4.5"
+	app.Version = "3.5.0"
 	app.Description = "A gradual roll-out deployment tool for AWS ECS"
 	ctx := context.Background()
 	cmds := commands.NewCageCommands(ctx)
