@@ -5,6 +5,9 @@ go 1.22
 require (
 	github.com/apex/log v1.9.0
 	github.com/aws/aws-sdk-go v1.44.239
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.154.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.41.5
+	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.30.4
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.8.2
@@ -12,6 +15,12 @@ require (
 )
 
 require (
+	github.com/aws/aws-sdk-go-v2 v1.26.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.4 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.6 // indirect
+	github.com/aws/smithy-go v1.20.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
