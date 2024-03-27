@@ -3,6 +3,10 @@ package cage
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
+	"regexp"
+	"testing"
+
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecs"
@@ -13,9 +17,6 @@ import (
 	"github.com/loilo-inc/canarycage/mocks/github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/stretchr/testify/assert"
-	"io/ioutil"
-	"regexp"
-	"testing"
 )
 
 func DefaultEnvars() *Envars {
@@ -388,7 +389,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 		}, nil)
 	// nextTaskDefinitionArnがある場合はdescribeTaskDefinitionから返す
 	cagecli := &cage{env: envars, ecs: e}
-	o, err := cagecli.CreateNextTaskDefinition()
+	o, err := cagecli.CreateNextTaskDefinition(context.Background())
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

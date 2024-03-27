@@ -60,14 +60,14 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 		targetGroupArn = service.LoadBalancers[0].TargetGroupArn
 	}
 	log.Infof("ensuring next task definition...")
-	nextTaskDefinition, err := c.CreateNextTaskDefinition()
+	nextTaskDefinition, err := c.CreateNextTaskDefinition(ctx)
 	if err != nil {
 		log.Errorf("failed to register next task definition due to: %s", err)
 		return throw(err)
 	}
 	log.Infof("starting canary task...")
 	var canaryTask *StartCanaryTaskOutput
-	if o, err := c.StartCanaryTask(nextTaskDefinition); err != nil {
+	if o, err := c.StartCanaryTask(ctx, nextTaskDefinition); err != nil {
 		log.Errorf("failed to start canary task due to: %s", err)
 		return throw(err)
 	} else {
@@ -78,7 +78,7 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 		if task == nil {
 			return
 		}
-		if err := c.StopCanaryTask(canaryTask); err != nil {
+		if err := c.StopCanaryTask(ctx, canaryTask); err != nil {
 			log.Fatalf("failed to stop canary task '%s': %s", *canaryTask.task.TaskArn, err)
 		}
 		if aggregatedError == nil {
@@ -96,6 +96,7 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	if targetGroupArn != nil {
 		log.Infof("😷 ensuring canary task to become healthy...")
 		if err := c.EnsureTaskHealthy(
+			ctx,
 			canaryTask.task.TaskArn,
 			targetGroupArn,
 			canaryTask.targetId,
@@ -134,6 +135,7 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 }
 
 func (c *cage) EnsureTaskHealthy(
+	ctx context.Context,
 	taskArn *string,
 	tgArn *string,
 	targetId *string,
@@ -193,7 +195,7 @@ func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetId *string, t
 	return nil
 }
 
-func (c *cage) CreateNextTaskDefinition() (*ecs.TaskDefinition, error) {
+func (c *cage) CreateNextTaskDefinition(ctx context.Context) (*ecs.TaskDefinition, error) {
 	if c.env.TaskDefinitionArn != "" {
 		log.Infof("--taskDefinitionArn was set to '%s'. skip registering new task definition.", c.env.TaskDefinitionArn)
 		o, err := c.ecs.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{
@@ -216,7 +218,7 @@ func (c *cage) CreateNextTaskDefinition() (*ecs.TaskDefinition, error) {
 	}
 }
 
-func (c *cage) DescribeSubnet(subnetId *string) (*ec2.Subnet, error) {
+func (c *cage) DescribeSubnet(ctx context.Context, subnetId *string) (*ec2.Subnet, error) {
 	if o, err := c.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{
 		SubnetIds: []*string{subnetId},
 	}); err != nil {
@@ -235,7 +237,7 @@ type StartCanaryTaskOutput struct {
 	targetPort          *int64
 }
 
-func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCanaryTaskOutput, error) {
+func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecs.TaskDefinition) (*StartCanaryTaskOutput, error) {
 	var service *ecs.Service
 	if o, err := c.ecs.DescribeServices(&ecs.DescribeServicesInput{
 		Cluster:  &c.env.Cluster,
@@ -368,7 +370,7 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 			InstanceIds: []*string{containerInstance.Ec2InstanceId},
 		}); err != nil {
 			return nil, err
-		} else if sn, err := c.DescribeSubnet(o.Reservations[0].Instances[0].SubnetId); err != nil {
+		} else if sn, err := c.DescribeSubnet(ctx, o.Reservations[0].Instances[0].SubnetId); err != nil {
 			return nil, err
 		} else {
 			targetId = containerInstance.Ec2InstanceId
@@ -394,7 +396,7 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 	}, nil
 }
 
-func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
+func (c *cage) StopCanaryTask(ctx context.Context, input *StartCanaryTaskOutput) error {
 	if input.registrationSkipped {
 		log.Info("no load balancer is attached to service. Skip deregisteration.")
 	} else {

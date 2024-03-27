@@ -3,10 +3,11 @@ package cage
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecs"
-	"time"
 )
 
 type RunInput struct {
@@ -27,7 +28,7 @@ func containerExistsInDefinition(td *ecs.TaskDefinition, container *string) bool
 }
 
 func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
-	td, err := c.CreateNextTaskDefinition()
+	td, err := c.CreateNextTaskDefinition(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package cage
 import (
 	"context"
 	"fmt"
+
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecs"
@@ -14,7 +15,7 @@ type UpResult struct {
 }
 
 func (c *cage) Up(ctx context.Context) (*UpResult, error) {
-	td, err := c.CreateNextTaskDefinition()
+	td, err := c.CreateNextTaskDefinition(ctx)
 	if err != nil {
 		return nil, err
 	}
