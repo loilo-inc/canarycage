@@ -1,47 +1,49 @@
 package test
 
 import (
-	"errors"
+	"context"
 	"fmt"
-	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ecs"
-	"github.com/aws/aws-sdk-go/service/elbv2"
-	"github.com/google/uuid"
 	"regexp"
 	"sync"
+
+	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	albtypes "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	"github.com/google/uuid"
 )
 
 type MockContext struct {
-	Services map[string]*ecs.Service
-	Tasks    map[string]*ecs.Task
+	Services map[string]*types.Service
+	Tasks    map[string]*types.Task
 	mux      sync.Mutex
 }
 
 func NewMockContext() *MockContext {
 	return &MockContext{
-		Services: make(map[string]*ecs.Service),
-		Tasks:    make(map[string]*ecs.Task),
+		Services: make(map[string]*types.Service),
+		Tasks:    make(map[string]*types.Task),
 	}
 }
 
-func (ctx *MockContext) GetTask(id string) (*ecs.Task, bool) {
+func (ctx *MockContext) GetTask(id string) (*types.Task, bool) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	o, ok := ctx.Tasks[id]
 	return o, ok
 }
 
-func (ctx *MockContext) TaskSize() int64 {
+func (ctx *MockContext) TaskSize() int32 {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	return int64(len(ctx.Tasks))
+	return int32(len(ctx.Tasks))
 }
 
-func (ctx *MockContext) GetService(id string) (*ecs.Service, bool) {
+func (ctx *MockContext) GetService(id string) (*types.Service, bool) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	o, ok := ctx.Services[id]
@@ -54,71 +56,50 @@ func (ctx *MockContext) ServiceSize() int64 {
 	return int64(len(ctx.Services))
 }
 
-func (ctx *MockContext) GetMetricStatics(input *cloudwatch.GetMetricStatisticsInput) (*cloudwatch.GetMetricStatisticsOutput, error) {
-	var ret = &cloudwatch.Datapoint{}
-	switch *input.MetricName {
-	case "RequestCount":
-		sum := 100000.0
-		ret.Sum = &sum
-	case "HTTPCode_ELB_5XX_Count":
-		sum := 1.0
-		ret.Sum = &sum
-	case "HTTPCode_Target_5XX_Count":
-		sum := 1.0
-		ret.Sum = &sum
-	case "TargetResponseTime":
-		average := 0.1
-		ret.Average = &average
-	}
-	return &cloudwatch.GetMetricStatisticsOutput{
-		Datapoints: []*cloudwatch.Datapoint{ret},
-	}, nil
-}
-
-func (ctx *MockContext) CreateService(input *ecs.CreateServiceInput) (*ecs.CreateServiceOutput, error) {
+func (ctx *MockContext) CreateService(c context.Context, input *ecs.CreateServiceInput, _ ...func(options *ecs.Options)) (*ecs.CreateServiceOutput, error) {
 	idstr := uuid.New().String()
 	st := "ACTIVE"
-	ret := &ecs.Service{
+	ret := &types.Service{
 		ServiceName:                   input.ServiceName,
-		RunningCount:                  aws.Int64(0),
+		RunningCount:                  0,
 		LaunchType:                    input.LaunchType,
 		LoadBalancers:                 input.LoadBalancers,
-		DesiredCount:                  input.DesiredCount,
+		DesiredCount:                  *input.DesiredCount,
 		TaskDefinition:                input.TaskDefinition,
-		HealthCheckGracePeriodSeconds: aws.Int64(0),
+		HealthCheckGracePeriodSeconds: aws.Int32(0),
 		Status:                        &st,
 		ServiceArn:                    &idstr,
 	}
 	ctx.mux.Lock()
 	ctx.Services[*input.ServiceName] = ret
 	ctx.mux.Unlock()
-	log.Debugf("%s: running=%d, desired=%d", *input.ServiceName, *ret.RunningCount, *input.DesiredCount)
+	log.Debugf("%s: running=%d, desired=%d", *input.ServiceName, ret.RunningCount, *input.DesiredCount)
 	for i := 0; i < int(*input.DesiredCount); i++ {
-		ctx.StartTask(&ecs.StartTaskInput{
+		ctx.StartTask(c, &ecs.StartTaskInput{
 			Cluster:        input.Cluster,
 			Group:          aws.String(fmt.Sprintf("service:%s", *input.ServiceName)),
 			TaskDefinition: input.TaskDefinition,
 		})
 	}
-	log.Debugf("%s: running=%d", *input.ServiceName, *ret.RunningCount)
+	log.Debugf("%s: running=%d", *input.ServiceName, ret.RunningCount)
 	return &ecs.CreateServiceOutput{
 		Service: ret,
 	}, nil
 }
 
-func (ctx *MockContext) UpdateService(input *ecs.UpdateServiceInput) (*ecs.UpdateServiceOutput, error) {
+func (ctx *MockContext) UpdateService(c context.Context, input *ecs.UpdateServiceInput, _ ...func(options *ecs.Options)) (*ecs.UpdateServiceOutput, error) {
 	ctx.mux.Lock()
 	s := ctx.Services[*input.Service]
 	ctx.mux.Unlock()
 	nextDesiredCount := s.DesiredCount
 	if input.DesiredCount != nil {
-		nextDesiredCount = input.DesiredCount
+		nextDesiredCount = *input.DesiredCount
 	}
-	if diff := *nextDesiredCount - *s.DesiredCount; diff > 0 {
+	if diff := nextDesiredCount - s.DesiredCount; diff > 0 {
 		log.Debugf("diff=%d", diff)
 		// scale
 		for i := 0; i < int(diff); i++ {
-			ctx.StartTask(&ecs.StartTaskInput{
+			ctx.StartTask(c, &ecs.StartTaskInput{
 				Cluster:        input.Cluster,
 				Group:          aws.String(fmt.Sprintf("service:%s", *input.Service)),
 				TaskDefinition: input.TaskDefinition,
@@ -126,12 +107,12 @@ func (ctx *MockContext) UpdateService(input *ecs.UpdateServiceInput) (*ecs.Updat
 		}
 	} else if diff < 0 {
 		// descale
-		var i int64 = 0
+		var i int32 = 0
 		max := -diff
 		for k, v := range ctx.Tasks {
 			reg := regexp.MustCompile("service:" + *s.ServiceName)
 			if reg.MatchString(*v.Group) {
-				ctx.StopTask(&ecs.StopTaskInput{
+				ctx.StopTask(c, &ecs.StopTaskInput{
 					Cluster: input.Cluster,
 					Task:    &k,
 				})
@@ -145,21 +126,21 @@ func (ctx *MockContext) UpdateService(input *ecs.UpdateServiceInput) (*ecs.Updat
 	ctx.mux.Lock()
 	s.DesiredCount = nextDesiredCount
 	s.TaskDefinition = input.TaskDefinition
-	*s.RunningCount = *nextDesiredCount
+	s.RunningCount = nextDesiredCount
 	ctx.mux.Unlock()
 	return &ecs.UpdateServiceOutput{
 		Service: s,
 	}, nil
 }
 
-func (ctx *MockContext) DeleteService(input *ecs.DeleteServiceInput) (*ecs.DeleteServiceOutput, error) {
+func (ctx *MockContext) DeleteService(c context.Context, input *ecs.DeleteServiceInput, _ ...func(options *ecs.Options)) (*ecs.DeleteServiceOutput, error) {
 	ctx.mux.Lock()
 	service := ctx.Services[*input.Service]
 	ctx.mux.Unlock()
 	reg := regexp.MustCompile(fmt.Sprintf("service:%s", *service.ServiceName))
 	for _, v := range ctx.Tasks {
 		if reg.MatchString(*v.Group) {
-			_, err := ctx.StopTask(&ecs.StopTaskInput{
+			_, err := ctx.StopTask(c, &ecs.StopTaskInput{
 				Cluster: input.Cluster,
 				Task:    v.TaskArn,
 			})
@@ -176,28 +157,34 @@ func (ctx *MockContext) DeleteService(input *ecs.DeleteServiceInput) (*ecs.Delet
 	}, nil
 }
 
-func (ctx *MockContext) RegisterTaskDefinition(input *ecs.RegisterTaskDefinitionInput) (*ecs.RegisterTaskDefinitionOutput, error) {
+func (ctx *MockContext) RegisterTaskDefinition(_ context.Context, input *ecs.RegisterTaskDefinitionInput, _ ...func(options *ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error) {
 	idstr := uuid.New().String()
 	return &ecs.RegisterTaskDefinitionOutput{
-		TaskDefinition: &ecs.TaskDefinition{
+		TaskDefinition: &types.TaskDefinition{
 			TaskDefinitionArn:    &idstr,
 			Family:               aws.String("family"),
-			Revision:             aws.Int64(1),
+			Revision:             1,
 			ContainerDefinitions: input.ContainerDefinitions,
 		},
 	}, nil
 }
 
-func (ctx *MockContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutput, error) {
+func (ctx *MockContext) StartTask(_ context.Context, input *ecs.StartTaskInput, _ ...func(options *ecs.Options)) (*ecs.StartTaskOutput, error) {
 	id := uuid.New()
 	idstr := id.String()
-	attachments := []*ecs.Attachment{{
-		Details: []*ecs.KeyValuePair{{
-			Name:  aws.String("privateIPv4Address"),
-			Value: aws.String("127.0.0.1"),
-		}},
+	attachments := []types.Attachment{{
+		Details: []types.KeyValuePair{
+			{
+				Name:  aws.String("privateIPv4Address"),
+				Value: aws.String("127.0.0.1"),
+			},
+			{
+				Name:  aws.String("subnetId"),
+				Value: aws.String("subnet-1234567890abcdefg"),
+			},
+		},
 	}}
-	ret := &ecs.Task{
+	ret := types.Task{
 		TaskArn:           &idstr,
 		ClusterArn:        input.Cluster,
 		TaskDefinitionArn: input.TaskDefinition,
@@ -205,32 +192,32 @@ func (ctx *MockContext) StartTask(input *ecs.StartTaskInput) (*ecs.StartTaskOutp
 	}
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	ctx.Tasks[idstr] = ret
+	ctx.Tasks[idstr] = &ret
 	s, ok := ctx.Services[*input.Group]
-	var launchType *string
+	var launchType types.LaunchType
 	if ok {
-		*s.RunningCount += 1
+		s.RunningCount += 1
 		launchType = s.LaunchType
 	} else {
 		if len(input.ContainerInstances) > 0 {
-			launchType = aws.String("EC2")
+			launchType = types.LaunchTypeEc2
 		} else {
-			launchType = aws.String("FARGATE")
+			launchType = types.LaunchTypeFargate
 		}
 	}
 	ret.LaunchType = launchType
-	if *launchType == "FARGATE" {
+	if launchType == types.LaunchTypeFargate {
 		ret.Attachments = attachments
 	} else {
 		ret.ContainerInstanceArn = aws.String("arn:aws:ecs:us-west-2:1234567890:container-instance/12345678-hoge-hoge-1234-1f2o3o4ba5r")
 	}
 	ret.LastStatus = aws.String("RUNNING")
 	return &ecs.StartTaskOutput{
-		Tasks: []*ecs.Task{ret},
+		Tasks: []types.Task{ret},
 	}, nil
 }
-func (ctx *MockContext) RunTask(input *ecs.RunTaskInput) (*ecs.RunTaskOutput, error) {
-	o, err := ctx.StartTask(&ecs.StartTaskInput{
+func (ctx *MockContext) RunTask(c context.Context, input *ecs.RunTaskInput, _ ...func(options *ecs.Options)) (*ecs.RunTaskOutput, error) {
+	o, err := ctx.StartTask(c, &ecs.StartTaskInput{
 		Cluster:              input.Cluster,
 		Group:                input.Group,
 		TaskDefinition:       input.TaskDefinition,
@@ -244,7 +231,7 @@ func (ctx *MockContext) RunTask(input *ecs.RunTaskInput) (*ecs.RunTaskOutput, er
 	}, nil
 }
 
-func (ctx *MockContext) StopTask(input *ecs.StopTaskInput) (*ecs.StopTaskOutput, error) {
+func (ctx *MockContext) StopTask(_ context.Context, input *ecs.StopTaskInput, _ ...func(options *ecs.Options)) (*ecs.StopTaskOutput, error) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	log.Debugf("stop: %s", input)
@@ -252,21 +239,21 @@ func (ctx *MockContext) StopTask(input *ecs.StopTaskInput) (*ecs.StopTaskOutput,
 	delete(ctx.Tasks, *input.Task)
 	service, ok := ctx.Services[*ret.Group]
 	if ok {
-		*service.RunningCount -= 1
+		service.RunningCount -= 1
 	}
 	return &ecs.StopTaskOutput{
 		Task: ret,
 	}, nil
 }
 
-func (ctx *MockContext) ListTasks(input *ecs.ListTasksInput) (*ecs.ListTasksOutput, error) {
-	var ret []*string
+func (ctx *MockContext) ListTasks(_ context.Context, input *ecs.ListTasksInput, _ ...func(options *ecs.Options)) (*ecs.ListTasksOutput, error) {
+	var ret []string
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	for _, v := range ctx.Tasks {
 		group := fmt.Sprintf("service:%s", *input.ServiceName)
 		if *v.Group == group {
-			ret = append(ret, v.TaskArn)
+			ret = append(ret, *v.TaskArn)
 		}
 	}
 	return &ecs.ListTasksOutput{
@@ -274,24 +261,13 @@ func (ctx *MockContext) ListTasks(input *ecs.ListTasksInput) (*ecs.ListTasksOutp
 	}, nil
 }
 
-func (ctx *MockContext) WaitUntilServicesStableWithContext(awsCtx aws.Context, input *ecs.DescribeServicesInput, opts ...request.WaiterOption) error {
+func (ctx *MockContext) DescribeServices(_ context.Context, input *ecs.DescribeServicesInput, _ ...func(options *ecs.Options)) (*ecs.DescribeServicesOutput, error) {
+	var ret []types.Service
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	for _, v := range input.Services {
-		if _, ok := ctx.Services[*v]; !ok {
-			return errors.New(fmt.Sprintf("service:%s not found", *v))
-		}
-	}
-	return nil
-}
-
-func (ctx *MockContext) DescribeServices(input *ecs.DescribeServicesInput) (*ecs.DescribeServicesOutput, error) {
-	var ret []*ecs.Service
-	ctx.mux.Lock()
-	defer ctx.mux.Unlock()
-	for _, v := range input.Services {
-		if s, ok := ctx.Services[*v]; ok {
-			ret = append(ret, s)
+		if s, ok := ctx.Services[v]; ok {
+			ret = append(ret, *s)
 		}
 	}
 	return &ecs.DescribeServicesOutput{
@@ -299,45 +275,14 @@ func (ctx *MockContext) DescribeServices(input *ecs.DescribeServicesInput) (*ecs
 	}, nil
 }
 
-func (ctx *MockContext) WaitUntilServicesInactive(input *ecs.DescribeServicesInput) error {
+func (ctx *MockContext) DescribeTasks(_ context.Context, input *ecs.DescribeTasksInput, _ ...func(options *ecs.Options)) (*ecs.DescribeTasksOutput, error) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	for _, v := range input.Services {
-		if _, ok := ctx.Services[*v]; ok {
-			return errors.New(fmt.Sprintf("service:%s found", *v))
-		}
-	}
-	return nil
-}
-
-func (ctx *MockContext) WaitUntilTasksRunning(input *ecs.DescribeTasksInput) error {
-	ctx.mux.Lock()
-	defer ctx.mux.Unlock()
-	for _, v := range input.Tasks {
-		if _, ok := ctx.Tasks[*v]; !ok {
-			return errors.New(fmt.Sprintf("task:%s not running", *v))
-		}
-	}
-	return nil
-}
-func (ctx *MockContext) WaitUntilTasksStopped(input *ecs.DescribeTasksInput) error {
-	ctx.mux.Lock()
-	defer ctx.mux.Unlock()
-	for _, v := range input.Tasks {
-		if _, ok := ctx.Tasks[*v]; ok {
-			return errors.New(fmt.Sprintf("task:%s found", *v))
-		}
-	}
-	return nil
-}
-func (ctx *MockContext) DescribeTasks(input *ecs.DescribeTasksInput) (*ecs.DescribeTasksOutput, error) {
-	ctx.mux.Lock()
-	defer ctx.mux.Unlock()
-	var ret []*ecs.Task
+	var ret []types.Task
 	for _, task := range ctx.Tasks {
 		for _, v := range input.Tasks {
-			if *task.TaskArn == *v {
-				ret = append(ret, task)
+			if *task.TaskArn == v {
+				ret = append(ret, *task)
 			}
 		}
 	}
@@ -345,15 +290,15 @@ func (ctx *MockContext) DescribeTasks(input *ecs.DescribeTasksInput) (*ecs.Descr
 		Tasks: ret,
 	}, nil
 }
-func (ctx *MockContext) DescribeContainerInstances(input *ecs.DescribeContainerInstancesInput) (*ecs.DescribeContainerInstancesOutput, error) {
+func (ctx *MockContext) DescribeContainerInstances(_ context.Context, input *ecs.DescribeContainerInstancesInput, _ ...func(options *ecs.Options)) (*ecs.DescribeContainerInstancesOutput, error) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	var ret []*ecs.ContainerInstance
+	var ret []types.ContainerInstance
 	ec2Id := "i-1234567890abcdefg"
-	instance := ecs.ContainerInstance{
+	instance := types.ContainerInstance{
 		Ec2InstanceId: &ec2Id,
 	}
-	ret = append(ret, &instance)
+	ret = append(ret, instance)
 	return &ecs.DescribeContainerInstancesOutput{
 		ContainerInstances: ret,
 	}, nil
@@ -361,22 +306,22 @@ func (ctx *MockContext) DescribeContainerInstances(input *ecs.DescribeContainerI
 
 //
 
-func (ctx *MockContext) DescribeTargetGroups(input *elbv2.DescribeTargetGroupsInput) (*elbv2.DescribeTargetGroupsOutput, error) {
+func (ctx *MockContext) DescribeTargetGroups(_ context.Context, input *elbv2.DescribeTargetGroupsInput, _ ...func(options *elbv2.Options)) (*elbv2.DescribeTargetGroupsOutput, error) {
 	return &elbv2.DescribeTargetGroupsOutput{
-		TargetGroups: []*elbv2.TargetGroup{
+		TargetGroups: []albtypes.TargetGroup{
 			{
 				TargetGroupName:            aws.String("tgname"),
-				TargetGroupArn:             input.TargetGroupArns[0],
-				HealthyThresholdCount:      aws.Int64(1),
-				HealthCheckIntervalSeconds: aws.Int64(0),
-				LoadBalancerArns:           []*string{aws.String("arn://hoge/app/aa/bb")},
+				TargetGroupArn:             aws.String(input.TargetGroupArns[0]),
+				HealthyThresholdCount:      aws.Int32(1),
+				HealthCheckIntervalSeconds: aws.Int32(0),
+				LoadBalancerArns:           []string{"arn://hoge/app/aa/bb"},
 			},
 		},
 	}, nil
 }
-func (ctx *MockContext) DescribeTargetGroupAttibutes(input *elbv2.DescribeTargetGroupAttributesInput) (*elbv2.DescribeTargetGroupAttributesOutput, error) {
+func (ctx *MockContext) DescribeTargetGroupAttibutes(_ context.Context, input *elbv2.DescribeTargetGroupAttributesInput, _ ...func(options *elbv2.Options)) (*elbv2.DescribeTargetGroupAttributesOutput, error) {
 	return &elbv2.DescribeTargetGroupAttributesOutput{
-		Attributes: []*elbv2.TargetGroupAttribute{
+		Attributes: []albtypes.TargetGroupAttribute{
 			{
 				Key:   aws.String("deregistration_delay.timeout_seconds"),
 				Value: aws.String("0"),
@@ -384,17 +329,17 @@ func (ctx *MockContext) DescribeTargetGroupAttibutes(input *elbv2.DescribeTarget
 		},
 	}, nil
 }
-func (ctx *MockContext) DescribeTargetHealth(input *elbv2.DescribeTargetHealthInput) (*elbv2.DescribeTargetHealthOutput, error) {
-	var ret []*elbv2.TargetHealthDescription
-	for i := int64(0); i < ctx.TaskSize(); i++ {
-		ret = append(ret, &elbv2.TargetHealthDescription{
-			Target: &elbv2.TargetDescription{
+func (ctx *MockContext) DescribeTargetHealth(_ context.Context, input *elbv2.DescribeTargetHealthInput, _ ...func(options *elbv2.Options)) (*elbv2.DescribeTargetHealthOutput, error) {
+	var ret []albtypes.TargetHealthDescription
+	for i := int32(0); i < ctx.TaskSize(); i++ {
+		ret = append(ret, albtypes.TargetHealthDescription{
+			Target: &albtypes.TargetDescription{
 				Id:               input.Targets[0].Id,
 				Port:             input.Targets[0].Port,
 				AvailabilityZone: aws.String("us-west-2"),
 			},
-			TargetHealth: &elbv2.TargetHealth{
-				State: aws.String("healthy"),
+			TargetHealth: &albtypes.TargetHealth{
+				State: albtypes.TargetHealthStateEnumHealthy,
 			},
 		})
 	}
@@ -403,28 +348,47 @@ func (ctx *MockContext) DescribeTargetHealth(input *elbv2.DescribeTargetHealthIn
 	}, nil
 }
 
-func (ctx *MockContext) RegisterTarget(input *elbv2.RegisterTargetsInput) (*elbv2.RegisterTargetsOutput, error) {
+func (ctx *MockContext) RegisterTarget(_ context.Context, input *elbv2.RegisterTargetsInput, _ ...func(options *elbv2.Options)) (*elbv2.RegisterTargetsOutput, error) {
 	return &elbv2.RegisterTargetsOutput{}, nil
 }
 
-func (ctx *MockContext) DeregisterTarget(input *elbv2.DeregisterTargetsInput) (*elbv2.DeregisterTargetsOutput, error) {
+func (ctx *MockContext) DeregisterTarget(_ context.Context, input *elbv2.DeregisterTargetsInput, _ ...func(options *elbv2.Options)) (*elbv2.DeregisterTargetsOutput, error) {
 	return &elbv2.DeregisterTargetsOutput{}, nil
 }
 
-func (ctx *MockContext) DescribeInstances(input *ec2.DescribeInstancesInput) (*ec2.DescribeInstancesOutput, error) {
+func (ctx *MockContext) DescribeInstances(_ context.Context, input *ec2.DescribeInstancesInput, _ ...func(options *ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
 	return &ec2.DescribeInstancesOutput{
-		Reservations: []*ec2.Reservation{{
-			Instances: []*ec2.Instance{{
+		Reservations: []ec2types.Reservation{{
+			Instances: []ec2types.Instance{{
 				SubnetId: aws.String("us-west-2a"),
 			}},
 		}},
 	}, nil
 }
 
-func (ctx *MockContext) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
+func (ctx *MockContext) DescribeSubnets(_ context.Context, input *ec2.DescribeSubnetsInput, _ ...func(options *ec2.Options)) (*ec2.DescribeSubnetsOutput, error) {
 	return &ec2.DescribeSubnetsOutput{
-		Subnets: []*ec2.Subnet{{
-			AvailabilityZone: aws.String("us-west-2"),
+		Subnets: []ec2types.Subnet{{
+			AvailabilityZone:              aws.String("us-west-2"),
+			AvailabilityZoneId:            nil,
+			AvailableIpAddressCount:       nil,
+			CidrBlock:                     nil,
+			CustomerOwnedIpv4Pool:         nil,
+			DefaultForAz:                  nil,
+			EnableDns64:                   nil,
+			EnableLniAtDeviceIndex:        nil,
+			Ipv6CidrBlockAssociationSet:   nil,
+			Ipv6Native:                    nil,
+			MapCustomerOwnedIpOnLaunch:    nil,
+			MapPublicIpOnLaunch:           nil,
+			OutpostArn:                    nil,
+			OwnerId:                       nil,
+			PrivateDnsNameOptionsOnLaunch: nil,
+			State:                         ec2types.SubnetStateAvailable,
+			SubnetArn:                     nil,
+			SubnetId:                      aws.String("subnet-1234567890abcdefg"),
+			Tags:                          nil,
+			VpcId:                         nil,
 		}},
 	}, nil
 }

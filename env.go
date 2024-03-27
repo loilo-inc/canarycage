@@ -3,10 +3,11 @@ package cage
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go/service/ecs"
 	"os"
 	"path/filepath"
+
+	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
 )
 
 type Envars struct {

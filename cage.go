@@ -3,9 +3,7 @@ package cage
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
-	"github.com/aws/aws-sdk-go/service/ecs/ecsiface"
-	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
+	"github.com/loilo-inc/canarycage/awsiface"
 )
 
 type Cage interface {
@@ -16,16 +14,16 @@ type Cage interface {
 
 type cage struct {
 	env *Envars
-	ecs ecsiface.ECSAPI
-	alb elbv2iface.ELBV2API
-	ec2 ec2iface.EC2API
+	ecs awsiface.EcsClient
+	alb awsiface.AlbClient
+	ec2 awsiface.Ec2Client
 }
 
 type Input struct {
 	Env *Envars
-	ECS ecsiface.ECSAPI
-	ALB elbv2iface.ELBV2API
-	EC2 ec2iface.EC2API
+	ECS awsiface.EcsClient
+	ALB awsiface.AlbClient
+	EC2 awsiface.Ec2Client
 }
 
 func NewCage(input *Input) Cage {

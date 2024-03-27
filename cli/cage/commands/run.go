@@ -3,12 +3,14 @@ package commands
 import (
 	"context"
 	"fmt"
+
 	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ecs"
-	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli/v2"
 )
@@ -26,13 +28,11 @@ func (c *cageCommands) Run() *cli.Command {
 		},
 		Action: func(ctx *cli.Context) error {
 			c.aggregateEnvars(ctx, &envars)
-			var ses *session.Session
-			if o, err := session.NewSession(&aws.Config{
-				Region: &envars.Region,
-			}); err != nil {
+			var cfg aws.Config
+			if o, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(envars.Region)); err != nil {
 				return err
 			} else {
-				ses = o
+				cfg = o
 			}
 			rest := ctx.Args().Tail()
 			if len(rest) < 1 {
@@ -47,15 +47,15 @@ func (c *cageCommands) Run() *cli.Command {
 			commands := rest[1:]
 			cagecli := cage.NewCage(&cage.Input{
 				Env: &envars,
-				ECS: ecs.New(ses),
-				ALB: elbv2.New(ses),
-				EC2: ec2.New(ses),
+				ECS: ecs.NewFromConfig(cfg),
+				EC2: ec2.NewFromConfig(cfg),
+				ALB: elbv2.NewFromConfig(cfg),
 			})
 			_, err := cagecli.Run(context.Background(), &cage.RunInput{
 				Container: &container,
-				Overrides: &ecs.TaskOverride{
-					ContainerOverrides: []*ecs.ContainerOverride{
-						{Command: aws.StringSlice(commands),
+				Overrides: &types.TaskOverride{
+					ContainerOverrides: []types.ContainerOverride{
+						{Command: commands,
 							Name: &container},
 					},
 				},

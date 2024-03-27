@@ -2,12 +2,13 @@ package commands
 
 import (
 	"context"
+
 	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ecs"
-	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli/v2"
 )
@@ -28,19 +29,17 @@ func (c *cageCommands) Up() *cli.Command {
 		},
 		Action: func(ctx *cli.Context) error {
 			c.aggregateEnvars(ctx, &envars)
-			var ses *session.Session
-			if o, err := session.NewSession(&aws.Config{
-				Region: &envars.Region,
-			}); err != nil {
+			var cfg aws.Config
+			if o, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(envars.Region)); err != nil {
 				return err
 			} else {
-				ses = o
+				cfg = o
 			}
 			cagecli := cage.NewCage(&cage.Input{
 				Env: &envars,
-				ECS: ecs.New(ses),
-				ALB: elbv2.New(ses),
-				EC2: ec2.New(ses),
+				ECS: ecs.NewFromConfig(cfg),
+				EC2: ec2.NewFromConfig(cfg),
+				ALB: elbv2.NewFromConfig(cfg),
 			})
 			_, err := cagecli.Up(context.Background())
 			if err != nil {

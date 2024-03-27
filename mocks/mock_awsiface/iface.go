@@ -117,6 +117,26 @@ func (mr *MockEcsClientMockRecorder) DescribeServices(ctx, params interface{}, o
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeServices", reflect.TypeOf((*MockEcsClient)(nil).DescribeServices), varargs...)
 }
 
+// DescribeTaskDefinition mocks base method.
+func (m *MockEcsClient) DescribeTaskDefinition(ctx context.Context, params *ecs.DescribeTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTaskDefinitionOutput, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, params}
+	for _, a := range optFns {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeTaskDefinition", varargs...)
+	ret0, _ := ret[0].(*ecs.DescribeTaskDefinitionOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeTaskDefinition indicates an expected call of DescribeTaskDefinition.
+func (mr *MockEcsClientMockRecorder) DescribeTaskDefinition(ctx, params interface{}, optFns ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, params}, optFns...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeTaskDefinition", reflect.TypeOf((*MockEcsClient)(nil).DescribeTaskDefinition), varargs...)
+}
+
 // DescribeTasks mocks base method.
 func (m *MockEcsClient) DescribeTasks(ctx context.Context, params *ecs.DescribeTasksInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTasksOutput, error) {
 	m.ctrl.T.Helper()
@@ -137,6 +157,26 @@ func (mr *MockEcsClientMockRecorder) DescribeTasks(ctx, params interface{}, optF
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeTasks", reflect.TypeOf((*MockEcsClient)(nil).DescribeTasks), varargs...)
 }
 
+// ListAttributes mocks base method.
+func (m *MockEcsClient) ListAttributes(ctx context.Context, params *ecs.ListAttributesInput, optFns ...func(*ecs.Options)) (*ecs.ListAttributesOutput, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, params}
+	for _, a := range optFns {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListAttributes", varargs...)
+	ret0, _ := ret[0].(*ecs.ListAttributesOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAttributes indicates an expected call of ListAttributes.
+func (mr *MockEcsClientMockRecorder) ListAttributes(ctx, params interface{}, optFns ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, params}, optFns...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAttributes", reflect.TypeOf((*MockEcsClient)(nil).ListAttributes), varargs...)
+}
+
 // ListTasks mocks base method.
 func (m *MockEcsClient) ListTasks(ctx context.Context, params *ecs.ListTasksInput, optFns ...func(*ecs.Options)) (*ecs.ListTasksOutput, error) {
 	m.ctrl.T.Helper()
@@ -155,6 +195,26 @@ func (mr *MockEcsClientMockRecorder) ListTasks(ctx, params interface{}, optFns .
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, params}, optFns...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTasks", reflect.TypeOf((*MockEcsClient)(nil).ListTasks), varargs...)
+}
+
+// PutAttributes mocks base method.
+func (m *MockEcsClient) PutAttributes(ctx context.Context, params *ecs.PutAttributesInput, optFns ...func(*ecs.Options)) (*ecs.PutAttributesOutput, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, params}
+	for _, a := range optFns {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "PutAttributes", varargs...)
+	ret0, _ := ret[0].(*ecs.PutAttributesOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PutAttributes indicates an expected call of PutAttributes.
+func (mr *MockEcsClientMockRecorder) PutAttributes(ctx, params interface{}, optFns ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, params}, optFns...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutAttributes", reflect.TypeOf((*MockEcsClient)(nil).PutAttributes), varargs...)
 }
 
 // RegisterTaskDefinition mocks base method.
