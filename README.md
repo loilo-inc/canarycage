@@ -2,13 +2,13 @@
 canarycage
 ====
 
-[![CircleCI](https://circleci.com/gh/loilo-inc/canarycage.svg?style=svg&circle-token=b3c00e40df37ed80bc83670173d32f2e5708d25f)](https://circleci.com/gh/loilo-inc/canarycage)
+![](https://github.com/loilo-inc/canarycage/workflows/CI/badge.svg)
 [![codecov](https://codecov.io/gh/loilo-inc/canarycage/branch/main/graph/badge.svg?token=WRW1qemxSR)](https://codecov.io/gh/loilo-inc/canarycage)
 ![https://img.shields.io/github/tag/loilo-inc/canarycage.svg](https://img.shields.io/github/tag/loilo-inc/canarycage.svg)
 [![license](https://img.shields.io/github/license/loilo-inc/canarycage.svg)](https://github.com/loilo-inc/canarycage)
 
 A deployment tool for AWS ECS that focuses on service availability
-
+--
 ## Description
 
 canarycage (aka. `cage`) is a deployment tool for AWS ECS that focuses on service availability.  
