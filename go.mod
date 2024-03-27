@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/apex/log v1.9.0
-	github.com/aws/aws-sdk-go v1.51.8
+	github.com/aws/aws-sdk-go v1.44.239
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.8.2
