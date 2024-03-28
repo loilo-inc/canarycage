@@ -18,15 +18,17 @@ import (
 )
 
 type MockContext struct {
-	Services map[string]*types.Service
-	Tasks    map[string]*types.Task
-	mux      sync.Mutex
+	Services     map[string]*types.Service
+	Tasks        map[string]*types.Task
+	TargetGroups map[string][]albtypes.TargetDescription
+	mux          sync.Mutex
 }
 
 func NewMockContext() *MockContext {
 	return &MockContext{
-		Services: make(map[string]*types.Service),
-		Tasks:    make(map[string]*types.Task),
+		Services:     make(map[string]*types.Service),
+		Tasks:        make(map[string]*types.Task),
+		TargetGroups: make(map[string][]albtypes.TargetDescription),
 	}
 }
 
@@ -40,7 +42,22 @@ func (ctx *MockContext) GetTask(id string) (*types.Task, bool) {
 func (ctx *MockContext) TaskSize() int32 {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
+
 	return int32(len(ctx.Tasks))
+}
+
+func (ctx *MockContext) ActiveTaskSize() int32 {
+	ctx.mux.Lock()
+	defer ctx.mux.Unlock()
+
+	var count int32
+	for _, v := range ctx.Tasks {
+		if v.LastStatus != nil && *v.LastStatus != "STOPPED" {
+			count++
+		}
+	}
+
+	return count
 }
 
 func (ctx *MockContext) GetService(id string) (*types.Service, bool) {
@@ -50,10 +67,10 @@ func (ctx *MockContext) GetService(id string) (*types.Service, bool) {
 	return o, ok
 }
 
-func (ctx *MockContext) ServiceSize() int64 {
+func (ctx *MockContext) ServiceSize() int32 {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	return int64(len(ctx.Services))
+	return int32(len(ctx.Services))
 }
 
 func (ctx *MockContext) CreateService(c context.Context, input *ecs.CreateServiceInput, _ ...func(options *ecs.Options)) (*ecs.CreateServiceOutput, error) {
@@ -69,6 +86,15 @@ func (ctx *MockContext) CreateService(c context.Context, input *ecs.CreateServic
 		HealthCheckGracePeriodSeconds: aws.Int32(0),
 		Status:                        &st,
 		ServiceArn:                    &idstr,
+		Deployments: []types.Deployment{
+			{
+				DesiredCount:   *input.DesiredCount,
+				LaunchType:     input.LaunchType,
+				RunningCount:   *input.DesiredCount,
+				Status:         &st,
+				TaskDefinition: input.TaskDefinition,
+			},
+		},
 	}
 	ctx.mux.Lock()
 	ctx.Services[*input.ServiceName] = ret
@@ -127,6 +153,15 @@ func (ctx *MockContext) UpdateService(c context.Context, input *ecs.UpdateServic
 	s.DesiredCount = nextDesiredCount
 	s.TaskDefinition = input.TaskDefinition
 	s.RunningCount = nextDesiredCount
+	s.Deployments = []types.Deployment{
+		{
+			DesiredCount:   nextDesiredCount,
+			LaunchType:     s.LaunchType,
+			RunningCount:   nextDesiredCount,
+			Status:         s.Status,
+			TaskDefinition: s.TaskDefinition,
+		},
+	}
 	ctx.mux.Unlock()
 	return &ecs.UpdateServiceOutput{
 		Service: s,
@@ -152,6 +187,7 @@ func (ctx *MockContext) DeleteService(c context.Context, input *ecs.DeleteServic
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	delete(ctx.Services, *input.Service)
+	delete(ctx.Tasks, *service.ServiceArn)
 	return &ecs.DeleteServiceOutput{
 		Service: service,
 	}, nil
@@ -236,7 +272,8 @@ func (ctx *MockContext) StopTask(_ context.Context, input *ecs.StopTaskInput, _ 
 	defer ctx.mux.Unlock()
 	log.Debugf("stop: %s", input)
 	ret := ctx.Tasks[*input.Task]
-	delete(ctx.Tasks, *input.Task)
+	ret.LastStatus = aws.String("STOPPED")
+	ret.DesiredStatus = aws.String("STOPPED")
 	service, ok := ctx.Services[*ret.Group]
 	if ok {
 		service.RunningCount -= 1
@@ -330,18 +367,37 @@ func (ctx *MockContext) DescribeTargetGroupAttibutes(_ context.Context, input *e
 	}, nil
 }
 func (ctx *MockContext) DescribeTargetHealth(_ context.Context, input *elbv2.DescribeTargetHealthInput, _ ...func(options *elbv2.Options)) (*elbv2.DescribeTargetHealthOutput, error) {
+	if _, ok := ctx.TargetGroups[*input.TargetGroupArn]; !ok {
+		return &elbv2.DescribeTargetHealthOutput{
+			TargetHealthDescriptions: []albtypes.TargetHealthDescription{
+				{
+					Target: &albtypes.TargetDescription{
+						Id:               input.Targets[0].Id,
+						Port:             input.Targets[0].Port,
+						AvailabilityZone: aws.String("us-west-2"),
+					},
+					TargetHealth: &albtypes.TargetHealth{
+						State: albtypes.TargetHealthStateEnumUnused,
+					},
+				},
+			},
+		}, nil
+	}
+
 	var ret []albtypes.TargetHealthDescription
-	for i := int32(0); i < ctx.TaskSize(); i++ {
-		ret = append(ret, albtypes.TargetHealthDescription{
-			Target: &albtypes.TargetDescription{
-				Id:               input.Targets[0].Id,
-				Port:             input.Targets[0].Port,
-				AvailabilityZone: aws.String("us-west-2"),
-			},
-			TargetHealth: &albtypes.TargetHealth{
-				State: albtypes.TargetHealthStateEnumHealthy,
-			},
-		})
+	for _, task := range ctx.Tasks {
+		if task.LastStatus != nil && *task.LastStatus == "RUNNING" {
+			ret = append(ret, albtypes.TargetHealthDescription{
+				Target: &albtypes.TargetDescription{
+					Id:               input.Targets[0].Id,
+					Port:             input.Targets[0].Port,
+					AvailabilityZone: aws.String("us-west-2"),
+				},
+				TargetHealth: &albtypes.TargetHealth{
+					State: albtypes.TargetHealthStateEnumHealthy,
+				},
+			})
+		}
 	}
 	return &elbv2.DescribeTargetHealthOutput{
 		TargetHealthDescriptions: ret,
@@ -349,10 +405,14 @@ func (ctx *MockContext) DescribeTargetHealth(_ context.Context, input *elbv2.Des
 }
 
 func (ctx *MockContext) RegisterTarget(_ context.Context, input *elbv2.RegisterTargetsInput, _ ...func(options *elbv2.Options)) (*elbv2.RegisterTargetsOutput, error) {
+	ctx.TargetGroups[*input.TargetGroupArn] = append(ctx.TargetGroups[*input.TargetGroupArn], input.Targets...)
 	return &elbv2.RegisterTargetsOutput{}, nil
 }
 
 func (ctx *MockContext) DeregisterTarget(_ context.Context, input *elbv2.DeregisterTargetsInput, _ ...func(options *elbv2.Options)) (*elbv2.DeregisterTargetsOutput, error) {
+	if _, ok := ctx.TargetGroups[*input.TargetGroupArn]; ok {
+		delete(ctx.TargetGroups, *input.TargetGroupArn)
+	}
 	return &elbv2.DeregisterTargetsOutput{}, nil
 }
 

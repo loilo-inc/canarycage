@@ -21,7 +21,7 @@ import (
 )
 
 func init() {
-	WaitDuration = 3 * time.Second
+	WaitDuration = 10 * time.Second
 }
 
 func DefaultEnvars() *Envars {
@@ -67,6 +67,7 @@ func Setup(ctrl *gomock.Controller, envars *Envars, currentTaskCount int32, laun
 	ecsMock.EXPECT().ListTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.ListTasks).AnyTimes()
 	ecsMock.EXPECT().DescribeContainerInstances(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeContainerInstances).AnyTimes()
 	ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask).AnyTimes()
+	ecsMock.EXPECT().StopTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.StopTask).AnyTimes()
 
 	albMock := mock_awsiface.NewMockAlbClient(ctrl)
 	albMock.EXPECT().DescribeTargetGroups(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetGroups).AnyTimes()
@@ -78,7 +79,6 @@ func Setup(ctrl *gomock.Controller, envars *Envars, currentTaskCount int32, laun
 	ec2Mock := mock_awsiface.NewMockEc2Client(ctrl)
 	ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeSubnets).AnyTimes()
 	ec2Mock.EXPECT().DescribeInstances(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeInstances).AnyTimes()
-
 	td, _ := mocker.RegisterTaskDefinition(context.Background(), envars.TaskDefinitionInput)
 	a := &ecs.CreateServiceInput{
 		ServiceName:    &envars.Service,
@@ -87,7 +87,12 @@ func Setup(ctrl *gomock.Controller, envars *Envars, currentTaskCount int32, laun
 		DesiredCount:   aws.Int32(currentTaskCount),
 		LaunchType:     types.LaunchType(launchType),
 	}
-	_, _ = mocker.CreateService(context.Background(), a)
+	svc, _ := mocker.CreateService(context.Background(), a)
+	if len(svc.Service.LoadBalancers) > 0 {
+		_, _ = mocker.RegisterTarget(context.Background(), &elbv2.RegisterTargetsInput{
+			TargetGroupArn: svc.Service.LoadBalancers[0].TargetGroupArn,
+		})
+	}
 	return mocker, ecsMock, albMock, ec2Mock
 }
 
@@ -100,12 +105,15 @@ func TestCage_RollOut(t *testing.T) {
 		envars := DefaultEnvars()
 		ctrl := gomock.NewController(t)
 		mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, v, "FARGATE")
+
 		if mctx.ServiceSize() != 1 {
 			t.Fatalf("current service not setup")
 		}
+
 		if taskCnt := mctx.TaskSize(); taskCnt != v {
 			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
 		}
+
 		cagecli := NewCage(&Input{
 			Env: envars,
 			ECS: ecsMock,
@@ -118,8 +126,8 @@ func TestCage_RollOut(t *testing.T) {
 			t.Fatalf("%s", err)
 		}
 		assert.False(t, result.ServiceIntact)
-		assert.Equal(t, int64(1), mctx.ServiceSize())
-		assert.Equal(t, v, mctx.TaskSize())
+		assert.Equal(t, int32(1), mctx.ServiceSize())
+		assert.Equal(t, v, mctx.ActiveTaskSize(), "%d =? %d", v, mctx.ActiveTaskSize())
 	}
 }
 
@@ -130,6 +138,7 @@ func TestCage_RollOut2(t *testing.T) {
 	envars := DefaultEnvars()
 	ctrl := gomock.NewController(t)
 	mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
+
 	albMock := mock_awsiface.NewMockAlbClient(ctrl)
 	albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
 	albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
@@ -147,7 +156,7 @@ func TestCage_RollOut2(t *testing.T) {
 					},
 				}},
 		}, nil).Times(2),
-		albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
+		albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
 	)
 	cagecli := NewCage(&Input{
 		Env: envars,
@@ -170,29 +179,32 @@ func TestCage_RollOut3(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
 	albMock := mock_awsiface.NewMockAlbClient(ctrl)
-	albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
-	albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
-	albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
-		TargetHealthDescriptions: []albtypes.TargetHealthDescription{{
-			Target: &albtypes.TargetDescription{
-				Id:               aws.String("192.0.0.1"),
-				Port:             aws.Int32(8000),
-				AvailabilityZone: aws.String("us-west-2"),
-			},
-			TargetHealth: &albtypes.TargetHealth{
-				State: albtypes.TargetHealthStateEnumUnhealthy,
-			},
-		}, {
-			Target: &albtypes.TargetDescription{
-				Id:               aws.String("127.0.0.1"),
-				Port:             aws.Int32(8000),
-				AvailabilityZone: aws.String("us-west-2"),
-			},
-			TargetHealth: &albtypes.TargetHealth{
-				State: albtypes.TargetHealthStateEnumUnused,
-			},
-		}},
-	}, nil).AnyTimes()
+	albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
+	albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
+	gomock.InOrder(
+		albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
+			TargetHealthDescriptions: []albtypes.TargetHealthDescription{{
+				Target: &albtypes.TargetDescription{
+					Id:               aws.String("192.0.0.1"),
+					Port:             aws.Int32(8000),
+					AvailabilityZone: aws.String("us-west-2"),
+				},
+				TargetHealth: &albtypes.TargetHealth{
+					State: albtypes.TargetHealthStateEnumUnhealthy,
+				},
+			}, {
+				Target: &albtypes.TargetDescription{
+					Id:               aws.String("127.0.0.1"),
+					Port:             aws.Int32(8000),
+					AvailabilityZone: aws.String("us-west-2"),
+				},
+				TargetHealth: &albtypes.TargetHealth{
+					State: albtypes.TargetHealthStateEnumUnused,
+				},
+			}},
+		}, nil),
+		albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
+	)
 	cagecli := NewCage(&Input{
 		Env: envars,
 		ECS: ecsMock,
@@ -306,8 +318,8 @@ func TestCage_RollOut_EC2(t *testing.T) {
 			t.Fatalf("%s", err)
 		}
 		assert.False(t, result.ServiceIntact)
-		assert.Equal(t, int64(1), mctx.ServiceSize())
-		assert.Equal(t, v, mctx.TaskSize())
+		assert.Equal(t, int32(1), mctx.ServiceSize())
+		assert.Equal(t, v, mctx.ActiveTaskSize())
 	}
 }
 
@@ -373,8 +385,8 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 		t.Fatalf("%s", err)
 	}
 	assert.False(t, result.ServiceIntact)
-	assert.Equal(t, int64(1), mctx.ServiceSize())
-	assert.Equal(t, int64(1), mctx.TaskSize())
+	assert.Equal(t, int32(1), mctx.ServiceSize())
+	assert.Equal(t, int32(1), mctx.ActiveTaskSize())
 }
 
 func TestCage_CreateNextTaskDefinition(t *testing.T) {
