@@ -122,7 +122,7 @@ func TestCage_RollOut(t *testing.T) {
 		}
 		assert.False(t, result.ServiceIntact)
 		assert.Equal(t, 1, mctx.ServiceSize())
-		assert.Equal(t, v, mctx.RunningTaskSize(), "%d =? %d", v, mctx.RunningTaskSize())
+		assert.Equal(t, v, mctx.RunningTaskSize())
 	}
 }
 
