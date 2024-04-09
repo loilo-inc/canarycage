@@ -6,7 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/golang/mock/gomock"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 	"github.com/stretchr/testify/assert"
@@ -19,15 +19,15 @@ func TestCage_Run(t *testing.T) {
 		results []*ecs.DescribeTasksOutput) *mock_awsiface.MockEcsClient {
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		td := &ecs.RegisterTaskDefinitionOutput{
-			TaskDefinition: &types.TaskDefinition{
-				ContainerDefinitions: []types.ContainerDefinition{
+			TaskDefinition: &ecstypes.TaskDefinition{
+				ContainerDefinitions: []ecstypes.ContainerDefinition{
 					{Name: &container},
 				},
 			},
 		}
 		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).Return(td, nil)
 		runTaskOutput := &ecs.RunTaskOutput{
-			Tasks: []types.Task{
+			Tasks: []ecstypes.Task{
 				{TaskArn: aws.String("arn")},
 			},
 		}
@@ -41,20 +41,20 @@ func TestCage_Run(t *testing.T) {
 		env := DefaultEnvars()
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
-		overrides := &types.TaskOverride{}
+		overrides := &ecstypes.TaskOverride{}
 		container := "container"
 		ctx := context.Background()
 		ecsMock := setupForBasic(ctx, ctrl, []*ecs.DescribeTasksOutput{
-			{Tasks: []types.Task{
+			{Tasks: []ecstypes.Task{
 				{LastStatus: aws.String("RUNNING"),
-					Containers: []types.Container{{
+					Containers: []ecstypes.Container{{
 						Name:     &container,
 						ExitCode: nil,
 					}}},
 			}},
-			{Tasks: []types.Task{
+			{Tasks: []ecstypes.Task{
 				{LastStatus: aws.String("STOPPED"),
-					Containers: []types.Container{{
+					Containers: []ecstypes.Container{{
 						Name:     &container,
 						ExitCode: aws.Int32(0),
 					}},
@@ -81,14 +81,14 @@ func TestCage_Run(t *testing.T) {
 		env := DefaultEnvars()
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
-		overrides := &types.TaskOverride{}
+		overrides := &ecstypes.TaskOverride{}
 		container := "container"
 		ctx := context.Background()
 		ecsMock := setupForBasic(ctx, ctrl, nil)
 		ecsMock.EXPECT().DescribeTasks(ctx, gomock.Any()).AnyTimes().Return(&ecs.DescribeTasksOutput{
-			Tasks: []types.Task{
+			Tasks: []ecstypes.Task{
 				{LastStatus: aws.String("RUNNING"),
-					Containers: []types.Container{{
+					Containers: []ecstypes.Container{{
 						Name:     &container,
 						ExitCode: nil,
 					}}},
@@ -113,13 +113,13 @@ func TestCage_Run(t *testing.T) {
 		env := DefaultEnvars()
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
-		overrides := &types.TaskOverride{}
+		overrides := &ecstypes.TaskOverride{}
 		container := "container"
 		ctx := context.Background()
 		ecsMock := setupForBasic(ctx, ctrl, []*ecs.DescribeTasksOutput{
-			{Tasks: []types.Task{
+			{Tasks: []ecstypes.Task{
 				{LastStatus: aws.String("STOPPED"),
-					Containers: []types.Container{{
+					Containers: []ecstypes.Container{{
 						Name:     &container,
 						ExitCode: aws.Int32(1),
 					}}},
@@ -144,13 +144,13 @@ func TestCage_Run(t *testing.T) {
 		env := DefaultEnvars()
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
-		overrides := &types.TaskOverride{}
+		overrides := &ecstypes.TaskOverride{}
 		container := "container"
 		ctx := context.Background()
 		ecsMock := setupForBasic(ctx, ctrl, []*ecs.DescribeTasksOutput{
-			{Tasks: []types.Task{
+			{Tasks: []ecstypes.Task{
 				{LastStatus: aws.String("STOPPED"),
-					Containers: []types.Container{{
+					Containers: []ecstypes.Container{{
 						Name:     &container,
 						ExitCode: nil,
 					}}},
@@ -175,13 +175,13 @@ func TestCage_Run(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		env := DefaultEnvars()
-		overrides := &types.TaskOverride{}
+		overrides := &ecstypes.TaskOverride{}
 		container := "container"
 		ctx := context.Background()
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		td := &ecs.RegisterTaskDefinitionOutput{
-			TaskDefinition: &types.TaskDefinition{
-				ContainerDefinitions: []types.ContainerDefinition{
+			TaskDefinition: &ecstypes.TaskDefinition{
+				ContainerDefinitions: []ecstypes.ContainerDefinition{
 					{Name: &container},
 				},
 			},

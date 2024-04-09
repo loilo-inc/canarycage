@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli/v2"
@@ -53,8 +53,8 @@ func (c *cageCommands) Run() *cli.Command {
 			})
 			_, err := cagecli.Run(context.Background(), &cage.RunInput{
 				Container: &container,
-				Overrides: &types.TaskOverride{
-					ContainerOverrides: []types.ContainerOverride{
+				Overrides: &ecstypes.TaskOverride{
+					ContainerOverrides: []ecstypes.ContainerOverride{
 						{Command: commands,
 							Name: &container},
 					},

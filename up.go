@@ -6,12 +6,12 @@ import (
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 )
 
 type UpResult struct {
-	TaskDefinition *types.TaskDefinition
-	Service        *types.Service
+	TaskDefinition *ecstypes.TaskDefinition
+	Service        *ecstypes.Service
 }
 
 func (c *cage) Up(ctx context.Context) (*UpResult, error) {

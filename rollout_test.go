@@ -6,23 +6,18 @@ import (
 	"io/ioutil"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	albtypes "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	"github.com/golang/mock/gomock"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/stretchr/testify/assert"
 )
-
-func init() {
-	WaitDuration = 10 * time.Second
-}
 
 func DefaultEnvars() *Envars {
 	d, _ := ioutil.ReadFile("fixtures/task-definition.json")
@@ -48,7 +43,7 @@ func ReadServiceDefinition(path string) *ecs.CreateServiceInput {
 	return &dest
 }
 
-func Setup(ctrl *gomock.Controller, envars *Envars, currentTaskCount int32, launchType string) (
+func Setup(ctrl *gomock.Controller, envars *Envars, currentTaskCount int, launchType string) (
 	*test.MockContext,
 	*mock_awsiface.MockEcsClient,
 	*mock_awsiface.MockAlbClient,
@@ -84,8 +79,8 @@ func Setup(ctrl *gomock.Controller, envars *Envars, currentTaskCount int32, laun
 		ServiceName:    &envars.Service,
 		LoadBalancers:  envars.ServiceDefinitionInput.LoadBalancers,
 		TaskDefinition: td.TaskDefinition.TaskDefinitionArn,
-		DesiredCount:   aws.Int32(currentTaskCount),
-		LaunchType:     types.LaunchType(launchType),
+		DesiredCount:   aws.Int32(int32(currentTaskCount)),
+		LaunchType:     ecstypes.LaunchType(launchType),
 	}
 	svc, _ := mocker.CreateService(context.Background(), a)
 	if len(svc.Service.LoadBalancers) > 0 {
@@ -100,7 +95,7 @@ func TestCage_RollOut(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	newTimer = fakeTimer
 	defer recoverTimer()
-	for _, v := range []int32{1, 2, 15} {
+	for _, v := range []int{1, 2, 15} {
 		log.Info("====")
 		envars := DefaultEnvars()
 		ctrl := gomock.NewController(t)
@@ -110,7 +105,7 @@ func TestCage_RollOut(t *testing.T) {
 			t.Fatalf("current service not setup")
 		}
 
-		if taskCnt := mctx.TaskSize(); taskCnt != v {
+		if taskCnt := mctx.RunningTaskSize(); taskCnt != v {
 			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
 		}
 
@@ -126,8 +121,8 @@ func TestCage_RollOut(t *testing.T) {
 			t.Fatalf("%s", err)
 		}
 		assert.False(t, result.ServiceIntact)
-		assert.Equal(t, int32(1), mctx.ServiceSize())
-		assert.Equal(t, v, mctx.ActiveTaskSize(), "%d =? %d", v, mctx.ActiveTaskSize())
+		assert.Equal(t, 1, mctx.ServiceSize())
+		assert.Equal(t, v, mctx.RunningTaskSize(), "%d =? %d", v, mctx.RunningTaskSize())
 	}
 }
 
@@ -144,15 +139,15 @@ func TestCage_RollOut2(t *testing.T) {
 	albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
 	gomock.InOrder(
 		albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
-			TargetHealthDescriptions: []albtypes.TargetHealthDescription{
+			TargetHealthDescriptions: []elbv2types.TargetHealthDescription{
 				{
-					Target: &albtypes.TargetDescription{
+					Target: &elbv2types.TargetDescription{
 						Id:               aws.String("127.0.0.1"),
 						Port:             aws.Int32(80),
 						AvailabilityZone: aws.String("us-west-2"),
 					},
-					TargetHealth: &albtypes.TargetHealth{
-						State: albtypes.TargetHealthStateEnumUnused,
+					TargetHealth: &elbv2types.TargetHealth{
+						State: elbv2types.TargetHealthStateEnumUnused,
 					},
 				}},
 		}, nil).Times(2),
@@ -183,23 +178,23 @@ func TestCage_RollOut3(t *testing.T) {
 	albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
 	gomock.InOrder(
 		albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
-			TargetHealthDescriptions: []albtypes.TargetHealthDescription{{
-				Target: &albtypes.TargetDescription{
+			TargetHealthDescriptions: []elbv2types.TargetHealthDescription{{
+				Target: &elbv2types.TargetDescription{
 					Id:               aws.String("192.0.0.1"),
 					Port:             aws.Int32(8000),
 					AvailabilityZone: aws.String("us-west-2"),
 				},
-				TargetHealth: &albtypes.TargetHealth{
-					State: albtypes.TargetHealthStateEnumUnhealthy,
+				TargetHealth: &elbv2types.TargetHealth{
+					State: elbv2types.TargetHealthStateEnumUnhealthy,
 				},
 			}, {
-				Target: &albtypes.TargetDescription{
+				Target: &elbv2types.TargetDescription{
 					Id:               aws.String("127.0.0.1"),
 					Port:             aws.Int32(8000),
 					AvailabilityZone: aws.String("us-west-2"),
 				},
-				TargetHealth: &albtypes.TargetHealth{
-					State: albtypes.TargetHealthStateEnumUnused,
+				TargetHealth: &elbv2types.TargetHealth{
+					State: elbv2types.TargetHealthStateEnumUnused,
 				},
 			}},
 		}, nil),
@@ -266,7 +261,7 @@ func TestCage_RollOut5(t *testing.T) {
 	ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 	ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any()).Return(
 		&ecs.DescribeServicesOutput{
-			Services: []types.Service{
+			Services: []ecstypes.Service{
 				{Status: aws.String("INACTIVE")},
 			},
 		}, nil,
@@ -283,7 +278,7 @@ func TestCage_RollOut_EC2(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	newTimer = fakeTimer
 	defer recoverTimer()
-	for _, v := range []int32{1, 2, 15} {
+	for _, v := range []int{1, 2, 15} {
 		log.Info("====")
 		canaryInstanceArn := "arn:aws:ecs:us-west-2:1234567689012:container-instance/abcdefg-hijk-lmn-opqrstuvwxyz"
 		attributeValue := "true"
@@ -292,7 +287,7 @@ func TestCage_RollOut_EC2(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, v, "ec2")
 		ecsMock.EXPECT().ListAttributes(gomock.Any(), gomock.Any()).Return(&ecs.ListAttributesOutput{
-			Attributes: []types.Attribute{
+			Attributes: []ecstypes.Attribute{
 				{
 					Name:     &envars.Service,
 					Value:    &attributeValue,
@@ -303,7 +298,7 @@ func TestCage_RollOut_EC2(t *testing.T) {
 		if mctx.ServiceSize() != 1 {
 			t.Fatalf("current service not setup")
 		}
-		if taskCnt := mctx.TaskSize(); taskCnt != v {
+		if taskCnt := mctx.RunningTaskSize(); taskCnt != v {
 			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
 		}
 		cagecli := NewCage(&Input{
@@ -318,8 +313,8 @@ func TestCage_RollOut_EC2(t *testing.T) {
 			t.Fatalf("%s", err)
 		}
 		assert.False(t, result.ServiceIntact)
-		assert.Equal(t, int32(1), mctx.ServiceSize())
-		assert.Equal(t, v, mctx.ActiveTaskSize())
+		assert.Equal(t, 1, mctx.ServiceSize())
+		assert.Equal(t, v, mctx.RunningTaskSize())
 	}
 }
 
@@ -334,7 +329,7 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 	if mctx.ServiceSize() != 1 {
 		t.Fatalf("current service not setup")
 	}
-	if taskCnt := mctx.TaskSize(); taskCnt != 1 {
+	if taskCnt := mctx.RunningTaskSize(); taskCnt != 1 {
 		t.Fatalf("current tasks not setup: %d/%d", 1, taskCnt)
 	}
 	cagecli := NewCage(&Input{
@@ -366,11 +361,11 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 	if mctx.ServiceSize() != 1 {
 		t.Fatalf("current service not setup")
 	}
-	if taskCnt := mctx.TaskSize(); taskCnt != 1 {
+	if taskCnt := mctx.RunningTaskSize(); taskCnt != 1 {
 		t.Fatalf("current tasks not setup: %d/%d", 1, taskCnt)
 	}
 	ecsMock.EXPECT().ListAttributes(gomock.Any(), gomock.Any()).Return(&ecs.ListAttributesOutput{
-		Attributes: []types.Attribute{},
+		Attributes: []ecstypes.Attribute{},
 	}, nil).AnyTimes()
 	ecsMock.EXPECT().PutAttributes(gomock.Any(), gomock.Any()).Return(&ecs.PutAttributesOutput{}, nil).AnyTimes()
 	cagecli := NewCage(&Input{
@@ -385,8 +380,8 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 		t.Fatalf("%s", err)
 	}
 	assert.False(t, result.ServiceIntact)
-	assert.Equal(t, int32(1), mctx.ServiceSize())
-	assert.Equal(t, int32(1), mctx.ActiveTaskSize())
+	assert.Equal(t, 1, mctx.ServiceSize())
+	assert.Equal(t, 1, mctx.RunningTaskSize())
 }
 
 func TestCage_CreateNextTaskDefinition(t *testing.T) {
@@ -397,7 +392,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 	e := mock_awsiface.NewMockEcsClient(ctrl)
 	e.EXPECT().DescribeTaskDefinition(gomock.Any(), gomock.Any()).Return(
 		&ecs.DescribeTaskDefinitionOutput{
-			TaskDefinition: &types.TaskDefinition{TaskDefinitionArn: aws.String("arn://task")},
+			TaskDefinition: &ecstypes.TaskDefinition{TaskDefinitionArn: aws.String("arn://task")},
 		}, nil)
 	// nextTaskDefinitionArnがある場合はdescribeTaskDefinitionから返す
 	cagecli := &cage{env: envars, ecs: e}

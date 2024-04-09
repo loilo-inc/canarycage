@@ -5,7 +5,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	alb "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 )
 
 type (
@@ -26,11 +26,11 @@ type (
 		DescribeTaskDefinition(ctx context.Context, params *ecs.DescribeTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTaskDefinitionOutput, error)
 	}
 	AlbClient interface {
-		DescribeTargetGroups(ctx context.Context, params *alb.DescribeTargetGroupsInput, optFns ...func(*alb.Options)) (*alb.DescribeTargetGroupsOutput, error)
-		DescribeTargetHealth(ctx context.Context, params *alb.DescribeTargetHealthInput, optFns ...func(*alb.Options)) (*alb.DescribeTargetHealthOutput, error)
-		DescribeTargetGroupAttributes(ctx context.Context, params *alb.DescribeTargetGroupAttributesInput, optFns ...func(*alb.Options)) (*alb.DescribeTargetGroupAttributesOutput, error)
-		RegisterTargets(ctx context.Context, params *alb.RegisterTargetsInput, optFns ...func(*alb.Options)) (*alb.RegisterTargetsOutput, error)
-		DeregisterTargets(ctx context.Context, params *alb.DeregisterTargetsInput, optFns ...func(*alb.Options)) (*alb.DeregisterTargetsOutput, error)
+		DescribeTargetGroups(ctx context.Context, params *elbv2.DescribeTargetGroupsInput, optFns ...func(*elbv2.Options)) (*elbv2.DescribeTargetGroupsOutput, error)
+		DescribeTargetHealth(ctx context.Context, params *elbv2.DescribeTargetHealthInput, optFns ...func(*elbv2.Options)) (*elbv2.DescribeTargetHealthOutput, error)
+		DescribeTargetGroupAttributes(ctx context.Context, params *elbv2.DescribeTargetGroupAttributesInput, optFns ...func(*elbv2.Options)) (*elbv2.DescribeTargetGroupAttributesOutput, error)
+		RegisterTargets(ctx context.Context, params *elbv2.RegisterTargetsInput, optFns ...func(*elbv2.Options)) (*elbv2.RegisterTargetsOutput, error)
+		DeregisterTargets(ctx context.Context, params *elbv2.DeregisterTargetsInput, optFns ...func(*elbv2.Options)) (*elbv2.DeregisterTargetsOutput, error)
 	}
 	Ec2Client interface {
 		DescribeSubnets(ctx context.Context, params *ec2.DescribeSubnetsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeSubnetsOutput, error)
@@ -39,5 +39,5 @@ type (
 )
 
 var _ EcsClient = (*ecs.Client)(nil)
-var _ AlbClient = (*alb.Client)(nil)
+var _ AlbClient = (*elbv2.Client)(nil)
 var _ Ec2Client = (*ec2.Client)(nil)

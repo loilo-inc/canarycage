@@ -13,14 +13,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	albtypes "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	"github.com/google/uuid"
 )
 
 type MockContext struct {
 	Services     map[string]*types.Service
 	Tasks        map[string]*types.Task
-	TargetGroups map[string][]albtypes.TargetDescription
+	TargetGroups map[string]struct{}
 	mux          sync.Mutex
 }
 
@@ -28,7 +28,7 @@ func NewMockContext() *MockContext {
 	return &MockContext{
 		Services:     make(map[string]*types.Service),
 		Tasks:        make(map[string]*types.Task),
-		TargetGroups: make(map[string][]albtypes.TargetDescription),
+		TargetGroups: make(map[string]struct{}),
 	}
 }
 
@@ -39,20 +39,13 @@ func (ctx *MockContext) GetTask(id string) (*types.Task, bool) {
 	return o, ok
 }
 
-func (ctx *MockContext) TaskSize() int32 {
+func (ctx *MockContext) RunningTaskSize() int {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 
-	return int32(len(ctx.Tasks))
-}
-
-func (ctx *MockContext) ActiveTaskSize() int32 {
-	ctx.mux.Lock()
-	defer ctx.mux.Unlock()
-
-	var count int32
+	count := 0
 	for _, v := range ctx.Tasks {
-		if v.LastStatus != nil && *v.LastStatus != "STOPPED" {
+		if v.LastStatus != nil && *v.LastStatus == "RUNNING" {
 			count++
 		}
 	}
@@ -67,10 +60,10 @@ func (ctx *MockContext) GetService(id string) (*types.Service, bool) {
 	return o, ok
 }
 
-func (ctx *MockContext) ServiceSize() int32 {
+func (ctx *MockContext) ServiceSize() int {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	return int32(len(ctx.Services))
+	return len(ctx.Services)
 }
 
 func (ctx *MockContext) CreateService(c context.Context, input *ecs.CreateServiceInput, _ ...func(options *ecs.Options)) (*ecs.CreateServiceOutput, error) {
@@ -345,7 +338,7 @@ func (ctx *MockContext) DescribeContainerInstances(_ context.Context, input *ecs
 
 func (ctx *MockContext) DescribeTargetGroups(_ context.Context, input *elbv2.DescribeTargetGroupsInput, _ ...func(options *elbv2.Options)) (*elbv2.DescribeTargetGroupsOutput, error) {
 	return &elbv2.DescribeTargetGroupsOutput{
-		TargetGroups: []albtypes.TargetGroup{
+		TargetGroups: []elbv2types.TargetGroup{
 			{
 				TargetGroupName:            aws.String("tgname"),
 				TargetGroupArn:             aws.String(input.TargetGroupArns[0]),
@@ -358,7 +351,7 @@ func (ctx *MockContext) DescribeTargetGroups(_ context.Context, input *elbv2.Des
 }
 func (ctx *MockContext) DescribeTargetGroupAttibutes(_ context.Context, input *elbv2.DescribeTargetGroupAttributesInput, _ ...func(options *elbv2.Options)) (*elbv2.DescribeTargetGroupAttributesOutput, error) {
 	return &elbv2.DescribeTargetGroupAttributesOutput{
-		Attributes: []albtypes.TargetGroupAttribute{
+		Attributes: []elbv2types.TargetGroupAttribute{
 			{
 				Key:   aws.String("deregistration_delay.timeout_seconds"),
 				Value: aws.String("0"),
@@ -369,32 +362,32 @@ func (ctx *MockContext) DescribeTargetGroupAttibutes(_ context.Context, input *e
 func (ctx *MockContext) DescribeTargetHealth(_ context.Context, input *elbv2.DescribeTargetHealthInput, _ ...func(options *elbv2.Options)) (*elbv2.DescribeTargetHealthOutput, error) {
 	if _, ok := ctx.TargetGroups[*input.TargetGroupArn]; !ok {
 		return &elbv2.DescribeTargetHealthOutput{
-			TargetHealthDescriptions: []albtypes.TargetHealthDescription{
+			TargetHealthDescriptions: []elbv2types.TargetHealthDescription{
 				{
-					Target: &albtypes.TargetDescription{
+					Target: &elbv2types.TargetDescription{
 						Id:               input.Targets[0].Id,
 						Port:             input.Targets[0].Port,
 						AvailabilityZone: aws.String("us-west-2"),
 					},
-					TargetHealth: &albtypes.TargetHealth{
-						State: albtypes.TargetHealthStateEnumUnused,
+					TargetHealth: &elbv2types.TargetHealth{
+						State: elbv2types.TargetHealthStateEnumUnused,
 					},
 				},
 			},
 		}, nil
 	}
 
-	var ret []albtypes.TargetHealthDescription
+	var ret []elbv2types.TargetHealthDescription
 	for _, task := range ctx.Tasks {
 		if task.LastStatus != nil && *task.LastStatus == "RUNNING" {
-			ret = append(ret, albtypes.TargetHealthDescription{
-				Target: &albtypes.TargetDescription{
+			ret = append(ret, elbv2types.TargetHealthDescription{
+				Target: &elbv2types.TargetDescription{
 					Id:               input.Targets[0].Id,
 					Port:             input.Targets[0].Port,
 					AvailabilityZone: aws.String("us-west-2"),
 				},
-				TargetHealth: &albtypes.TargetHealth{
-					State: albtypes.TargetHealthStateEnumHealthy,
+				TargetHealth: &elbv2types.TargetHealth{
+					State: elbv2types.TargetHealthStateEnumHealthy,
 				},
 			})
 		}
@@ -405,7 +398,7 @@ func (ctx *MockContext) DescribeTargetHealth(_ context.Context, input *elbv2.Des
 }
 
 func (ctx *MockContext) RegisterTarget(_ context.Context, input *elbv2.RegisterTargetsInput, _ ...func(options *elbv2.Options)) (*elbv2.RegisterTargetsOutput, error) {
-	ctx.TargetGroups[*input.TargetGroupArn] = append(ctx.TargetGroups[*input.TargetGroupArn], input.Targets...)
+	ctx.TargetGroups[*input.TargetGroupArn] = struct{}{}
 	return &elbv2.RegisterTargetsOutput{}, nil
 }
 
