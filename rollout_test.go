@@ -308,6 +308,12 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		ctx := context.Background()
 		_, err := cagecli.RollOut(ctx)
 		assert.NotNil(t, err)
+
+		for _, task := range mocker.Tasks {
+			if strings.Contains(*task.Group, "canary-task") {
+				assert.Equal(t, "STOPPED", *task.LastStatus)
+			}
+		}
 	})
 }
 

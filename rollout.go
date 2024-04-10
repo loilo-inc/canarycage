@@ -96,6 +96,12 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 			)
 		}
 	}(canaryTask, ret)
+
+	log.Infof("😷 ensuring canary task container(s) to become healthy...")
+	if err := c.waitUntilContainersBecomeHealthy(ctx, *canaryTask.task.TaskArn, nextTaskDefinition); err != nil {
+		return nil, err
+	}
+
 	log.Infof("canary task '%s' ensured.", *canaryTask.task.TaskArn)
 	if targetGroupArn != nil {
 		log.Infof("😷 ensuring canary task to become healthy...")
@@ -286,14 +292,7 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 	}, WaitDuration); err != nil {
 		return nil, err
 	}
-
-	log.Infof("🥚 waiting until canary task '%s' containers become healthy...", *taskArn)
-	if err := c.waitUntilContainersBecomeHealthy(ctx, *taskArn, nextTaskDefinition); err != nil {
-		return nil, err
-	}
-
 	log.Infof("🐣 canary task '%s' is running!️", *taskArn)
-
 	var task ecstypes.Task
 	if o, err := c.ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.env.Cluster,
@@ -303,7 +302,6 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 	} else {
 		task = o.Tasks[0]
 	}
-
 	if len(service.LoadBalancers) == 0 {
 		log.Infof("no load balancer is attached to service '%s'. skip registration to target group", *service.ServiceName)
 		log.Infof("wait %d seconds for ensuring the task goes stable", c.env.CanaryTaskIdleDuration)
