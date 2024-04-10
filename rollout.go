@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ecs"
-	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 )
 
 type RollOutResult struct {
@@ -18,6 +20,8 @@ type RollOutResult struct {
 	EndTime       time.Time
 	ServiceIntact bool
 }
+
+var WaitDuration = 15 * time.Minute
 
 func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	ret := &RollOutResult{
@@ -33,11 +37,11 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	defer func(result *RollOutResult) {
 		ret.EndTime = now()
 	}(ret)
-	var service *ecs.Service
-	if out, err := c.ecs.DescribeServices(&ecs.DescribeServicesInput{
+	var service ecstypes.Service
+	if out, err := c.ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
 		Cluster: &c.env.Cluster,
-		Services: []*string{
-			&c.env.Service,
+		Services: []string{
+			c.env.Service,
 		},
 	}); err != nil {
 		log.Errorf("failed to describe current service due to: %s", err.Error())
@@ -50,7 +54,7 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	if *service.Status != "ACTIVE" {
 		return throw(fmt.Errorf("😵 '%s' status is '%s'. Stop rolling out", c.env.Service, *service.Status))
 	}
-	if *service.LaunchType == "EC2" && c.env.CanaryInstanceArn == "" {
+	if service.LaunchType == ecstypes.LaunchTypeEc2 && c.env.CanaryInstanceArn == "" {
 		return throw(fmt.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'"))
 	}
 	var (
@@ -60,14 +64,14 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 		targetGroupArn = service.LoadBalancers[0].TargetGroupArn
 	}
 	log.Infof("ensuring next task definition...")
-	nextTaskDefinition, err := c.CreateNextTaskDefinition()
+	nextTaskDefinition, err := c.CreateNextTaskDefinition(ctx)
 	if err != nil {
 		log.Errorf("failed to register next task definition due to: %s", err)
 		return throw(err)
 	}
 	log.Infof("starting canary task...")
 	var canaryTask *StartCanaryTaskOutput
-	if o, err := c.StartCanaryTask(nextTaskDefinition); err != nil {
+	if o, err := c.StartCanaryTask(ctx, nextTaskDefinition); err != nil {
 		log.Errorf("failed to start canary task due to: %s", err)
 		return throw(err)
 	} else {
@@ -78,13 +82,13 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 		if task == nil {
 			return
 		}
-		if err := c.StopCanaryTask(canaryTask); err != nil {
+		if err := c.StopCanaryTask(ctx, canaryTask); err != nil {
 			log.Fatalf("failed to stop canary task '%s': %s", *canaryTask.task.TaskArn, err)
 		}
 		if aggregatedError == nil {
 			log.Infof(
 				"🐥 service '%s' successfully rolled out to '%s:%d'!",
-				c.env.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision,
+				c.env.Service, *nextTaskDefinition.Family, nextTaskDefinition.Revision,
 			)
 		} else {
 			log.Errorf(
@@ -96,6 +100,7 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	if targetGroupArn != nil {
 		log.Infof("😷 ensuring canary task to become healthy...")
 		if err := c.EnsureTaskHealthy(
+			ctx,
 			canaryTask.task.TaskArn,
 			targetGroupArn,
 			canaryTask.targetId,
@@ -108,9 +113,9 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	ret.ServiceIntact = false
 	log.Infof(
 		"updating the task definition of '%s' into '%s:%d'...",
-		c.env.Service, *nextTaskDefinition.Family, *nextTaskDefinition.Revision,
+		c.env.Service, *nextTaskDefinition.Family, nextTaskDefinition.Revision,
 	)
-	if _, err := c.ecs.UpdateService(&ecs.UpdateServiceInput{
+	if _, err := c.ecs.UpdateService(ctx, &ecs.UpdateServiceInput{
 		Cluster:        &c.env.Cluster,
 		Service:        &c.env.Service,
 		TaskDefinition: nextTaskDefinition.TaskDefinitionArn,
@@ -118,14 +123,12 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 		return throw(err)
 	}
 	log.Infof("waiting for service '%s' to be stable...", c.env.Service)
-	waiterOption := request.WaiterOption(func(waiter *request.Waiter) {
-		waiter.MaxAttempts = 60
-	})
 	//TODO: avoid stdout sticking while CI
-	if err := c.ecs.WaitUntilServicesStableWithContext(aws.BackgroundContext(), &ecs.DescribeServicesInput{
+
+	if err := ecs.NewServicesStableWaiter(c.ecs).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &c.env.Cluster,
-		Services: []*string{&c.env.Service},
-	}, waiterOption); err != nil {
+		Services: []string{c.env.Service},
+	}, WaitDuration); err != nil {
 		return throw(err)
 	}
 	log.Infof("🥴 service '%s' has become to be stable!", c.env.Service)
@@ -134,20 +137,21 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 }
 
 func (c *cage) EnsureTaskHealthy(
+	ctx context.Context,
 	taskArn *string,
 	tgArn *string,
 	targetId *string,
-	targetPort *int64,
+	targetPort *int32,
 ) error {
 	log.Infof("checking the health state of canary task...")
 	var unusedCount = 0
 	var initialized = false
-	var recentState *string
+	var recentState *elbv2types.TargetHealthStateEnum
 	for {
 		<-newTimer(time.Duration(15) * time.Second).C
-		if o, err := c.alb.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{
+		if o, err := c.alb.DescribeTargetHealth(ctx, &elbv2.DescribeTargetHealthInput{
 			TargetGroupArn: tgArn,
-			Targets: []*elbv2.TargetDescription{{
+			Targets: []elbv2types.TargetDescription{{
 				Id:   targetId,
 				Port: targetPort,
 			}},
@@ -183,20 +187,20 @@ func (c *cage) EnsureTaskHealthy(
 	}
 }
 
-func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetId *string, targetPort *int64) *string {
+func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetId *string, targetPort *int32) *elbv2types.TargetHealthStateEnum {
 	for _, desc := range o.TargetHealthDescriptions {
 		log.Debugf("%+v", desc)
 		if *desc.Target.Id == *targetId && *desc.Target.Port == *targetPort {
-			return desc.TargetHealth.State
+			return &desc.TargetHealth.State
 		}
 	}
 	return nil
 }
 
-func (c *cage) CreateNextTaskDefinition() (*ecs.TaskDefinition, error) {
+func (c *cage) CreateNextTaskDefinition(ctx context.Context) (*ecstypes.TaskDefinition, error) {
 	if c.env.TaskDefinitionArn != "" {
 		log.Infof("--taskDefinitionArn was set to '%s'. skip registering new task definition.", c.env.TaskDefinitionArn)
-		o, err := c.ecs.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{
+		o, err := c.ecs.DescribeTaskDefinition(ctx, &ecs.DescribeTaskDefinitionInput{
 			TaskDefinition: &c.env.TaskDefinitionArn,
 		})
 		if err != nil {
@@ -208,7 +212,7 @@ func (c *cage) CreateNextTaskDefinition() (*ecs.TaskDefinition, error) {
 		}
 		return o.TaskDefinition, nil
 	} else {
-		if out, err := c.ecs.RegisterTaskDefinition(c.env.TaskDefinitionInput); err != nil {
+		if out, err := c.ecs.RegisterTaskDefinition(ctx, c.env.TaskDefinitionInput); err != nil {
 			return nil, err
 		} else {
 			return out.TaskDefinition, nil
@@ -216,30 +220,30 @@ func (c *cage) CreateNextTaskDefinition() (*ecs.TaskDefinition, error) {
 	}
 }
 
-func (c *cage) DescribeSubnet(subnetId *string) (*ec2.Subnet, error) {
-	if o, err := c.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{
-		SubnetIds: []*string{subnetId},
+func (c *cage) DescribeSubnet(ctx context.Context, subnetId *string) (ec2types.Subnet, error) {
+	if o, err := c.ec2.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
+		SubnetIds: []string{*subnetId},
 	}); err != nil {
-		return nil, err
+		return ec2types.Subnet{}, err
 	} else {
 		return o.Subnets[0], nil
 	}
 }
 
 type StartCanaryTaskOutput struct {
-	task                *ecs.Task
+	task                ecstypes.Task
 	registrationSkipped bool
 	targetGroupArn      *string
 	availabilityZone    *string
 	targetId            *string
-	targetPort          *int64
+	targetPort          *int32
 }
 
-func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCanaryTaskOutput, error) {
-	var service *ecs.Service
-	if o, err := c.ecs.DescribeServices(&ecs.DescribeServicesInput{
+func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes.TaskDefinition) (*StartCanaryTaskOutput, error) {
+	var service ecstypes.Service
+	if o, err := c.ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &c.env.Cluster,
-		Services: []*string{&c.env.Service},
+		Services: []string{c.env.Service},
 	}); err != nil {
 		return nil, err
 	} else {
@@ -253,21 +257,21 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 			Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.env.Service)),
 			NetworkConfiguration: service.NetworkConfiguration,
 			TaskDefinition:       nextTaskDefinition.TaskDefinitionArn,
-			ContainerInstances:   []*string{&c.env.CanaryInstanceArn},
+			ContainerInstances:   []string{c.env.CanaryInstanceArn},
 		}
-		if o, err := c.ecs.StartTask(startTask); err != nil {
+		if o, err := c.ecs.StartTask(ctx, startTask); err != nil {
 			return nil, err
 		} else {
 			taskArn = o.Tasks[0].TaskArn
 		}
 	} else {
 		// fargate
-		if o, err := c.ecs.RunTask(&ecs.RunTaskInput{
+		if o, err := c.ecs.RunTask(ctx, &ecs.RunTaskInput{
 			Cluster:              &c.env.Cluster,
 			Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.env.Service)),
 			NetworkConfiguration: service.NetworkConfiguration,
 			TaskDefinition:       nextTaskDefinition.TaskDefinitionArn,
-			LaunchType:           aws.String("FARGATE"),
+			LaunchType:           ecstypes.LaunchTypeFargate,
 			PlatformVersion:      service.PlatformVersion,
 		}); err != nil {
 			return nil, err
@@ -276,17 +280,17 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 		}
 	}
 	log.Infof("🥚 waiting for canary task '%s' is running...", *taskArn)
-	if err := c.ecs.WaitUntilTasksRunning(&ecs.DescribeTasksInput{
+	if err := ecs.NewTasksRunningWaiter(c.ecs).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.env.Cluster,
-		Tasks:   []*string{taskArn},
-	}); err != nil {
+		Tasks:   []string{*taskArn},
+	}, WaitDuration); err != nil {
 		return nil, err
 	}
 	log.Infof("🐣 canary task '%s' is running!️", *taskArn)
-	var task *ecs.Task
-	if o, err := c.ecs.DescribeTasks(&ecs.DescribeTasksInput{
+	var task ecstypes.Task
+	if o, err := c.ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.env.Cluster,
-		Tasks:   []*string{taskArn},
+		Tasks:   []string{*taskArn},
 	}); err != nil {
 		return nil, err
 	} else {
@@ -310,9 +314,9 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 			wait <- true
 		}()
 		<-wait
-		o, err := c.ecs.DescribeTasks(&ecs.DescribeTasksInput{
+		o, err := c.ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 			Cluster: &c.env.Cluster,
-			Tasks:   []*string{taskArn},
+			Tasks:   []string{*taskArn},
 		})
 		if err != nil {
 			return nil, err
@@ -327,14 +331,14 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 		}, nil
 	}
 	var targetId *string
-	var targetPort *int64
-	var subnet *ec2.Subnet
+	var targetPort *int32
+	var subnet ec2types.Subnet
 	for _, container := range nextTaskDefinition.ContainerDefinitions {
 		if *container.Name == *service.LoadBalancers[0].ContainerName {
 			targetPort = container.PortMappings[0].HostPort
 		}
 	}
-	if *task.LaunchType == "FARGATE" {
+	if task.LaunchType == ecstypes.LaunchTypeFargate {
 		details := task.Attachments[0].Details
 		var subnetId *string
 		var privateIp *string
@@ -345,8 +349,8 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 				privateIp = v.Value
 			}
 		}
-		if o, err := c.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{
-			SubnetIds: []*string{subnetId},
+		if o, err := c.ec2.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
+			SubnetIds: []string{*subnetId},
 		}); err != nil {
 			return nil, err
 		} else {
@@ -355,20 +359,20 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 		targetId = privateIp
 		log.Infof("canary task was placed: privateIp = '%s', hostPort = '%d', az = '%s'", *targetId, *targetPort, *subnet.AvailabilityZone)
 	} else {
-		var containerInstance *ecs.ContainerInstance
-		if outputs, err := c.ecs.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
+		var containerInstance ecstypes.ContainerInstance
+		if outputs, err := c.ecs.DescribeContainerInstances(ctx, &ecs.DescribeContainerInstancesInput{
 			Cluster:            &c.env.Cluster,
-			ContainerInstances: []*string{&c.env.CanaryInstanceArn},
+			ContainerInstances: []string{c.env.CanaryInstanceArn},
 		}); err != nil {
 			return nil, err
 		} else {
 			containerInstance = outputs.ContainerInstances[0]
 		}
-		if o, err := c.ec2.DescribeInstances(&ec2.DescribeInstancesInput{
-			InstanceIds: []*string{containerInstance.Ec2InstanceId},
+		if o, err := c.ec2.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
+			InstanceIds: []string{*containerInstance.Ec2InstanceId},
 		}); err != nil {
 			return nil, err
-		} else if sn, err := c.DescribeSubnet(o.Reservations[0].Instances[0].SubnetId); err != nil {
+		} else if sn, err := c.DescribeSubnet(ctx, o.Reservations[0].Instances[0].SubnetId); err != nil {
 			return nil, err
 		} else {
 			targetId = containerInstance.Ec2InstanceId
@@ -376,9 +380,9 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 		}
 		log.Infof("canary task was placed: instanceId = '%s', hostPort = '%d', az = '%s'", *targetId, *targetPort, *subnet.AvailabilityZone)
 	}
-	if _, err := c.alb.RegisterTargets(&elbv2.RegisterTargetsInput{
+	if _, err := c.alb.RegisterTargets(ctx, &elbv2.RegisterTargetsInput{
 		TargetGroupArn: service.LoadBalancers[0].TargetGroupArn,
-		Targets: []*elbv2.TargetDescription{{
+		Targets: []elbv2types.TargetDescription{{
 			AvailabilityZone: subnet.AvailabilityZone,
 			Id:               targetId,
 			Port:             targetPort,
@@ -394,14 +398,14 @@ func (c *cage) StartCanaryTask(nextTaskDefinition *ecs.TaskDefinition) (*StartCa
 	}, nil
 }
 
-func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
+func (c *cage) StopCanaryTask(ctx context.Context, input *StartCanaryTaskOutput) error {
 	if input.registrationSkipped {
 		log.Info("no load balancer is attached to service. Skip deregisteration.")
 	} else {
 		log.Infof("deregistering the canary task from target group '%s'...", *input.targetId)
-		if _, err := c.alb.DeregisterTargets(&elbv2.DeregisterTargetsInput{
+		if _, err := c.alb.DeregisterTargets(ctx, &elbv2.DeregisterTargetsInput{
 			TargetGroupArn: input.targetGroupArn,
-			Targets: []*elbv2.TargetDescription{{
+			Targets: []elbv2types.TargetDescription{{
 				AvailabilityZone: input.availabilityZone,
 				Id:               input.targetId,
 				Port:             input.targetPort,
@@ -409,14 +413,14 @@ func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
 		}); err != nil {
 			return err
 		}
-		if err := c.alb.WaitUntilTargetDeregistered(&elbv2.DescribeTargetHealthInput{
+		if err := elbv2.NewTargetDeregisteredWaiter(c.alb).Wait(ctx, &elbv2.DescribeTargetHealthInput{
 			TargetGroupArn: input.targetGroupArn,
-			Targets: []*elbv2.TargetDescription{{
+			Targets: []elbv2types.TargetDescription{{
 				AvailabilityZone: input.availabilityZone,
 				Id:               input.targetId,
 				Port:             input.targetPort,
 			}},
-		}); err != nil {
+		}, WaitDuration); err != nil {
 			return err
 		}
 		log.Infof(
@@ -426,16 +430,16 @@ func (c *cage) StopCanaryTask(input *StartCanaryTaskOutput) error {
 	}
 
 	log.Infof("stopping the canary task '%s'...", *input.task.TaskArn)
-	if _, err := c.ecs.StopTask(&ecs.StopTaskInput{
+	if _, err := c.ecs.StopTask(ctx, &ecs.StopTaskInput{
 		Cluster: &c.env.Cluster,
 		Task:    input.task.TaskArn,
 	}); err != nil {
 		return err
 	}
-	if err := c.ecs.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
+	if err := ecs.NewTasksStoppedWaiter(c.ecs).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.env.Cluster,
-		Tasks:   []*string{input.task.TaskArn},
-	}); err != nil {
+		Tasks:   []string{*input.task.TaskArn},
+	}, WaitDuration); err != nil {
 		return err
 	}
 	log.Infof("canary task '%s' has successfully been stopped", *input.task.TaskArn)

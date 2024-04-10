@@ -1,9 +1,10 @@
 package cage
 
 import (
-	"github.com/aws/aws-sdk-go/service/ecs"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestEnsureEnvars(t *testing.T) {
