@@ -99,8 +99,9 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 
 	log.Infof("😷 ensuring canary task container(s) to become healthy...")
 	if err := c.waitUntilContainersBecomeHealthy(ctx, *canaryTask.task.TaskArn, nextTaskDefinition); err != nil {
-		return nil, err
+		return throw(err)
 	}
+	log.Info("🤩 canary task container(s) is healthy!")
 
 	log.Infof("canary task '%s' ensured.", *canaryTask.task.TaskArn)
 	if targetGroupArn != nil {

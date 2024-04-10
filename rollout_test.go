@@ -306,7 +306,8 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			ALB: albMock,
 		})
 		ctx := context.Background()
-		_, err := cagecli.RollOut(ctx)
+		res, err := cagecli.RollOut(ctx)
+		assert.NotNil(t, res)
 		assert.NotNil(t, err)
 
 		for _, task := range mocker.Tasks {
