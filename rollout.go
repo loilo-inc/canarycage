@@ -286,7 +286,14 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 	}, WaitDuration); err != nil {
 		return nil, err
 	}
+
+	log.Infof("🥚 waiting until canary task '%s' containers become healthy...", *taskArn)
+	if err := c.waitUntilContainersBecomeHealthy(ctx, *taskArn, nextTaskDefinition); err != nil {
+		return nil, err
+	}
+
 	log.Infof("🐣 canary task '%s' is running!️", *taskArn)
+
 	var task ecstypes.Task
 	if o, err := c.ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.env.Cluster,
@@ -296,6 +303,7 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 	} else {
 		task = o.Tasks[0]
 	}
+
 	if len(service.LoadBalancers) == 0 {
 		log.Infof("no load balancer is attached to service '%s'. skip registration to target group", *service.ServiceName)
 		log.Infof("wait %d seconds for ensuring the task goes stable", c.env.CanaryTaskIdleDuration)
@@ -396,6 +404,46 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 		targetPort:     targetPort,
 		task:           task,
 	}, nil
+}
+
+func (c *cage) waitUntilContainersBecomeHealthy(ctx context.Context, taskArn string, nextTaskDefinition *ecstypes.TaskDefinition) error {
+	containerHasHealthChecks := map[string]struct{}{}
+	for _, definition := range nextTaskDefinition.ContainerDefinitions {
+		if definition.HealthCheck != nil {
+			containerHasHealthChecks[*definition.Name] = struct{}{}
+		}
+	}
+
+	for count := 0; count < 10; count++ {
+		<-newTimer(time.Duration(15) * time.Second).C
+		log.Infof("canary task '%s' waits until %d container(s) become healthy", taskArn, len(containerHasHealthChecks))
+		if o, err := c.ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+			Cluster: &c.env.Cluster,
+			Tasks:   []string{taskArn},
+		}); err != nil {
+			return err
+		} else {
+			task := o.Tasks[0]
+			if *task.LastStatus != "RUNNING" {
+				return fmt.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
+			}
+
+			for _, container := range task.Containers {
+				if _, ok := containerHasHealthChecks[*container.Name]; !ok {
+					continue
+				}
+				if container.HealthStatus != ecstypes.HealthStatusHealthy {
+					log.Infof("container '%s' is not healthy: %s", *container.Name, container.HealthStatus)
+					continue
+				}
+				delete(containerHasHealthChecks, *container.Name)
+			}
+			if len(containerHasHealthChecks) == 0 {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("😨 canary task hasn't become to be healthy")
 }
 
 func (c *cage) StopCanaryTask(ctx context.Context, input *StartCanaryTaskOutput) error {

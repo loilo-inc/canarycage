@@ -18,17 +18,19 @@ import (
 )
 
 type MockContext struct {
-	Services     map[string]*types.Service
-	Tasks        map[string]*types.Task
-	TargetGroups map[string]struct{}
-	mux          sync.Mutex
+	Services        map[string]*types.Service
+	Tasks           map[string]*types.Task
+	TaskDefinitions map[string]*types.TaskDefinition
+	TargetGroups    map[string]struct{}
+	mux             sync.Mutex
 }
 
 func NewMockContext() *MockContext {
 	return &MockContext{
-		Services:     make(map[string]*types.Service),
-		Tasks:        make(map[string]*types.Task),
-		TargetGroups: make(map[string]struct{}),
+		Services:        make(map[string]*types.Service),
+		Tasks:           make(map[string]*types.Task),
+		TaskDefinitions: make(map[string]*types.TaskDefinition),
+		TargetGroups:    make(map[string]struct{}),
 	}
 }
 
@@ -187,18 +189,25 @@ func (ctx *MockContext) DeleteService(c context.Context, input *ecs.DeleteServic
 }
 
 func (ctx *MockContext) RegisterTaskDefinition(_ context.Context, input *ecs.RegisterTaskDefinitionInput, _ ...func(options *ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error) {
+	ctx.mux.Lock()
+	defer ctx.mux.Unlock()
+
 	idstr := uuid.New().String()
+	ctx.TaskDefinitions[idstr] = &types.TaskDefinition{
+		TaskDefinitionArn:    &idstr,
+		Family:               aws.String("family"),
+		Revision:             1,
+		ContainerDefinitions: input.ContainerDefinitions,
+	}
 	return &ecs.RegisterTaskDefinitionOutput{
-		TaskDefinition: &types.TaskDefinition{
-			TaskDefinitionArn:    &idstr,
-			Family:               aws.String("family"),
-			Revision:             1,
-			ContainerDefinitions: input.ContainerDefinitions,
-		},
+		TaskDefinition: ctx.TaskDefinitions[idstr],
 	}, nil
 }
 
 func (ctx *MockContext) StartTask(_ context.Context, input *ecs.StartTaskInput, _ ...func(options *ecs.Options)) (*ecs.StartTaskOutput, error) {
+	ctx.mux.Lock()
+	defer ctx.mux.Unlock()
+
 	id := uuid.New()
 	idstr := id.String()
 	attachments := []types.Attachment{{
@@ -213,14 +222,28 @@ func (ctx *MockContext) StartTask(_ context.Context, input *ecs.StartTaskInput, 
 			},
 		},
 	}}
+
+	containers := make([]types.Container, len(ctx.TaskDefinitions[*input.TaskDefinition].ContainerDefinitions))
+	for i, v := range ctx.TaskDefinitions[*input.TaskDefinition].ContainerDefinitions {
+		containers[i] = types.Container{
+			Name:       v.Name,
+			Image:      v.Image,
+			LastStatus: aws.String("RUNNING"),
+		}
+		if v.HealthCheck != nil {
+			containers[i].HealthStatus = "HEALTHY"
+		} else {
+			containers[i].HealthStatus = "UNKNOWN"
+		}
+	}
+
 	ret := types.Task{
 		TaskArn:           &idstr,
 		ClusterArn:        input.Cluster,
 		TaskDefinitionArn: input.TaskDefinition,
 		Group:             input.Group,
+		Containers:        containers,
 	}
-	ctx.mux.Lock()
-	defer ctx.mux.Unlock()
 	ctx.Tasks[idstr] = &ret
 	s, ok := ctx.Services[*input.Group]
 	var launchType types.LaunchType
