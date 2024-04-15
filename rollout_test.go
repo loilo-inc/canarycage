@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/apex/log"
@@ -91,24 +92,67 @@ func Setup(ctrl *gomock.Controller, envars *Envars, currentTaskCount int, launch
 	return mocker, ecsMock, albMock, ec2Mock
 }
 
-func TestCage_RollOut(t *testing.T) {
+func TestCage_RollOut_FARGATE(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	newTimer = fakeTimer
-	defer recoverTimer()
-	for _, v := range []int{1, 2, 15} {
-		log.Info("====")
+	t.Cleanup(recoverTimer)
+
+	t.Run("basic", func(t *testing.T) {
+		for _, v := range []int{1, 2, 15} {
+			log.Info("====")
+			envars := DefaultEnvars()
+			ctrl := gomock.NewController(t)
+			mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, v, "FARGATE")
+
+			if mctx.ServiceSize() != 1 {
+				t.Fatalf("current service not setup")
+			}
+
+			if taskCnt := mctx.RunningTaskSize(); taskCnt != v {
+				t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
+			}
+
+			cagecli := NewCage(&Input{
+				Env: envars,
+				ECS: ecsMock,
+				ALB: albMock,
+				EC2: ec2Mock,
+			})
+			ctx := context.Background()
+			result, err := cagecli.RollOut(ctx)
+			if err != nil {
+				t.Fatalf("%s", err)
+			}
+			assert.False(t, result.ServiceIntact)
+			assert.Equal(t, 1, mctx.ServiceSize())
+			assert.Equal(t, v, mctx.RunningTaskSize())
+		}
+	})
+
+	t.Run("canary taskがtgに登録されるまで少し待つ", func(t *testing.T) {
 		envars := DefaultEnvars()
 		ctrl := gomock.NewController(t)
-		mctx, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, v, "FARGATE")
+		mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
 
-		if mctx.ServiceSize() != 1 {
-			t.Fatalf("current service not setup")
-		}
-
-		if taskCnt := mctx.RunningTaskSize(); taskCnt != v {
-			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
-		}
-
+		albMock := mock_awsiface.NewMockAlbClient(ctrl)
+		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
+		albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
+		gomock.InOrder(
+			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
+				TargetHealthDescriptions: []elbv2types.TargetHealthDescription{
+					{
+						Target: &elbv2types.TargetDescription{
+							Id:               aws.String("127.0.0.1"),
+							Port:             aws.Int32(80),
+							AvailabilityZone: aws.String("us-west-2"),
+						},
+						TargetHealth: &elbv2types.TargetHealth{
+							State: elbv2types.TargetHealthStateEnumUnused,
+						},
+					}},
+			}, nil).Times(2),
+			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
+		)
 		cagecli := NewCage(&Input{
 			Env: envars,
 			ECS: ecsMock,
@@ -118,160 +162,160 @@ func TestCage_RollOut(t *testing.T) {
 		ctx := context.Background()
 		result, err := cagecli.RollOut(ctx)
 		if err != nil {
-			t.Fatalf("%s", err)
+			t.Fatalf(err.Error())
 		}
-		assert.False(t, result.ServiceIntact)
-		assert.Equal(t, 1, mctx.ServiceSize())
-		assert.Equal(t, v, mctx.RunningTaskSize())
-	}
-}
+		assert.NotNil(t, result)
+	})
 
-func TestCage_RollOut2(t *testing.T) {
-	// canary taskがtgに登録されるまで少し待つ
-	newTimer = fakeTimer
-	defer recoverTimer()
-	envars := DefaultEnvars()
-	ctrl := gomock.NewController(t)
-	mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
-
-	albMock := mock_awsiface.NewMockAlbClient(ctrl)
-	albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
-	albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
-	gomock.InOrder(
-		albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
-			TargetHealthDescriptions: []elbv2types.TargetHealthDescription{
-				{
+	t.Run("canary taskがtgに登録されない場合は打ち切る", func(t *testing.T) {
+		envars := DefaultEnvars()
+		ctrl := gomock.NewController(t)
+		mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
+		albMock := mock_awsiface.NewMockAlbClient(ctrl)
+		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
+		albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
+		gomock.InOrder(
+			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
+				TargetHealthDescriptions: []elbv2types.TargetHealthDescription{{
+					Target: &elbv2types.TargetDescription{
+						Id:               aws.String("192.0.0.1"),
+						Port:             aws.Int32(8000),
+						AvailabilityZone: aws.String("us-west-2"),
+					},
+					TargetHealth: &elbv2types.TargetHealth{
+						State: elbv2types.TargetHealthStateEnumUnhealthy,
+					},
+				}, {
 					Target: &elbv2types.TargetDescription{
 						Id:               aws.String("127.0.0.1"),
-						Port:             aws.Int32(80),
+						Port:             aws.Int32(8000),
 						AvailabilityZone: aws.String("us-west-2"),
 					},
 					TargetHealth: &elbv2types.TargetHealth{
 						State: elbv2types.TargetHealthStateEnumUnused,
 					},
 				}},
-		}, nil).Times(2),
-		albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
-	)
-	cagecli := NewCage(&Input{
-		Env: envars,
-		ECS: ecsMock,
-		ALB: albMock,
-		EC2: ec2Mock,
+			}, nil),
+			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
+		)
+		cagecli := NewCage(&Input{
+			Env: envars,
+			ECS: ecsMock,
+			EC2: ec2Mock,
+			ALB: albMock,
+		})
+		ctx := context.Background()
+		_, err := cagecli.RollOut(ctx)
+		assert.NotNil(t, err)
 	})
-	ctx := context.Background()
-	result, err := cagecli.RollOut(ctx)
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-	assert.NotNil(t, result)
-}
-func TestCage_RollOut3(t *testing.T) {
-	// canary taskがtgに登録されない場合は打ち切る
-	newTimer = fakeTimer
-	defer recoverTimer()
-	envars := DefaultEnvars()
-	ctrl := gomock.NewController(t)
-	mocker, ecsMock, _, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
-	albMock := mock_awsiface.NewMockAlbClient(ctrl)
-	albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
-	albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
-	gomock.InOrder(
-		albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
-			TargetHealthDescriptions: []elbv2types.TargetHealthDescription{{
-				Target: &elbv2types.TargetDescription{
-					Id:               aws.String("192.0.0.1"),
-					Port:             aws.Int32(8000),
-					AvailabilityZone: aws.String("us-west-2"),
-				},
-				TargetHealth: &elbv2types.TargetHealth{
-					State: elbv2types.TargetHealthStateEnumUnhealthy,
-				},
-			}, {
-				Target: &elbv2types.TargetDescription{
-					Id:               aws.String("127.0.0.1"),
-					Port:             aws.Int32(8000),
-					AvailabilityZone: aws.String("us-west-2"),
-				},
-				TargetHealth: &elbv2types.TargetHealth{
-					State: elbv2types.TargetHealthStateEnumUnused,
-				},
-			}},
-		}, nil),
-		albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
-	)
-	cagecli := NewCage(&Input{
-		Env: envars,
-		ECS: ecsMock,
-		EC2: ec2Mock,
-		ALB: albMock,
-	})
-	ctx := context.Background()
-	_, err := cagecli.RollOut(ctx)
-	assert.NotNil(t, err)
-}
 
-// Show error if service doesn't exist
-func TestCage_RollOut4(t *testing.T) {
-	newTimer = fakeTimer
-	defer recoverTimer()
-	envars := DefaultEnvars()
-	ctrl := gomock.NewController(t)
-	mocker, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
-	delete(mocker.Services, envars.Service)
-	cagecli := NewCage(&Input{
-		Env: envars,
-		ECS: ecsMock,
-		EC2: ec2Mock,
-		ALB: albMock,
+	t.Run("Show error if service doesn't exist", func(t *testing.T) {
+		envars := DefaultEnvars()
+		ctrl := gomock.NewController(t)
+		mocker, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
+		delete(mocker.Services, envars.Service)
+		cagecli := NewCage(&Input{
+			Env: envars,
+			ECS: ecsMock,
+			EC2: ec2Mock,
+			ALB: albMock,
+		})
+		ctx := context.Background()
+		_, err := cagecli.RollOut(ctx)
+		assert.EqualError(t, err, "service 'service' doesn't exist. Run 'cage up' or create service before rolling out")
 	})
-	ctx := context.Background()
-	_, err := cagecli.RollOut(ctx)
-	assert.EqualError(t, err, "service 'service' doesn't exist. Run 'cage up' or create service before rolling out")
-}
 
-func TestCage_StartGradualRollOut5(t *testing.T) {
-	// lbがないサービスの場合もロールアウトする
-	envars := DefaultEnvars()
-	newTimer = fakeTimer
-	defer recoverTimer()
-	envars.ServiceDefinitionInput.LoadBalancers = nil
-	envars.CanaryTaskIdleDuration = 1
-	ctrl := gomock.NewController(t)
-	_, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
-	cagecli := NewCage(&Input{
-		Env: envars,
-		ECS: ecsMock,
-		EC2: ec2Mock,
-		ALB: albMock,
+	t.Run("lbがないサービスの場合もロールアウトする", func(t *testing.T) {
+		envars := DefaultEnvars()
+		envars.ServiceDefinitionInput.LoadBalancers = nil
+		envars.CanaryTaskIdleDuration = 1
+		ctrl := gomock.NewController(t)
+		_, ecsMock, albMock, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
+		cagecli := NewCage(&Input{
+			Env: envars,
+			ECS: ecsMock,
+			EC2: ec2Mock,
+			ALB: albMock,
+		})
+		ctx := context.Background()
+		if res, err := cagecli.RollOut(ctx); err != nil {
+			t.Fatalf(err.Error())
+		} else if res.ServiceIntact {
+			t.Fatalf("no")
+		}
 	})
-	ctx := context.Background()
-	if res, err := cagecli.RollOut(ctx); err != nil {
-		t.Fatalf(err.Error())
-	} else if res.ServiceIntact {
-		t.Fatalf("no")
-	}
-}
 
-func TestCage_RollOut5(t *testing.T) {
-	envars := DefaultEnvars()
-	newTimer = fakeTimer
-	defer recoverTimer()
-	ctrl := gomock.NewController(t)
-	ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
-	ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any()).Return(
-		&ecs.DescribeServicesOutput{
-			Services: []ecstypes.Service{
-				{Status: aws.String("INACTIVE")},
+	t.Run("stop rolloing out when service status is inactive", func(t *testing.T) {
+		envars := DefaultEnvars()
+		ctrl := gomock.NewController(t)
+		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
+		ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any()).Return(
+			&ecs.DescribeServicesOutput{
+				Services: []ecstypes.Service{
+					{Status: aws.String("INACTIVE")},
+				},
+			}, nil,
+		)
+		cagecli := NewCage(&Input{
+			Env: envars,
+			ECS: ecsMock,
+		})
+		_, err := cagecli.RollOut(context.Background())
+		assert.EqualError(t, err, "😵 'service' status is 'INACTIVE'. Stop rolling out")
+	})
+
+	t.Run("canary task container が healthy にならない場合は打ち切る", func(t *testing.T) {
+		envars := DefaultEnvars()
+		ctrl := gomock.NewController(t)
+		mocker, _, albMock, ec2Mock := Setup(ctrl, envars, 2, "FARGATE")
+
+		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
+		ecsMock.EXPECT().CreateService(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.CreateService).AnyTimes()
+		ecsMock.EXPECT().UpdateService(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.UpdateService).AnyTimes()
+		ecsMock.EXPECT().DeleteService(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeleteService).AnyTimes()
+		ecsMock.EXPECT().StartTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.StartTask).AnyTimes()
+		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTaskDefinition).AnyTimes()
+		ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeServices).AnyTimes()
+		ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(ctx context.Context, input *ecs.DescribeTasksInput, opts ...func(options *ecs.Options)) (*ecs.DescribeTasksOutput, error) {
+				out, err := mocker.DescribeTasks(ctx, input, opts...)
+				if err != nil {
+					return out, err
+				}
+
+				task := mocker.Tasks[input.Tasks[0]]
+				if strings.Contains(*task.Group, "canary-task") {
+					for i := range out.Tasks {
+						for i2 := range out.Tasks[i].Containers {
+							out.Tasks[i].Containers[i2].HealthStatus = ecstypes.HealthStatusUnknown
+						}
+					}
+				}
+				return out, err
 			},
-		}, nil,
-	)
-	cagecli := NewCage(&Input{
-		Env: envars,
-		ECS: ecsMock,
+		).AnyTimes()
+		ecsMock.EXPECT().ListTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.ListTasks).AnyTimes()
+		ecsMock.EXPECT().DescribeContainerInstances(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeContainerInstances).AnyTimes()
+		ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask).AnyTimes()
+		ecsMock.EXPECT().StopTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.StopTask).AnyTimes()
+
+		cagecli := NewCage(&Input{
+			Env: envars,
+			ECS: ecsMock,
+			EC2: ec2Mock,
+			ALB: albMock,
+		})
+		ctx := context.Background()
+		res, err := cagecli.RollOut(ctx)
+		assert.NotNil(t, res)
+		assert.NotNil(t, err)
+
+		for _, task := range mocker.Tasks {
+			if strings.Contains(*task.Group, "canary-task") {
+				assert.Equal(t, "STOPPED", *task.LastStatus)
+			}
+		}
 	})
-	_, err := cagecli.RollOut(context.Background())
-	assert.EqualError(t, err, "😵 'service' status is 'INACTIVE'. Stop rolling out")
 }
 
 func TestCage_RollOut_EC2(t *testing.T) {
