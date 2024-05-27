@@ -36,7 +36,7 @@ func TestEnsureEnvars(t *testing.T) {
 			Cluster: "cluster",
 			Service: "next",
 		}
-		if err := EnsureEnvars(e); err == nil {
+		if err := EnsureEnvars(e); err != nil {
 			t.Fatalf(err.Error())
 		}
 	})

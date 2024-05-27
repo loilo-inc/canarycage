@@ -28,6 +28,9 @@ func (c *cageCommands) Run() *cli.Command {
 		},
 		Action: func(ctx *cli.Context) error {
 			c.aggregateEnvars(ctx, &envars)
+			if err := c.prompt.ConfirmTask(&envars); err != nil {
+				return err
+			}
 			var cfg aws.Config
 			if o, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(envars.Region)); err != nil {
 				return err

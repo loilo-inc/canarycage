@@ -8,10 +8,12 @@ import (
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	"golang.org/x/xerrors"
 )
 
 type Envars struct {
 	_                      struct{} `type:"struct"`
+	CI                     bool     `json:"ci" type:"bool"`
 	Region                 string   `json:"region" type:"string"`
 	Cluster                string   `json:"cluster" type:"string" required:"true"`
 	Service                string   `json:"service" type:"string" required:"true"`
@@ -39,12 +41,12 @@ func EnsureEnvars(
 ) error {
 	// required
 	if dest.Cluster == "" {
-		return NewErrorf("--cluster [%s] is required", ClusterKey)
+		return xerrors.Errorf("--cluster [%s] is required", ClusterKey)
 	} else if dest.Service == "" {
-		return NewErrorf("--service [%s] is required", ServiceKey)
+		return xerrors.Errorf("--service [%s] is required", ServiceKey)
 	}
 	if dest.TaskDefinitionArn == "" && dest.TaskDefinitionInput == nil {
-		return NewErrorf("--nextTaskDefinitionArn or deploy context must be provided")
+		return xerrors.Errorf("--nextTaskDefinitionArn or deploy context must be provided")
 	}
 	if dest.Region == "" {
 		log.Fatalf("region must be specified. set --region flag or see also https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html")

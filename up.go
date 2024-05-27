@@ -32,30 +32,9 @@ func (c *cage) Up(ctx context.Context) (*UpResult, error) {
 		}
 	}
 	c.env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinitionArn
-	log.Infof("creating service '%s' with task-definition '%s'...", c.env.Service, *td.TaskDefinitionArn)
-	if o, err := c.ecs.CreateService(ctx, c.env.ServiceDefinitionInput); err != nil {
-		return nil, fmt.Errorf("failed to create service '%s': %s", c.env.Service, err.Error())
-	} else {
-		log.Infof("service created: '%s'", *o.Service.ServiceArn)
-	}
-	log.Infof("waiting for service '%s' to be STABLE", c.env.Service)
-	if err := ecs.NewServicesStableWaiter(c.ecs).Wait(ctx, &ecs.DescribeServicesInput{
-		Cluster:  &c.env.Cluster,
-		Services: []string{c.env.Service},
-	}, WaitDuration); err != nil {
-		return nil, fmt.Errorf(err.Error())
-	} else {
-		log.Infof("become: STABLE")
-	}
-	svc, err := c.ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
-		Cluster:  &c.env.Cluster,
-		Services: []string{c.env.Service},
-	})
-	if err != nil {
+	if service, err := c.createService(ctx, c.env.ServiceDefinitionInput); err != nil {
 		return nil, err
+	} else {
+		return &UpResult{TaskDefinition: td, Service: service}, nil
 	}
-	return &UpResult{
-		TaskDefinition: td,
-		Service:        &svc.Services[0],
-	}, nil
 }

@@ -13,12 +13,12 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (c *cageCommands) Up() *cli.Command {
+func (c *cageCommands) Recreate() *cli.Command {
 	envars := cage.Envars{}
 	return &cli.Command{
-		Name:        "up",
-		Usage:       "create new ECS service with specified task definition",
-		Description: "create new ECS service with specified task definition",
+		Name:        "recreate",
+		Usage:       "recreate ECS service with specified service/task definition",
+		Description: "recreate ECS service with specified service/task definition",
 		ArgsUsage:   "[directory path of service.json and task-definition.json (default=.)]",
 		Flags: []cli.Flag{
 			RegionFlag(&envars.Region),
@@ -29,6 +29,7 @@ func (c *cageCommands) Up() *cli.Command {
 		},
 		Action: func(ctx *cli.Context) error {
 			c.aggregateEnvars(ctx, &envars)
+
 			if err := c.prompt.ConfirmService(&envars); err != nil {
 				return err
 			}
@@ -44,7 +45,7 @@ func (c *cageCommands) Up() *cli.Command {
 				EC2: ec2.NewFromConfig(cfg),
 				ALB: elbv2.NewFromConfig(cfg),
 			})
-			_, err := cagecli.Up(context.Background())
+			_, err := cagecli.Recreate(context.Background())
 			if err != nil {
 				log.Error(err.Error())
 			}

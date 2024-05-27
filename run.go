@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
 )
@@ -42,6 +43,7 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 		NetworkConfiguration: c.env.ServiceDefinitionInput.NetworkConfiguration,
 		PlatformVersion:      c.env.ServiceDefinitionInput.PlatformVersion,
 		Overrides:            input.Overrides,
+		Group:                aws.String("cage:run-task"),
 	})
 	if err != nil {
 		return nil, err
@@ -54,7 +56,7 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 	var exitCode int32 = -1
 	log.Infof("🤖 waiting until task '%s' is running...", *taskArn)
 	for count < maxCount {
-		<-newTimer(interval).C
+		<-c.time.NewTimer(interval).C
 		o, err := c.ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 			Cluster: &c.env.Cluster,
 			Tasks:   []string{*taskArn},

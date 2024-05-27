@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	"github.com/loilo-inc/canarycage"
+	cage "github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli/v2"
 )
 
@@ -35,6 +35,9 @@ func (c *cageCommands) RollOut() *cli.Command {
 		},
 		Action: func(ctx *cli.Context) error {
 			c.aggregateEnvars(ctx, &envars)
+			if err := c.prompt.ConfirmService(&envars); err != nil {
+				return err
+			}
 			var cfg aws.Config
 			if o, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(envars.Region)); err != nil {
 				return err

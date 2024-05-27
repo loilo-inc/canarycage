@@ -25,17 +25,17 @@ var WaitDuration = 15 * time.Minute
 
 func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	ret := &RollOutResult{
-		StartTime:     now(),
+		StartTime:     c.time.Now(),
 		ServiceIntact: true,
 	}
 	var aggregatedError error
 	throw := func(err error) (*RollOutResult, error) {
-		ret.EndTime = now()
+		ret.EndTime = c.time.Now()
 		aggregatedError = err
 		return ret, err
 	}
 	defer func(result *RollOutResult) {
-		ret.EndTime = now()
+		ret.EndTime = c.time.Now()
 	}(ret)
 	var service ecstypes.Service
 	if out, err := c.ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
@@ -139,7 +139,7 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 		return throw(err)
 	}
 	log.Infof("🥴 service '%s' has become to be stable!", c.env.Service)
-	ret.EndTime = now()
+	ret.EndTime = c.time.Now()
 	return ret, nil
 }
 
@@ -155,7 +155,7 @@ func (c *cage) EnsureTaskHealthy(
 	var initialized = false
 	var recentState *elbv2types.TargetHealthStateEnum
 	for {
-		<-newTimer(time.Duration(15) * time.Second).C
+		<-c.time.NewTimer(time.Duration(15) * time.Second).C
 		if o, err := c.alb.DescribeTargetHealth(ctx, &elbv2.DescribeTargetHealthInput{
 			TargetGroupArn: tgArn,
 			Targets: []elbv2types.TargetDescription{{
@@ -196,35 +196,11 @@ func (c *cage) EnsureTaskHealthy(
 
 func GetTargetIsHealthy(o *elbv2.DescribeTargetHealthOutput, targetId *string, targetPort *int32) *elbv2types.TargetHealthStateEnum {
 	for _, desc := range o.TargetHealthDescriptions {
-		log.Debugf("%+v", desc)
 		if *desc.Target.Id == *targetId && *desc.Target.Port == *targetPort {
 			return &desc.TargetHealth.State
 		}
 	}
 	return nil
-}
-
-func (c *cage) CreateNextTaskDefinition(ctx context.Context) (*ecstypes.TaskDefinition, error) {
-	if c.env.TaskDefinitionArn != "" {
-		log.Infof("--taskDefinitionArn was set to '%s'. skip registering new task definition.", c.env.TaskDefinitionArn)
-		o, err := c.ecs.DescribeTaskDefinition(ctx, &ecs.DescribeTaskDefinitionInput{
-			TaskDefinition: &c.env.TaskDefinitionArn,
-		})
-		if err != nil {
-			log.Errorf(
-				"failed to describe next task definition '%s' due to: %s",
-				c.env.TaskDefinitionArn, err,
-			)
-			return nil, err
-		}
-		return o.TaskDefinition, nil
-	} else {
-		if out, err := c.ecs.RegisterTaskDefinition(ctx, c.env.TaskDefinitionInput); err != nil {
-			return nil, err
-		} else {
-			return out.TaskDefinition, nil
-		}
-	}
 }
 
 func (c *cage) DescribeSubnet(ctx context.Context, subnetId *string) (ec2types.Subnet, error) {
@@ -315,7 +291,7 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 				if duration < 10 {
 					wt = duration
 				}
-				<-time.NewTimer(time.Duration(wt) * time.Second).C
+				<-c.time.NewTimer(time.Duration(wt) * time.Second).C
 				duration -= 10
 			}
 			wait <- true
@@ -414,7 +390,7 @@ func (c *cage) waitUntilContainersBecomeHealthy(ctx context.Context, taskArn str
 	}
 
 	for count := 0; count < 10; count++ {
-		<-newTimer(time.Duration(15) * time.Second).C
+		<-c.time.NewTimer(time.Duration(15) * time.Second).C
 		log.Infof("canary task '%s' waits until %d container(s) become healthy", taskArn, len(containerHasHealthChecks))
 		if o, err := c.ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 			Cluster: &c.env.Cluster,

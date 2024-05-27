@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 
 	"github.com/loilo-inc/canarycage/cli/cage/commands"
@@ -11,18 +12,13 @@ import (
 func main() {
 	app := cli.NewApp()
 	app.Name = "canarycage"
-	app.Version = "3.6.0"
+	app.Version = "3.7.0"
 	app.Description = "A gradual roll-out deployment tool for AWS ECS"
 	ctx := context.Background()
-	cmds := commands.NewCageCommands(ctx)
-	app.Commands = cli.Commands{
-		cmds.RollOut(),
-		cmds.Up(),
-		cmds.Run(),
-	}
+	cmds := commands.NewCageCommands(ctx, os.Stdin)
+	app.Commands = cmds.Commands()
 	err := app.Run(os.Args)
 	if err != nil {
-		os.Exit(1)
+		log.Fatal(err)
 	}
-	os.Exit(0)
 }
