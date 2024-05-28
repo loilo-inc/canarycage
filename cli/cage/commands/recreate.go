@@ -3,23 +3,19 @@ package commands
 import (
 	"context"
 
-	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli/v2"
 )
 
-func (c *cageCommands) Recreate() *cli.Command {
-	envars := cage.Envars{}
+func (c *cageCommands) Recreate(
+	envars *cage.Envars,
+) *cli.Command {
 	return &cli.Command{
 		Name:        "recreate",
 		Usage:       "recreate ECS service with specified service/task definition",
 		Description: "recreate ECS service with specified service/task definition",
-		ArgsUsage:   "[directory path of service.json and task-definition.json (default=.)]",
+		Args:        true,
+		ArgsUsage:   "[directory path of service.json and task-definition.json]",
 		Flags: []cli.Flag{
 			RegionFlag(&envars.Region),
 			ClusterFlag(&envars.Cluster),
@@ -28,27 +24,18 @@ func (c *cageCommands) Recreate() *cli.Command {
 			CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
 		},
 		Action: func(ctx *cli.Context) error {
-			c.aggregateEnvars(ctx, &envars)
-
-			if err := c.prompt.ConfirmService(&envars); err != nil {
-				return err
-			}
-			var cfg aws.Config
-			if o, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(envars.Region)); err != nil {
-				return err
-			} else {
-				cfg = o
-			}
-			cagecli := cage.NewCage(&cage.Input{
-				Env: &envars,
-				ECS: ecs.NewFromConfig(cfg),
-				EC2: ec2.NewFromConfig(cfg),
-				ALB: elbv2.NewFromConfig(cfg),
-			})
-			_, err := cagecli.Recreate(context.Background())
+			dir, _, err := c.requireArgs(ctx, 1, 1)
 			if err != nil {
-				log.Error(err.Error())
+				return err
 			}
+			cagecli, err := c.setupCage(envars, dir)
+			if err != nil {
+				return err
+			}
+			if err := c.Prompt.ConfirmService(envars); err != nil {
+				return err
+			}
+			_, err = cagecli.Recreate(context.Background())
 			return err
 		},
 	}

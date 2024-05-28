@@ -47,18 +47,20 @@ func Setup(ctrl *gomock.Controller, envars *cage.Envars, currentTaskCount int, l
 	ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeSubnets).AnyTimes()
 	ec2Mock.EXPECT().DescribeInstances(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeInstances).AnyTimes()
 	td, _ := mocker.RegisterTaskDefinition(context.Background(), envars.TaskDefinitionInput)
-	a := &ecs.CreateServiceInput{
-		ServiceName:    &envars.Service,
-		LoadBalancers:  envars.ServiceDefinitionInput.LoadBalancers,
-		TaskDefinition: td.TaskDefinition.TaskDefinitionArn,
-		DesiredCount:   aws.Int32(int32(currentTaskCount)),
-		LaunchType:     ecstypes.LaunchType(launchType),
-	}
-	svc, _ := mocker.CreateService(context.Background(), a)
-	if len(svc.Service.LoadBalancers) > 0 {
-		_, _ = mocker.RegisterTarget(context.Background(), &elbv2.RegisterTargetsInput{
-			TargetGroupArn: svc.Service.LoadBalancers[0].TargetGroupArn,
-		})
+	if currentTaskCount >= 0 {
+		a := &ecs.CreateServiceInput{
+			ServiceName:    &envars.Service,
+			LoadBalancers:  envars.ServiceDefinitionInput.LoadBalancers,
+			TaskDefinition: td.TaskDefinition.TaskDefinitionArn,
+			DesiredCount:   aws.Int32(int32(currentTaskCount)),
+			LaunchType:     ecstypes.LaunchType(launchType),
+		}
+		svc, _ := mocker.CreateService(context.Background(), a)
+		if len(svc.Service.LoadBalancers) > 0 {
+			_, _ = mocker.RegisterTarget(context.Background(), &elbv2.RegisterTargetsInput{
+				TargetGroupArn: svc.Service.LoadBalancers[0].TargetGroupArn,
+			})
+		}
 	}
 	return mocker, ecsMock, albMock, ec2Mock
 }

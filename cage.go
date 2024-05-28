@@ -1,3 +1,4 @@
+//go:generate go run github.com/golang/mock/mockgen -source $GOFILE -destination ../mocks/mock_$GOPACKAGE/$GOFILE -package mock_$GOPACKAGE
 package cage
 
 import (
