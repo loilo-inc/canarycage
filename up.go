@@ -19,20 +19,20 @@ func (c *cage) Up(ctx context.Context) (*UpResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("checking existence of service '%s'", c.env.Service)
-	if o, err := c.ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
-		Cluster:  &c.env.Cluster,
-		Services: []string{c.env.Service},
+	log.Infof("checking existence of service '%s'", c.Env.Service)
+	if o, err := c.Ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
+		Cluster:  &c.Env.Cluster,
+		Services: []string{c.Env.Service},
 	}); err != nil {
 		return nil, fmt.Errorf("couldn't describe service: %s", err.Error())
 	} else if len(o.Services) > 0 {
 		svc := o.Services[0]
 		if *svc.Status != "INACTIVE" {
-			return nil, fmt.Errorf("service '%s' already exists. Use 'cage rollout' instead", c.env.Service)
+			return nil, fmt.Errorf("service '%s' already exists. Use 'cage rollout' instead", c.Env.Service)
 		}
 	}
-	c.env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinitionArn
-	if service, err := c.createService(ctx, c.env.ServiceDefinitionInput); err != nil {
+	c.Env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinitionArn
+	if service, err := c.createService(ctx, c.Env.ServiceDefinitionInput); err != nil {
 		return nil, err
 	} else {
 		return &UpResult{TaskDefinition: td, Service: service}, nil
