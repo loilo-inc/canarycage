@@ -14,7 +14,7 @@ jobs:
           git diff --exit-code
       - run: go build
       - run: go build github.com/loilo-inc/canarycage/cli/cage
-      - run: go test -coverprofile=coverage.txt -covermode=count
+      - run: go test ./... -coverprofile=coverage.txt -covermode=count
       - uses: codecov/codecov-action@v4
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
