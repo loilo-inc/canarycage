@@ -1,0 +1,5 @@
+ignore:
+  - "test/*"
+  - "mocks/*"
+  - "cmd/cli/cage"
+  - "cmd/cli/cage/commands/*"

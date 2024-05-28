@@ -13,7 +13,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "canarycage"
 	app.Version = "3.7.0"
-	app.Description = "A gradual roll-out deployment tool for AWS ECS"
+	app.Description = "A deployment tool for AWS ECS"
 	ctx := context.Background()
 	cmds := commands.NewCageCommands(ctx, os.Stdin)
 	app.Commands = cmds.Commands()
