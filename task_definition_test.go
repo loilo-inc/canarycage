@@ -75,7 +75,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 		}
 		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("error"))
 		td, err := c.CreateNextTaskDefinition(context.Background())
-		assert.Errorf(t, err, "failed to register task definition: error")
+		assert.Errorf(t, err, "failed to register next task definition: error")
 		assert.Nil(t, td)
 	})
 }

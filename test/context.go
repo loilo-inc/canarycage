@@ -64,17 +64,24 @@ func (ctx *MockContext) GetService(id string) (*types.Service, bool) {
 	return o, ok
 }
 
-func (ctx *MockContext) ServiceSize() int {
+func (ctx *MockContext) ActiveServiceSize() (count int) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	return len(ctx.Services)
+	for _, v := range ctx.Services {
+		if v.Status != nil && *v.Status == "ACTIVE" {
+			count++
+		}
+	}
+	return
 }
 
 func (ctx *MockContext) CreateService(c context.Context, input *ecs.CreateServiceInput, _ ...func(options *ecs.Options)) (*ecs.CreateServiceOutput, error) {
 	idstr := uuid.New().String()
 	st := "ACTIVE"
-	if _, ok := ctx.Services[*input.ServiceName]; ok {
-		return nil, fmt.Errorf("service already exists: %s", *input.ServiceName)
+	if old, ok := ctx.Services[*input.ServiceName]; ok {
+		if *old.Status == "ACTIVE" {
+			return nil, fmt.Errorf("service already exists: %s", *input.ServiceName)
+		}
 	}
 	ret := &types.Service{
 		ServiceName:                   input.ServiceName,
@@ -176,9 +183,7 @@ func (ctx *MockContext) UpdateService(c context.Context, input *ecs.UpdateServic
 }
 
 func (ctx *MockContext) DeleteService(c context.Context, input *ecs.DeleteServiceInput, _ ...func(options *ecs.Options)) (*ecs.DeleteServiceOutput, error) {
-	ctx.mux.Lock()
 	service := ctx.Services[*input.Service]
-	ctx.mux.Unlock()
 	reg := regexp.MustCompile(fmt.Sprintf("service:%s", *service.ServiceName))
 	for _, v := range ctx.Tasks {
 		if reg.MatchString(*v.Group) {
@@ -193,11 +198,8 @@ func (ctx *MockContext) DeleteService(c context.Context, input *ecs.DeleteServic
 	}
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	delete(ctx.Services, *input.Service)
-	delete(ctx.Tasks, *service.ServiceArn)
-	return &ecs.DeleteServiceOutput{
-		Service: service,
-	}, nil
+	service.Status = aws.String("INACTIVE")
+	return &ecs.DeleteServiceOutput{Service: service}, nil
 }
 
 func (ctx *MockContext) RegisterTaskDefinition(_ context.Context, input *ecs.RegisterTaskDefinitionInput, _ ...func(options *ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error) {

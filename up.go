@@ -2,11 +2,11 @@ package cage
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"golang.org/x/xerrors"
 )
 
 type UpResult struct {
@@ -24,11 +24,11 @@ func (c *cage) Up(ctx context.Context) (*UpResult, error) {
 		Cluster:  &c.Env.Cluster,
 		Services: []string{c.Env.Service},
 	}); err != nil {
-		return nil, fmt.Errorf("couldn't describe service: %s", err.Error())
+		return nil, xerrors.Errorf("couldn't describe service: %w", err)
 	} else if len(o.Services) > 0 {
 		svc := o.Services[0]
 		if *svc.Status != "INACTIVE" {
-			return nil, fmt.Errorf("service '%s' already exists. Use 'cage rollout' instead", c.Env.Service)
+			return nil, xerrors.Errorf("service '%s' already exists. Use 'cage rollout' instead", c.Env.Service)
 		}
 	}
 	c.Env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinitionArn

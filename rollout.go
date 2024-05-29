@@ -13,6 +13,7 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	"golang.org/x/xerrors"
 )
 
 type RollOutResult struct {
@@ -44,18 +45,18 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 			c.Env.Service,
 		},
 	}); err != nil {
-		log.Errorf("failed to describe current service due to: %s", err.Error())
+		log.Errorf("failed to describe current service due to: %w", err)
 		return throw(err)
 	} else if len(out.Services) == 0 {
-		return throw(fmt.Errorf("service '%s' doesn't exist. Run 'cage up' or create service before rolling out", c.Env.Service))
+		return throw(xerrors.Errorf("service '%s' doesn't exist. Run 'cage up' or create service before rolling out", c.Env.Service))
 	} else {
 		service = out.Services[0]
 	}
 	if *service.Status != "ACTIVE" {
-		return throw(fmt.Errorf("😵 '%s' status is '%s'. Stop rolling out", c.Env.Service, *service.Status))
+		return throw(xerrors.Errorf("😵 '%s' status is '%s'. Stop rolling out", c.Env.Service, *service.Status))
 	}
 	if service.LaunchType == ecstypes.LaunchTypeEc2 && c.Env.CanaryInstanceArn == "" {
-		return throw(fmt.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'"))
+		return throw(xerrors.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'"))
 	}
 	var (
 		targetGroupArn *string
@@ -167,7 +168,7 @@ func (c *cage) EnsureTaskHealthy(
 		} else {
 			recentState = GetTargetIsHealthy(o, targetId, targetPort)
 			if recentState == nil {
-				return fmt.Errorf("'%s' is not registered to the target group '%s'", *targetId, *tgArn)
+				return xerrors.Errorf("'%s' is not registered to the target group '%s'", *targetId, *tgArn)
 			}
 			log.Infof("canary task '%s' (%s:%d) state is: %s", *taskArn, *targetId, *targetPort, *recentState)
 			switch *recentState {
@@ -187,7 +188,7 @@ func (c *cage) EnsureTaskHealthy(
 		}
 		// unhealthy, draining, unused
 		log.Errorf("😨 canary task '%s' is unhealthy", *taskArn)
-		return fmt.Errorf(
+		return xerrors.Errorf(
 			"canary task '%s' (%s:%d) hasn't become to be healthy. The most recent state: %s",
 			*taskArn, *targetId, *targetPort, *recentState,
 		)
@@ -306,7 +307,7 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 		}
 		task := o.Tasks[0]
 		if *task.LastStatus != "RUNNING" {
-			return nil, fmt.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
+			return nil, xerrors.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
 		}
 		return &StartCanaryTaskOutput{
 			task:                task,
@@ -400,7 +401,7 @@ func (c *cage) waitUntilContainersBecomeHealthy(ctx context.Context, taskArn str
 		} else {
 			task := o.Tasks[0]
 			if *task.LastStatus != "RUNNING" {
-				return fmt.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
+				return xerrors.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
 			}
 
 			for _, container := range task.Containers {
@@ -418,7 +419,7 @@ func (c *cage) waitUntilContainersBecomeHealthy(ctx context.Context, taskArn str
 			}
 		}
 	}
-	return fmt.Errorf("😨 canary task hasn't become to be healthy")
+	return xerrors.Errorf("😨 canary task hasn't become to be healthy")
 }
 
 func (c *cage) StopCanaryTask(ctx context.Context, input *StartCanaryTaskOutput) error {

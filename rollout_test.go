@@ -28,7 +28,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, v, "FARGATE")
 
-			if mctx.ServiceSize() != 1 {
+			if mctx.ActiveServiceSize() != 1 {
 				t.Fatalf("current service not setup")
 			}
 
@@ -47,7 +47,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			result, err := cagecli.RollOut(ctx)
 			assert.NoError(t, err)
 			assert.False(t, result.ServiceIntact)
-			assert.Equal(t, 1, mctx.ServiceSize())
+			assert.Equal(t, 1, mctx.ActiveServiceSize())
 			assert.Equal(t, v, mctx.RunningTaskSize())
 		}
 	})
@@ -260,7 +260,7 @@ func TestCage_RollOut_EC2(t *testing.T) {
 				},
 			},
 		}, nil).AnyTimes()
-		if mctx.ServiceSize() != 1 {
+		if mctx.ActiveServiceSize() != 1 {
 			t.Fatalf("current service not setup")
 		}
 		if taskCnt := mctx.RunningTaskSize(); taskCnt != v {
@@ -279,7 +279,7 @@ func TestCage_RollOut_EC2(t *testing.T) {
 			t.Fatalf("%s", err)
 		}
 		assert.False(t, result.ServiceIntact)
-		assert.Equal(t, 1, mctx.ServiceSize())
+		assert.Equal(t, 1, mctx.ActiveServiceSize())
 		assert.Equal(t, v, mctx.RunningTaskSize())
 	}
 }
@@ -290,7 +290,7 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 	envars := test.DefaultEnvars()
 	ctrl := gomock.NewController(t)
 	mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 1, "EC2")
-	if mctx.ServiceSize() != 1 {
+	if mctx.ActiveServiceSize() != 1 {
 		t.Fatalf("current service not setup")
 	}
 	if taskCnt := mctx.RunningTaskSize(); taskCnt != 1 {
@@ -321,7 +321,7 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 	envars.CanaryInstanceArn = canaryInstanceArn
 	ctrl := gomock.NewController(t)
 	mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 1, "EC2")
-	if mctx.ServiceSize() != 1 {
+	if mctx.ActiveServiceSize() != 1 {
 		t.Fatalf("current service not setup")
 	}
 	if taskCnt := mctx.RunningTaskSize(); taskCnt != 1 {
@@ -344,6 +344,6 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 		t.Fatalf("%s", err)
 	}
 	assert.False(t, result.ServiceIntact)
-	assert.Equal(t, 1, mctx.ServiceSize())
+	assert.Equal(t, 1, mctx.ActiveServiceSize())
 	assert.Equal(t, 1, mctx.RunningTaskSize())
 }

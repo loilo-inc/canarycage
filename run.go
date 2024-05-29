@@ -2,7 +2,6 @@ package cage
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/apex/log"
@@ -35,7 +34,7 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 		input.MaxWait = 5 * time.Minute
 	}
 	if !containerExistsInDefinition(c.Env.TaskDefinitionInput, input.Container) {
-		return nil, fmt.Errorf("🚫 '%s' not found in container definitions", *input.Container)
+		return nil, xerrors.Errorf("🚫 '%s' not found in container definitions", *input.Container)
 	}
 	td, err := c.CreateNextTaskDefinition(ctx)
 	if err != nil {
@@ -73,14 +72,14 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 		for _, c := range task.Containers {
 			if *c.Name == *input.Container {
 				if c.ExitCode == nil {
-					return nil, fmt.Errorf("container '%s' hasn't exit", *input.Container)
+					return nil, xerrors.Errorf("container '%s' hasn't exit", *input.Container)
 				} else if *c.ExitCode != 0 {
-					return nil, fmt.Errorf("task exited with %d", *c.ExitCode)
+					return nil, xerrors.Errorf("task exited with %d", *c.ExitCode)
 				}
 				return &RunResult{ExitCode: *c.ExitCode}, nil
 			}
 		}
 		// Never reached?
-		return nil, fmt.Errorf("task '%s' not found in result", *taskArn)
+		return nil, xerrors.Errorf("task '%s' not found in result", *taskArn)
 	}
 }

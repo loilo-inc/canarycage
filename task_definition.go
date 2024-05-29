@@ -22,7 +22,7 @@ func (c *cage) CreateNextTaskDefinition(ctx context.Context) (*ecstypes.TaskDefi
 	} else {
 		log.Infof("creating next task definition...")
 		if out, err := c.Ecs.RegisterTaskDefinition(ctx, c.Env.TaskDefinitionInput); err != nil {
-			return nil, xerrors.Errorf("failed to register task definition: %w", err)
+			return nil, xerrors.Errorf("failed to register next task definition: %w", err)
 		} else {
 			log.Infof(
 				"task definition '%s:%d' has been registered",

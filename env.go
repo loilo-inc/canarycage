@@ -2,7 +2,6 @@ package cage
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -66,13 +65,13 @@ func LoadDefinitionsFromFiles(dir string) (
 	var service ecs.CreateServiceInput
 	var td ecs.RegisterTaskDefinitionInput
 	if noSvc != nil || noTd != nil {
-		return nil, nil, fmt.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
+		return nil, nil, xerrors.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
 	}
 	if _, err := ReadAndUnmarshalJson(svcPath, &service); err != nil {
-		return nil, nil, fmt.Errorf("failed to read and unmarshal service.json: %s", err)
+		return nil, nil, xerrors.Errorf("failed to read and unmarshal service.json: %s", err)
 	}
 	if _, err := ReadAndUnmarshalJson(tdPath, &td); err != nil {
-		return nil, nil, fmt.Errorf("failed to read and unmarshal task-definition.json: %s", err)
+		return nil, nil, xerrors.Errorf("failed to read and unmarshal task-definition.json: %s", err)
 	}
 	return &td, &service, nil
 }
