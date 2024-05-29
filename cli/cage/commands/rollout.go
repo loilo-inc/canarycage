@@ -8,7 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (c *cageCommands) RollOut(
+func (c *CageCommands) RollOut(
 	envars *cage.Envars,
 ) *cli.Command {
 	return &cli.Command{

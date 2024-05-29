@@ -24,9 +24,16 @@ func TestCommands(t *testing.T) {
 		stdin := strings.NewReader(input)
 		cagecli := mock_cage.NewMockCage(ctrl)
 		app := cli.NewApp()
-		app.Commands = commands.NewCageCommands(stdin, func(envars *cage.Envars) (cage.Cage, error) {
+		cmds := commands.NewCageCommands(stdin, func(envars *cage.Envars) (cage.Cage, error) {
 			return cagecli, nil
-		}).Commands(&cage.Envars{CI: input == ""})
+		})
+		envars := cage.Envars{CI: input == ""}
+		app.Commands = []*cli.Command{
+			cmds.Up(&envars),
+			cmds.RollOut(&envars),
+			cmds.Run(&envars),
+			cmds.Recreate(&envars),
+		}
 		return app, cagecli
 	}
 	t.Run("rollout", func(t *testing.T) {
