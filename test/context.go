@@ -20,17 +20,19 @@ import (
 type MockContext struct {
 	Services        map[string]*types.Service
 	Tasks           map[string]*types.Task
-	TaskDefinitions map[string]*types.TaskDefinition
+	TaskDefinitions *TaskDefinitionRepository
 	TargetGroups    map[string]struct{}
 	mux             sync.Mutex
 }
 
 func NewMockContext() *MockContext {
 	return &MockContext{
-		Services:        make(map[string]*types.Service),
-		Tasks:           make(map[string]*types.Task),
-		TaskDefinitions: make(map[string]*types.TaskDefinition),
-		TargetGroups:    make(map[string]struct{}),
+		Services: make(map[string]*types.Service),
+		Tasks:    make(map[string]*types.Task),
+		TaskDefinitions: &TaskDefinitionRepository{
+			families: make(map[string]*TaskDefinitionFamily),
+		},
+		TargetGroups: make(map[string]struct{}),
 	}
 }
 
@@ -62,15 +64,25 @@ func (ctx *MockContext) GetService(id string) (*types.Service, bool) {
 	return o, ok
 }
 
-func (ctx *MockContext) ServiceSize() int {
+func (ctx *MockContext) ActiveServiceSize() (count int) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	return len(ctx.Services)
+	for _, v := range ctx.Services {
+		if v.Status != nil && *v.Status == "ACTIVE" {
+			count++
+		}
+	}
+	return
 }
 
 func (ctx *MockContext) CreateService(c context.Context, input *ecs.CreateServiceInput, _ ...func(options *ecs.Options)) (*ecs.CreateServiceOutput, error) {
 	idstr := uuid.New().String()
 	st := "ACTIVE"
+	if old, ok := ctx.Services[*input.ServiceName]; ok {
+		if *old.Status == "ACTIVE" {
+			return nil, fmt.Errorf("service already exists: %s", *input.ServiceName)
+		}
+	}
 	ret := &types.Service{
 		ServiceName:                   input.ServiceName,
 		RunningCount:                  0,
@@ -102,6 +114,9 @@ func (ctx *MockContext) CreateService(c context.Context, input *ecs.CreateServic
 			TaskDefinition: input.TaskDefinition,
 		})
 	}
+	ctx.mux.Lock()
+	ctx.Services[*input.ServiceName].RunningCount = *input.DesiredCount
+	ctx.mux.Unlock()
 	log.Debugf("%s: running=%d", *input.ServiceName, ret.RunningCount)
 	return &ecs.CreateServiceOutput{
 		Service: ret,
@@ -113,6 +128,10 @@ func (ctx *MockContext) UpdateService(c context.Context, input *ecs.UpdateServic
 	s := ctx.Services[*input.Service]
 	ctx.mux.Unlock()
 	nextDesiredCount := s.DesiredCount
+	nextTaskDefinition := s.TaskDefinition
+	if input.TaskDefinition != nil {
+		nextTaskDefinition = input.TaskDefinition
+	}
 	if input.DesiredCount != nil {
 		nextDesiredCount = *input.DesiredCount
 	}
@@ -123,7 +142,7 @@ func (ctx *MockContext) UpdateService(c context.Context, input *ecs.UpdateServic
 			ctx.StartTask(c, &ecs.StartTaskInput{
 				Cluster:        input.Cluster,
 				Group:          aws.String(fmt.Sprintf("service:%s", *input.Service)),
-				TaskDefinition: input.TaskDefinition,
+				TaskDefinition: nextTaskDefinition,
 			})
 		}
 	} else if diff < 0 {
@@ -146,7 +165,7 @@ func (ctx *MockContext) UpdateService(c context.Context, input *ecs.UpdateServic
 	}
 	ctx.mux.Lock()
 	s.DesiredCount = nextDesiredCount
-	s.TaskDefinition = input.TaskDefinition
+	s.TaskDefinition = nextTaskDefinition
 	s.RunningCount = nextDesiredCount
 	s.Deployments = []types.Deployment{
 		{
@@ -164,9 +183,7 @@ func (ctx *MockContext) UpdateService(c context.Context, input *ecs.UpdateServic
 }
 
 func (ctx *MockContext) DeleteService(c context.Context, input *ecs.DeleteServiceInput, _ ...func(options *ecs.Options)) (*ecs.DeleteServiceOutput, error) {
-	ctx.mux.Lock()
 	service := ctx.Services[*input.Service]
-	ctx.mux.Unlock()
 	reg := regexp.MustCompile(fmt.Sprintf("service:%s", *service.ServiceName))
 	for _, v := range ctx.Tasks {
 		if reg.MatchString(*v.Group) {
@@ -181,35 +198,26 @@ func (ctx *MockContext) DeleteService(c context.Context, input *ecs.DeleteServic
 	}
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	delete(ctx.Services, *input.Service)
-	delete(ctx.Tasks, *service.ServiceArn)
-	return &ecs.DeleteServiceOutput{
-		Service: service,
-	}, nil
+	service.Status = aws.String("INACTIVE")
+	return &ecs.DeleteServiceOutput{Service: service}, nil
 }
 
 func (ctx *MockContext) RegisterTaskDefinition(_ context.Context, input *ecs.RegisterTaskDefinitionInput, _ ...func(options *ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error) {
-	ctx.mux.Lock()
-	defer ctx.mux.Unlock()
-
-	idstr := uuid.New().String()
-	ctx.TaskDefinitions[idstr] = &types.TaskDefinition{
-		TaskDefinitionArn:    &idstr,
-		Family:               aws.String("family"),
-		Revision:             1,
-		ContainerDefinitions: input.ContainerDefinitions,
+	td, err := ctx.TaskDefinitions.Register(input)
+	if err != nil {
+		return nil, err
 	}
-	return &ecs.RegisterTaskDefinitionOutput{
-		TaskDefinition: ctx.TaskDefinitions[idstr],
-	}, nil
+	return &ecs.RegisterTaskDefinitionOutput{TaskDefinition: td}, nil
 }
 
 func (ctx *MockContext) StartTask(_ context.Context, input *ecs.StartTaskInput, _ ...func(options *ecs.Options)) (*ecs.StartTaskOutput, error) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-
-	id := uuid.New()
-	idstr := id.String()
+	td := ctx.TaskDefinitions.Get(*input.TaskDefinition)
+	if td == nil {
+		return nil, fmt.Errorf("task definition not found: %s", *input.TaskDefinition)
+	}
+	taskArn := fmt.Sprintf("arn:aws:ecs:us-west-2:012345678910:task/%s", uuid.New().String())
 	attachments := []types.Attachment{{
 		Details: []types.KeyValuePair{
 			{
@@ -222,9 +230,8 @@ func (ctx *MockContext) StartTask(_ context.Context, input *ecs.StartTaskInput, 
 			},
 		},
 	}}
-
-	containers := make([]types.Container, len(ctx.TaskDefinitions[*input.TaskDefinition].ContainerDefinitions))
-	for i, v := range ctx.TaskDefinitions[*input.TaskDefinition].ContainerDefinitions {
+	containers := make([]types.Container, len(td.ContainerDefinitions))
+	for i, v := range td.ContainerDefinitions {
 		containers[i] = types.Container{
 			Name:       v.Name,
 			Image:      v.Image,
@@ -238,24 +245,18 @@ func (ctx *MockContext) StartTask(_ context.Context, input *ecs.StartTaskInput, 
 	}
 
 	ret := types.Task{
-		TaskArn:           &idstr,
+		TaskArn:           &taskArn,
 		ClusterArn:        input.Cluster,
 		TaskDefinitionArn: input.TaskDefinition,
 		Group:             input.Group,
 		Containers:        containers,
 	}
-	ctx.Tasks[idstr] = &ret
-	s, ok := ctx.Services[*input.Group]
+	ctx.Tasks[taskArn] = &ret
 	var launchType types.LaunchType
-	if ok {
-		s.RunningCount += 1
-		launchType = s.LaunchType
+	if len(input.ContainerInstances) > 0 {
+		launchType = types.LaunchTypeEc2
 	} else {
-		if len(input.ContainerInstances) > 0 {
-			launchType = types.LaunchTypeEc2
-		} else {
-			launchType = types.LaunchTypeFargate
-		}
+		launchType = types.LaunchTypeFargate
 	}
 	ret.LaunchType = launchType
 	if launchType == types.LaunchTypeFargate {
@@ -268,6 +269,7 @@ func (ctx *MockContext) StartTask(_ context.Context, input *ecs.StartTaskInput, 
 		Tasks: []types.Task{ret},
 	}, nil
 }
+
 func (ctx *MockContext) RunTask(c context.Context, input *ecs.RunTaskInput, _ ...func(options *ecs.Options)) (*ecs.RunTaskOutput, error) {
 	o, err := ctx.StartTask(c, &ecs.StartTaskInput{
 		Cluster:              input.Cluster,
@@ -287,16 +289,22 @@ func (ctx *MockContext) StopTask(_ context.Context, input *ecs.StopTaskInput, _ 
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	log.Debugf("stop: %s", input)
-	ret := ctx.Tasks[*input.Task]
+	ret, ok := ctx.Tasks[*input.Task]
+	if !ok {
+		return nil, fmt.Errorf("task not found: %s", *input.Task)
+	}
+	for i := range ret.Containers {
+		v := &ret.Containers[i]
+		v.ExitCode = aws.Int32(0)
+		v.LastStatus = aws.String("STOPPED")
+	}
 	ret.LastStatus = aws.String("STOPPED")
 	ret.DesiredStatus = aws.String("STOPPED")
 	service, ok := ctx.Services[*ret.Group]
 	if ok {
 		service.RunningCount -= 1
 	}
-	return &ecs.StopTaskOutput{
-		Task: ret,
-	}, nil
+	return &ecs.StopTaskOutput{Task: ret}, nil
 }
 
 func (ctx *MockContext) ListTasks(_ context.Context, input *ecs.ListTasksInput, _ ...func(options *ecs.Options)) (*ecs.ListTasksOutput, error) {
@@ -426,9 +434,7 @@ func (ctx *MockContext) RegisterTarget(_ context.Context, input *elbv2.RegisterT
 }
 
 func (ctx *MockContext) DeregisterTarget(_ context.Context, input *elbv2.DeregisterTargetsInput, _ ...func(options *elbv2.Options)) (*elbv2.DeregisterTargetsOutput, error) {
-	if _, ok := ctx.TargetGroups[*input.TargetGroupArn]; ok {
-		delete(ctx.TargetGroups, *input.TargetGroupArn)
-	}
+	delete(ctx.TargetGroups, *input.TargetGroupArn)
 	return &elbv2.DeregisterTargetsOutput{}, nil
 }
 

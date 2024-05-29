@@ -1,11 +1,7 @@
 package commands
 
 import (
-	"context"
-
-	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/loilo-inc/canarycage"
+	cage "github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli/v2"
 )
 
@@ -15,6 +11,7 @@ func RegionFlag(dest *string) *cli.StringFlag {
 		EnvVars:     []string{cage.RegionKey},
 		Usage:       "aws region for ecs. if not specified, try to load from aws sessions automatically",
 		Destination: dest,
+		Required:    true,
 	}
 }
 func ClusterFlag(dest *string) *cli.StringFlag {
@@ -49,42 +46,5 @@ func CanaryTaskIdleDurationFlag(dest *int) *cli.IntFlag {
 		Usage:       "Idle duration seconds for ensuring canary task that has no attached load balancer",
 		Destination: dest,
 		Value:       10,
-	}
-}
-
-func (c *cageCommands) aggregateEnvars(
-	ctx *cli.Context,
-	envars *cage.Envars,
-) {
-	cfg, err := config.LoadDefaultConfig(context.Background())
-	if err != nil {
-		log.Fatalf(err.Error())
-	}
-
-	if envars.Region != "" {
-		log.Infof("🗺 region was set: %s", envars.Region)
-	}
-
-	if cfg.Region != "" {
-		log.Infof("🗺 region was loaded from default config: %s", cfg.Region)
-	} else {
-		log.Fatalf("🙄 region must specified by --region flag or aws session")
-	}
-
-	if ctx.NArg() > 0 {
-		dir := ctx.Args().Get(0)
-		td, svc, err := cage.LoadDefinitionsFromFiles(dir)
-		if err != nil {
-			log.Fatalf(err.Error())
-		}
-		cage.MergeEnvars(envars, &cage.Envars{
-			Cluster:                *svc.Cluster,
-			Service:                *svc.ServiceName,
-			TaskDefinitionInput:    td,
-			ServiceDefinitionInput: svc,
-		})
-	}
-	if err := cage.EnsureEnvars(envars); err != nil {
-		log.Fatalf(err.Error())
 	}
 }

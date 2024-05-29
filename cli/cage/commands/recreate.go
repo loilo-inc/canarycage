@@ -7,13 +7,13 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (c *cageCommands) Up(
+func (c *cageCommands) Recreate(
 	envars *cage.Envars,
 ) *cli.Command {
 	return &cli.Command{
-		Name:        "up",
-		Usage:       "create new ECS service with specified task definition",
-		Description: "create new ECS service with specified task definition",
+		Name:        "recreate",
+		Usage:       "recreate ECS service with specified service/task definition",
+		Description: "recreate ECS service with specified service/task definition",
 		Args:        true,
 		ArgsUsage:   "[directory path of service.json and task-definition.json]",
 		Flags: []cli.Flag{
@@ -35,7 +35,7 @@ func (c *cageCommands) Up(
 			if err := c.Prompt.ConfirmService(envars); err != nil {
 				return err
 			}
-			_, err = cagecli.Up(context.Background())
+			_, err = cagecli.Recreate(context.Background())
 			return err
 		},
 	}

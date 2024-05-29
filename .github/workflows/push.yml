@@ -14,6 +14,10 @@ jobs:
           git diff --exit-code
       - run: go build
       - run: go build github.com/loilo-inc/canarycage/cli/cage
-      - run: go test -coverprofile=coverage.txt -covermode=count
-      - name: Upload Coverage
-        run: bash <(curl -s https://codecov.io/bash)
+      - run: go test ./... -coverprofile=coverage.txt -covermode=count
+      - uses: codecov/codecov-action@v4
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          fail_ci_if_error: true
+          files: coverage.txt

@@ -1,19 +1,22 @@
-package cage
+package cage_test
 
 import (
 	"context"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/golang/mock/gomock"
+	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/test"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCage_Up(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
-		env := DefaultEnvars()
+		env := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
-		ctx, ecsMock, _, _ := Setup(ctrl, env, 1, "FARGATE")
+		ctx, ecsMock, _, _ := test.Setup(ctrl, env, 1, "FARGATE")
 		delete(ctx.Services, env.Service)
-		cagecli := NewCage(&Input{
+		cagecli := cage.NewCage(&cage.Input{
 			Env: env,
 			ECS: ecsMock,
 			ALB: nil,
@@ -25,10 +28,10 @@ func TestCage_Up(t *testing.T) {
 		assert.NotNil(t, result.TaskDefinition)
 	})
 	t.Run("should show error if service exists", func(t *testing.T) {
-		env := DefaultEnvars()
+		env := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
-		_, ecsMock, _, _ := Setup(ctrl, env, 1, "FARGATE")
-		cagecli := NewCage(&Input{
+		_, ecsMock, _, _ := test.Setup(ctrl, env, 1, "FARGATE")
+		cagecli := cage.NewCage(&cage.Input{
 			Env: env,
 			ECS: ecsMock,
 			ALB: nil,

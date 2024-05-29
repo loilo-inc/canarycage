@@ -4,22 +4,19 @@ import (
 	"context"
 
 	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	"github.com/loilo-inc/canarycage"
+	cage "github.com/loilo-inc/canarycage"
 	"github.com/urfave/cli/v2"
 )
 
-func (c *cageCommands) RollOut() *cli.Command {
-	var envars = cage.Envars{}
+func (c *cageCommands) RollOut(
+	envars *cage.Envars,
+) *cli.Command {
 	return &cli.Command{
 		Name:        "rollout",
 		Usage:       "roll out ECS service to next task definition",
 		Description: "start rolling out next service with current service",
-		ArgsUsage:   "[directory path of service.json and task-definition.json (default=.)]",
+		Args:        true,
+		ArgsUsage:   "[directory path of service.json and task-definition.json]",
 		Flags: []cli.Flag{
 			RegionFlag(&envars.Region),
 			ClusterFlag(&envars.Cluster),
@@ -34,26 +31,23 @@ func (c *cageCommands) RollOut() *cli.Command {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			c.aggregateEnvars(ctx, &envars)
-			var cfg aws.Config
-			if o, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(envars.Region)); err != nil {
-				return err
-			} else {
-				cfg = o
-			}
-			cagecli := cage.NewCage(&cage.Input{
-				Env: &envars,
-				ECS: ecs.NewFromConfig(cfg),
-				EC2: ec2.NewFromConfig(cfg),
-				ALB: elbv2.NewFromConfig(cfg),
-			})
-			result, err := cagecli.RollOut(c.ctx)
+			dir, _, err := c.requireArgs(ctx, 1, 1)
 			if err != nil {
-				log.Error(err.Error())
+				return err
+			}
+			cagecli, err := c.setupCage(envars, dir)
+			if err != nil {
+				return err
+			}
+			if err := c.Prompt.ConfirmService(envars); err != nil {
+				return err
+			}
+			result, err := cagecli.RollOut(context.Background())
+			if err != nil {
 				if result.ServiceIntact {
 					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", envars.Service)
 				} else {
-					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. check in console!!", envars.Service)
+					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. CHECK ECS CONSOLE NOW!", envars.Service)
 				}
 				return err
 			}
