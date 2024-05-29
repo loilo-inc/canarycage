@@ -21,19 +21,21 @@ type Time interface {
 }
 
 type cage struct {
-	Env  *Envars
-	Ecs  awsiface.EcsClient
-	Alb  awsiface.AlbClient
-	Ec2  awsiface.Ec2Client
-	Time Time
+	Env     *Envars
+	Ecs     awsiface.EcsClient
+	Alb     awsiface.AlbClient
+	Ec2     awsiface.Ec2Client
+	Time    Time
+	MaxWait time.Duration
 }
 
 type Input struct {
-	Env  *Envars
-	ECS  awsiface.EcsClient
-	ALB  awsiface.AlbClient
-	EC2  awsiface.Ec2Client
-	Time Time
+	Env     *Envars
+	ECS     awsiface.EcsClient
+	ALB     awsiface.AlbClient
+	EC2     awsiface.Ec2Client
+	Time    Time
+	MaxWait time.Duration
 }
 
 func NewCage(input *Input) Cage {
@@ -41,10 +43,11 @@ func NewCage(input *Input) Cage {
 		input.Time = &timeImpl{}
 	}
 	return &cage{
-		Env:  input.Env,
-		Ecs:  input.ECS,
-		Alb:  input.ALB,
-		Ec2:  input.EC2,
-		Time: input.Time,
+		Env:     input.Env,
+		Ecs:     input.ECS,
+		Alb:     input.ALB,
+		Ec2:     input.EC2,
+		Time:    input.Time,
+		MaxWait: 5 * time.Minute,
 	}
 }

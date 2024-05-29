@@ -22,8 +22,6 @@ type RollOutResult struct {
 	ServiceIntact bool
 }
 
-var WaitDuration = 15 * time.Minute
-
 func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	ret := &RollOutResult{
 		StartTime:     c.Time.Now(),
@@ -136,7 +134,7 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	if err := ecs.NewServicesStableWaiter(c.Ecs).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &c.Env.Cluster,
 		Services: []string{c.Env.Service},
-	}, WaitDuration); err != nil {
+	}, c.MaxWait); err != nil {
 		return throw(err)
 	}
 	log.Infof("🥴 service '%s' has become to be stable!", c.Env.Service)
@@ -267,7 +265,7 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 	if err := ecs.NewTasksRunningWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
 		Tasks:   []string{*taskArn},
-	}, WaitDuration); err != nil {
+	}, c.MaxWait); err != nil {
 		return nil, err
 	}
 	log.Infof("🐣 canary task '%s' is running!️", *taskArn)
@@ -444,7 +442,7 @@ func (c *cage) StopCanaryTask(ctx context.Context, input *StartCanaryTaskOutput)
 				Id:               input.targetId,
 				Port:             input.targetPort,
 			}},
-		}, WaitDuration); err != nil {
+		}, c.MaxWait); err != nil {
 			return err
 		}
 		log.Infof(
@@ -463,7 +461,7 @@ func (c *cage) StopCanaryTask(ctx context.Context, input *StartCanaryTaskOutput)
 	if err := ecs.NewTasksStoppedWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
 		Tasks:   []string{*input.task.TaskArn},
-	}, WaitDuration); err != nil {
+	}, c.MaxWait); err != nil {
 		return err
 	}
 	log.Infof("canary task '%s' has successfully been stopped", *input.task.TaskArn)

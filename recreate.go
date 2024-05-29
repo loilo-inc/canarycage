@@ -95,7 +95,7 @@ func (c *cage) createService(ctx context.Context, serviceDefinitionInput *ecs.Cr
 	if err := ecs.NewServicesStableWaiter(c.Ecs).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &c.Env.Cluster,
 		Services: []string{*serviceDefinitionInput.ServiceName},
-	}, WaitDuration); err != nil {
+	}, c.MaxWait); err != nil {
 		return nil, xerrors.Errorf("failed to wait for service '%s' to be STABLE: %w", *serviceDefinitionInput.ServiceName, err)
 	}
 	return o.Service, nil
@@ -114,7 +114,7 @@ func (c *cage) updateServiceTaskCount(ctx context.Context, service string, count
 	if err := ecs.NewServicesStableWaiter(c.Ecs).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &c.Env.Cluster,
 		Services: []string{service},
-	}, WaitDuration); err != nil {
+	}, c.MaxWait); err != nil {
 		return xerrors.Errorf("failed to wait for service '%s' to be STABLE: %v", service, err)
 	}
 	return nil
@@ -132,7 +132,7 @@ func (c *cage) deleteService(ctx context.Context, service string) error {
 	if err := ecs.NewServicesInactiveWaiter(c.Ecs).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &c.Env.Cluster,
 		Services: []string{service},
-	}, WaitDuration); err != nil {
+	}, c.MaxWait); err != nil {
 		return xerrors.Errorf("failed to wait for service '%s' to be INACTIVE: %w", service, err)
 	}
 	return nil
