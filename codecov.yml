@@ -1,4 +1,4 @@
 ignore:
-  - "test/**/*"
-  - "mocks/**/*"
+  - "test"
+  - "mocks"
   - "cli/cage"
