@@ -78,7 +78,7 @@ func TestUpgrade(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = os.WriteFile(tmpDir+"/cage", []byte(version+"\n"), 0644)
+		err = os.WriteFile(tmpDir+"/cage", []byte(version+"\n"), 0755)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -95,6 +95,8 @@ func TestUpgrade(t *testing.T) {
 		assert.True(t, os.IsNotExist(err))
 		_, err = os.Stat(tmpDir + "/cage.old")
 		assert.True(t, os.IsNotExist(err))
+		stat, _ := os.Stat(tmpDir + "/cage")
+		assert.Equal(t, 0755, int(stat.Mode().Perm()))
 	}
 
 	t.Run("basic", func(t *testing.T) {

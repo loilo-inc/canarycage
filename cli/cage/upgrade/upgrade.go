@@ -220,5 +220,8 @@ func swapFiles(
 	if err := os.Remove(oldFilepath); err != nil {
 		return err
 	}
+	if err := os.Chmod(targetPath, 0755); err != nil {
+		return err
+	}
 	return nil
 }
