@@ -1,23 +1,38 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/cli/cage/commands"
+	"github.com/loilo-inc/canarycage/cli/cage/upgrade"
 	"github.com/urfave/cli/v2"
+)
+
+// set by goreleaser
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
 )
 
 func main() {
 	app := cli.NewApp()
 	app.Name = "canarycage"
-	app.Version = "4.0.0-rc1"
+	app.Version = fmt.Sprintf("%s (commit: %s, date: %s)", version, commit, date)
 	app.Usage = "A deployment tool for AWS ECS"
 	app.Description = "A deployment tool for AWS ECS"
 	envars := cage.Envars{}
 	cmds := commands.NewCageCommands(os.Stdin, commands.DefalutCageCliProvider)
-	app.Commands = cmds.Commands(&envars)
+	app.Commands = []*cli.Command{
+		cmds.Up(&envars),
+		cmds.RollOut(&envars),
+		cmds.Run(&envars),
+		cmds.Recreate(&envars),
+		cmds.Upgrade(upgrade.NewUpgrader(version)),
+	}
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{
 			Name:        "ci",

@@ -14,13 +14,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type CageCommands interface {
-	Commands(
-		envars *cage.Envars,
-	) []*cli.Command
-}
-
-type cageCommands struct {
+type CageCommands struct {
 	Prompt         *prompt.Prompter
 	cageCliProvier cageCliProvier
 }
@@ -28,23 +22,14 @@ type cageCommands struct {
 func NewCageCommands(
 	stdin io.Reader,
 	cageCliProvier cageCliProvier,
-) CageCommands {
-	return &cageCommands{
+) *CageCommands {
+	return &CageCommands{
 		Prompt:         prompt.NewPrompter(stdin),
 		cageCliProvier: cageCliProvier,
 	}
 }
 
 type cageCliProvier = func(envars *cage.Envars) (cage.Cage, error)
-
-func (c *cageCommands) Commands(envars *cage.Envars) []*cli.Command {
-	return []*cli.Command{
-		c.Up(envars),
-		c.RollOut(envars),
-		c.Run(envars),
-		c.Recreate(envars),
-	}
-}
 
 func DefalutCageCliProvider(envars *cage.Envars) (cage.Cage, error) {
 	conf, err := config.LoadDefaultConfig(
@@ -62,7 +47,7 @@ func DefalutCageCliProvider(envars *cage.Envars) (cage.Cage, error) {
 	return cagecli, nil
 }
 
-func (c *cageCommands) requireArgs(
+func (c *CageCommands) requireArgs(
 	ctx *cli.Context,
 	minArgs int,
 	maxArgs int,
@@ -77,7 +62,7 @@ func (c *cageCommands) requireArgs(
 	return
 }
 
-func (c *cageCommands) setupCage(
+func (c *CageCommands) setupCage(
 	envars *cage.Envars,
 	dir string,
 ) (cage.Cage, error) {

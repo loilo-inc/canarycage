@@ -7,7 +7,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (c *cageCommands) Up(
+func (c *CageCommands) Up(
 	envars *cage.Envars,
 ) *cli.Command {
 	return &cli.Command{

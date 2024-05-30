@@ -1,0 +1,2 @@
+4ec51ab19c8663c7a90d42eaab7e46e84fc0a227341b70a1ac7a24a311bc3e5a  canarycage_darwin_arm64.zip
+4ec51ab19c8663c7a90d42eaab7e46e84fc0a227341b70a1ac7a24a311bc3e5a  canarycage_linux_amd64.zip

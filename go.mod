@@ -10,12 +10,17 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.41.11
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.31.1
 	github.com/golang/mock v1.6.0
+	github.com/google/go-github/v62 v62.0.0
 	github.com/google/uuid v1.6.0
+	github.com/jarcoal/httpmock v1.3.1
 	github.com/stretchr/testify v1.9.0
 	github.com/urfave/cli/v2 v2.27.2
 )
 
+require github.com/google/go-querystring v1.1.0 // indirect
+
 require (
+	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.16 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.7 // indirect

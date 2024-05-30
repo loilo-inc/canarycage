@@ -1,4 +1,4 @@
 ignore:
   - "test"
   - "mocks"
-  - "cli/cage"
+  - "cli/cage/main.go"
