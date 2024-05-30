@@ -153,4 +153,44 @@ func TestUpgrade(t *testing.T) {
 		err := u.Upgrade(&upgrade.Input{})
 		assert.EqualError(t, err, "invalid checksum line: invalid")
 	})
+	t.Run("FindLatestRelease", func(t *testing.T) {
+		t.Run("should return latest release", func(t *testing.T) {
+			registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
+			u := upgrade.ExportedUpgrader{}
+			release, err := u.FindLatestRelease(false)
+			assert.NoError(t, err)
+			assert.Equal(t, "0.2.0", release.GetTagName())
+		})
+		t.Run("should return latest pre-release", func(t *testing.T) {
+			registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
+			u := upgrade.ExportedUpgrader{}
+			release, err := u.FindLatestRelease(true)
+			assert.NoError(t, err)
+			assert.Equal(t, "0.2.1-rc1", release.GetTagName())
+		})
+		t.Run("should return nil if no releases", func(t *testing.T) {
+			registerResponses(t, "not-a-release")
+			u := &upgrade.ExportedUpgrader{}
+			release, err := u.FindLatestRelease(false)
+			assert.Nil(t, release)
+			assert.EqualError(t, err, "no releases found")
+		})
+		t.Run("should return nil if no releases with pre-release", func(t *testing.T) {
+			registerResponses(t, "0.1.0-rc1")
+			u := &upgrade.ExportedUpgrader{}
+			release, err := u.FindLatestRelease(false)
+			assert.Nil(t, release)
+			assert.EqualError(t, err, "no releases found")
+		})
+		t.Run("should return error if ListReleases failed", func(t *testing.T) {
+			httpmock.Activate()
+			defer httpmock.DeactivateAndReset()
+			httpmock.RegisterResponder("GET", "https://api.github.com/repos/loilo-inc/canarycage/releases",
+				httpmock.NewErrorResponder(fmt.Errorf("error")))
+			u := &upgrade.ExportedUpgrader{}
+			release, err := u.FindLatestRelease(false)
+			assert.Nil(t, release)
+			assert.ErrorContains(t, err, "failed to list releases")
+		})
+	})
 }

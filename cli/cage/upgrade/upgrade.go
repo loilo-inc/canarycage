@@ -36,29 +36,10 @@ func NewUpgrader(currentVersion string) Upgrader {
 }
 
 func (u *upgrader) Upgrade(p *Input) error {
-	cont := context.Background()
-	client := github.NewClient(nil)
 	log.Infof("checking for updates...")
-	releases, _, err := client.Repositories.ListReleases(cont, "loilo-inc", "canarycage", nil)
+	latestRelease, err := u.FindLatestRelease(p.PreRelease)
 	if err != nil {
 		return err
-	}
-	var latestRelease *github.RepositoryRelease
-	for _, release := range releases {
-		_, err := semver.NewVersion(release.GetTagName())
-		if err != nil {
-			continue
-		}
-		if release.GetPrerelease() && p.PreRelease {
-			latestRelease = release
-			break
-		} else if !release.GetPrerelease() {
-			latestRelease = release
-			break
-		}
-	}
-	if latestRelease == nil {
-		return xerrors.Errorf("failed to find latest release")
 	}
 	log.Infof("latest release: %s", latestRelease.GetTagName())
 	currVer, currVerErr := semver.NewVersion(u.currentVersion)
@@ -93,38 +74,11 @@ func (u *upgrader) Upgrade(p *Input) error {
 		return err
 	}
 	log.Infof("downloading binary %s...", binaryAsset.GetName())
-	resp, err := http.DefaultClient.Get(binaryAsset.GetBrowserDownloadURL())
+	cageRd, err := unzipArchive(binaryAsset.GetBrowserDownloadURL(), checksum)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-
-	zipdest, err := os.CreateTemp("", "cage")
-	if err != nil {
-		return err
-	}
-	defer zipdest.Close()
-
-	sha := sha256.New()
-	if _, err := io.Copy(zipdest, io.TeeReader(resp.Body, sha)); err != nil {
-		return err
-	}
-
-	actChecksum := sha.Sum(nil)
-	if !bytes.Equal(checksum, actChecksum) {
-		return xerrors.Errorf("checksum mismatch: expected %x, got %x", checksum, actChecksum)
-	}
-
-	ziprd, err := zip.OpenReader(zipdest.Name())
-	if err != nil {
-		return err
-	}
-	defer ziprd.Close()
-	cageRd, err := ziprd.Open("cage")
-	if err != nil {
-		return err
-	}
-
+	log.Info("swapping binary...")
 	targetPath := p.TargetPath
 	if targetPath == "" {
 		exec, err := os.Executable()
@@ -133,28 +87,76 @@ func (u *upgrader) Upgrade(p *Input) error {
 		}
 		targetPath = exec
 	}
-
-	oldFilepath := targetPath + ".old"
-	if err := os.Rename(targetPath, oldFilepath); err != nil {
-		return err
-	}
-	newFilepath := targetPath + ".new"
-	newFile, err := os.OpenFile(newFilepath, os.O_CREATE|os.O_WRONLY, 0755)
-	if err != nil {
-		return err
-	}
-	defer newFile.Close()
-	if _, err := io.Copy(newFile, cageRd); err != nil {
-		return err
-	}
-	if err := os.Rename(newFilepath, targetPath); err != nil {
-		return err
-	}
-	if err := os.Remove(oldFilepath); err != nil {
+	if err := swapFiles(targetPath, cageRd); err != nil {
 		return err
 	}
 	log.Infof("upgraded to %s", version)
 	return nil
+}
+
+func (u *upgrader) FindLatestRelease(pre bool) (*github.RepositoryRelease, error) {
+	cont := context.Background()
+	client := github.NewClient(nil)
+	releases, _, err := client.Repositories.ListReleases(cont, "loilo-inc", "canarycage", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to list releases: %w", err)
+	}
+	var latestRelease *github.RepositoryRelease
+	for _, release := range releases {
+		_, err := semver.NewVersion(release.GetTagName())
+		if err != nil {
+			continue
+		}
+		if release.GetPrerelease() && pre {
+			latestRelease = release
+			break
+		} else if !release.GetPrerelease() {
+			latestRelease = release
+			break
+		}
+	}
+	if latestRelease == nil {
+		return nil, xerrors.Errorf("no releases found")
+	}
+	return latestRelease, nil
+}
+
+func unzipArchive(
+	assetUrl string,
+	checksum []byte,
+) (io.ReadCloser, error) {
+	resp, err := http.DefaultClient.Get(assetUrl)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	zipdest, err := os.CreateTemp("", "cage")
+	if err != nil {
+		return nil, err
+	}
+	defer zipdest.Close()
+
+	sha := sha256.New()
+	if _, err := io.Copy(zipdest, io.TeeReader(resp.Body, sha)); err != nil {
+		return nil, err
+	}
+
+	actChecksum := sha.Sum(nil)
+	if !bytes.Equal(checksum, actChecksum) {
+		return nil, xerrors.Errorf("checksum mismatch: expected %x, got %x", checksum, actChecksum)
+	}
+
+	ziprd, err := zip.OpenReader(zipdest.Name())
+	if err != nil {
+		return nil, err
+	}
+	defer ziprd.Close()
+	cageRd, err := ziprd.Open("cage")
+	if err != nil {
+		return nil, err
+	}
+	return cageRd, nil
 }
 
 func parseChecksums(url string, file string) ([]byte, error) {
@@ -189,4 +191,33 @@ func parseChecksums(url string, file string) ([]byte, error) {
 		return nil, err
 	}
 	return bin, nil
+}
+
+func swapFiles(
+	targetPath string,
+	newReader io.ReadCloser,
+) error {
+	defer newReader.Close()
+	// Write to a new file
+	newFilepath := targetPath + ".new"
+	newFile, err := os.OpenFile(newFilepath, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		return err
+	}
+	defer newFile.Close()
+	if _, err := io.Copy(newFile, newReader); err != nil {
+		return err
+	}
+	// Swap files
+	oldFilepath := targetPath + ".old"
+	if err := os.Rename(targetPath, oldFilepath); err != nil {
+		return err
+	}
+	if err := os.Rename(newFilepath, targetPath); err != nil {
+		return err
+	}
+	if err := os.Remove(oldFilepath); err != nil {
+		return err
+	}
+	return nil
 }
