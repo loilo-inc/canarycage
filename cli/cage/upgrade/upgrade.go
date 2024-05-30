@@ -19,15 +19,23 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type Input struct {
-	CurrentVersion string
-	PreRelease     bool
-	TargetPath     string
-	Os             string
-	Arch           string
+type Upgrader interface {
+	Upgrade(p *Input) error
+}
+type upgrader struct {
+	currentVersion string
 }
 
-func Upgrade(p *Input) error {
+type Input struct {
+	PreRelease bool
+	TargetPath string
+}
+
+func NewUpgrader(currentVersion string) Upgrader {
+	return &upgrader{currentVersion: currentVersion}
+}
+
+func (u *upgrader) Upgrade(p *Input) error {
 	cont := context.Background()
 	client := github.NewClient(nil)
 	log.Infof("checking for updates...")
@@ -53,7 +61,7 @@ func Upgrade(p *Input) error {
 		return xerrors.Errorf("failed to find latest release")
 	}
 	log.Infof("latest release: %s", latestRelease.GetTagName())
-	currVer, currVerErr := semver.NewVersion(p.CurrentVersion)
+	currVer, currVerErr := semver.NewVersion(u.currentVersion)
 	latestVer := semver.MustParse(latestRelease.GetTagName())
 	if currVerErr == nil {
 		if currVer.Equal(latestVer) || currVer.GreaterThan(latestVer) {
@@ -62,7 +70,7 @@ func Upgrade(p *Input) error {
 		}
 	}
 	// ignore current version if it's not a valid semver
-	log.Infof("upgrading from %s to %s", p.CurrentVersion, latestRelease.GetTagName())
+	log.Infof("upgrading from %s to %s", u.currentVersion, latestRelease.GetTagName())
 	var version = latestRelease.GetTagName()
 	var checksumAsset *github.ReleaseAsset
 	var binaryAsset *github.ReleaseAsset

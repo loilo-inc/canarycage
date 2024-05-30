@@ -100,10 +100,9 @@ func TestUpgrade(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
 		tmpDir := setupCurrent(t, "0.1.0")
-
-		err := upgrade.Upgrade(&upgrade.Input{
-			CurrentVersion: "0.1.0",
-			TargetPath:     tmpDir + "/cage"})
+		u := upgrade.NewUpgrader("0.1.0")
+		err := u.Upgrade(&upgrade.Input{
+			TargetPath: tmpDir + "/cage"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,9 +111,9 @@ func TestUpgrade(t *testing.T) {
 	t.Run("no updates", func(t *testing.T) {
 		registerResponses(t, "0.1.0")
 		tmpDir := setupCurrent(t, "0.1.0")
-		err := upgrade.Upgrade(&upgrade.Input{
-			CurrentVersion: "0.1.0",
-			TargetPath:     tmpDir + "/cage",
+		u := upgrade.NewUpgrader("0.1.0")
+		err := u.Upgrade(&upgrade.Input{
+			TargetPath: tmpDir + "/cage",
 		})
 		assert.NoError(t, err)
 		assertUpgraded(t, tmpDir, "0.1.0")
@@ -122,10 +121,10 @@ func TestUpgrade(t *testing.T) {
 	t.Run("pre-release", func(t *testing.T) {
 		registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
 		tmpDir := setupCurrent(t, "0.1.0")
-		err := upgrade.Upgrade(&upgrade.Input{
-			CurrentVersion: "0.1.0",
-			PreRelease:     true,
-			TargetPath:     tmpDir + "/cage"})
+		u := upgrade.NewUpgrader("0.1.0")
+		err := u.Upgrade(&upgrade.Input{
+			PreRelease: true,
+			TargetPath: tmpDir + "/cage"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,9 +133,9 @@ func TestUpgrade(t *testing.T) {
 	t.Run("should upgrade if current version is not a valid semver", func(t *testing.T) {
 		registerResponses(t, "0.1.0", "0.2.0")
 		tmpDir := setupCurrent(t, "dev")
-		err := upgrade.Upgrade(&upgrade.Input{
-			CurrentVersion: "dev",
-			TargetPath:     tmpDir + "/cage"})
+		u := upgrade.NewUpgrader("dev")
+		err := u.Upgrade(&upgrade.Input{
+			TargetPath: tmpDir + "/cage"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -150,8 +149,8 @@ func TestUpgrade(t *testing.T) {
 			httpmock.NewJsonResponderOrPanic(200, makeReleases("0.1.0", "0.2.0")))
 		httpmock.RegisterResponder("GET", "https://localhost/0.2.0/canarycage_0.2.0_checksums.txt",
 			httpmock.NewStringResponder(200, "invalid"))
-		err := upgrade.Upgrade(&upgrade.Input{
-			CurrentVersion: "0.1.0"})
+		u := upgrade.NewUpgrader("0.1.0")
+		err := u.Upgrade(&upgrade.Input{})
 		assert.EqualError(t, err, "invalid checksum line: invalid")
 	})
 }

@@ -7,6 +7,7 @@ import (
 
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/cli/cage/commands"
+	"github.com/loilo-inc/canarycage/cli/cage/upgrade"
 	"github.com/urfave/cli/v2"
 )
 
@@ -30,7 +31,7 @@ func main() {
 		cmds.RollOut(&envars),
 		cmds.Run(&envars),
 		cmds.Recreate(&envars),
-		cmds.Upgrade(version),
+		cmds.Upgrade(upgrade.NewUpgrader(version)),
 	}
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{

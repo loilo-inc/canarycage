@@ -6,7 +6,7 @@ import (
 )
 
 func (c *CageCommands) Upgrade(
-	currVersion string,
+	upgrader upgrade.Upgrader,
 ) *cli.Command {
 	var preRelease bool
 	return &cli.Command{
@@ -20,9 +20,8 @@ func (c *CageCommands) Upgrade(
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			return upgrade.Upgrade(&upgrade.Input{
-				CurrentVersion: currVersion,
-				PreRelease:     preRelease,
+			return upgrader.Upgrade(&upgrade.Input{
+				PreRelease: preRelease,
 			})
 		},
 	}
