@@ -1,18 +1,21 @@
 package upgrade
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"runtime"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/apex/log"
 	"github.com/google/go-github/v62/github"
-	"github.com/minio/selfupdate"
 	"golang.org/x/xerrors"
 )
 
@@ -20,6 +23,8 @@ type Input struct {
 	CurrentVersion string
 	PreRelease     bool
 	TargetPath     string
+	Os             string
+	Arch           string
 }
 
 func Upgrade(p *Input) error {
@@ -75,15 +80,7 @@ func Upgrade(p *Input) error {
 		return xerrors.Errorf("failed to find assets for version %s", version)
 	}
 	log.Info("downloading checksums...")
-	checksums, err := parseChecksums(checksumAsset.GetBrowserDownloadURL())
-	if err != nil {
-		return err
-	}
-	checksum, ok := checksums[binaryAsset.GetName()]
-	if !ok {
-		return xerrors.Errorf("failed to find checksum for %s", binaryAsset.GetName())
-	}
-	bin, err := hex.DecodeString(checksum)
+	checksum, err := parseChecksums(checksumAsset.GetBrowserDownloadURL(), binariAssetName)
 	if err != nil {
 		return err
 	}
@@ -93,14 +90,66 @@ func Upgrade(p *Input) error {
 		return err
 	}
 	defer resp.Body.Close()
-	log.Infof("upgrading to %s", version)
-	return selfupdate.Apply(resp.Body, selfupdate.Options{
-		Checksum:   bin,
-		TargetPath: p.TargetPath,
-	})
+
+	zipdest, err := os.CreateTemp("", "cage")
+	if err != nil {
+		return err
+	}
+	defer zipdest.Close()
+
+	sha := sha256.New()
+	if _, err := io.Copy(zipdest, io.TeeReader(resp.Body, sha)); err != nil {
+		return err
+	}
+
+	actChecksum := sha.Sum(nil)
+	if !bytes.Equal(checksum, actChecksum) {
+		return xerrors.Errorf("checksum mismatch: expected %x, got %x", checksum, actChecksum)
+	}
+
+	ziprd, err := zip.OpenReader(zipdest.Name())
+	if err != nil {
+		return err
+	}
+	defer ziprd.Close()
+	cageRd, err := ziprd.Open("cage")
+	if err != nil {
+		return err
+	}
+
+	targetPath := p.TargetPath
+	if targetPath == "" {
+		exec, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		targetPath = exec
+	}
+
+	oldFilepath := targetPath + ".old"
+	if err := os.Rename(targetPath, oldFilepath); err != nil {
+		return err
+	}
+	newFilepath := targetPath + ".new"
+	newFile, err := os.OpenFile(newFilepath, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		return err
+	}
+	defer newFile.Close()
+	if _, err := io.Copy(newFile, cageRd); err != nil {
+		return err
+	}
+	if err := os.Rename(newFilepath, targetPath); err != nil {
+		return err
+	}
+	if err := os.Remove(oldFilepath); err != nil {
+		return err
+	}
+	log.Infof("upgraded to %s", version)
+	return nil
 }
 
-func parseChecksums(url string) (map[string]string, error) {
+func parseChecksums(url string, file string) ([]byte, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -123,5 +172,13 @@ func parseChecksums(url string) (map[string]string, error) {
 		}
 		sums[parts[1]] = parts[0]
 	}
-	return sums, nil
+	checksum, ok := sums[file]
+	if !ok {
+		return nil, xerrors.Errorf("failed to find checksum for %s", file)
+	}
+	bin, err := hex.DecodeString(checksum)
+	if err != nil {
+		return nil, err
+	}
+	return bin, nil
 }

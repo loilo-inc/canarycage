@@ -2,7 +2,9 @@ package upgrade_test
 
 import (
 	"fmt"
+	"net/http"
 	"os"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -27,7 +29,7 @@ func TestUpgrade(t *testing.T) {
 		for _, tag := range tags {
 			releases = append(releases, &github.RepositoryRelease{
 				TagName:    github.String(tag),
-				Prerelease: github.Bool(strings.HasSuffix(tag, "-pre")),
+				Prerelease: github.Bool(regexp.MustCompile(`-rc\d+$`).MatchString(tag)),
 				Assets: []*github.ReleaseAsset{
 					makeAsset(tag, "canarycage_"+tag+"_checksums.txt"),
 					makeAsset(tag, binaryAssetName)},
@@ -38,64 +40,107 @@ func TestUpgrade(t *testing.T) {
 		})
 		return releases
 	}
-	t.Run("basic", func(t *testing.T) {
+	registerResponses := func(
+		t *testing.T,
+		candidates ...string) {
+
 		httpmock.Activate()
-		defer httpmock.DeactivateAndReset()
+		t.Cleanup(httpmock.DeactivateAndReset)
+
+		respond := func(req *http.Request) (*http.Response, error) {
+			f, err := os.Open("testdata" + req.URL.Path)
+			if err != nil {
+				return nil, err
+			}
+			return &http.Response{
+				StatusCode: 200,
+				Body:       f,
+			}, nil
+		}
 
 		httpmock.RegisterResponder("GET", "https://api.github.com/repos/loilo-inc/canarycage/releases",
-			httpmock.NewJsonResponderOrPanic(200, makeReleases("0.1.0", "0.2.0")))
-		httpmock.RegisterResponder("GET", "https://localhost/0.2.0/canarycage_0.2.0_checksums.txt",
-			httpmock.NewStringResponder(200, "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b  "+binaryAssetName))
-		httpmock.RegisterResponder("GET", "https://localhost/0.2.0/"+binaryAssetName,
-			httpmock.NewStringResponder(200, "1"))
+			httpmock.NewJsonResponderOrPanic(200, makeReleases(candidates...)))
+
+		for _, release := range candidates {
+			httpmock.RegisterResponder("GET",
+				fmt.Sprintf("https://localhost/%s/canarycage_%s_checksums.txt", release, release),
+				respond,
+			)
+			httpmock.RegisterResponder("GET",
+				fmt.Sprintf("https://localhost/%s/%s", release, binaryAssetName),
+				respond,
+			)
+		}
+	}
+	setupCurrent := func(t *testing.T, version string) string {
+		var err error
 		tmpDir, err := os.MkdirTemp("", "canarycage")
-		assert.NoError(t, err)
-		err = os.WriteFile(tmpDir+"/cage", []byte("0.1.0"), 0644)
-		assert.NoError(t, err)
-		err = upgrade.Upgrade(&upgrade.Input{
-			CurrentVersion: "0.1.0",
-			TargetPath:     tmpDir + "/cage"})
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = os.WriteFile(tmpDir+"/cage", []byte(version+"\n"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tmpDir
+	}
+
+	assertUpgraded := func(t *testing.T, tmpDir, version string) {
 		if content, err := os.ReadFile(tmpDir + "/cage"); err != nil {
 			t.Fatal(err)
 		} else {
-			assert.Equal(t, "1", string(content))
+			assert.Equal(t, version+"\n", string(content))
 		}
+		_, err := os.Stat(tmpDir + "/cage.new")
+		assert.True(t, os.IsNotExist(err))
+		_, err = os.Stat(tmpDir + "/cage.old")
+		assert.True(t, os.IsNotExist(err))
+	}
+
+	t.Run("basic", func(t *testing.T) {
+		registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
+		tmpDir := setupCurrent(t, "0.1.0")
+
+		err := upgrade.Upgrade(&upgrade.Input{
+			CurrentVersion: "0.1.0",
+			TargetPath:     tmpDir + "/cage"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertUpgraded(t, tmpDir, "0.2.0")
 	})
 	t.Run("no updates", func(t *testing.T) {
-		httpmock.Activate()
-		defer httpmock.DeactivateAndReset()
-
-		httpmock.RegisterResponder("GET", "https://api.github.com/repos/loilo-inc/canarycage/releases",
-			httpmock.NewJsonResponderOrPanic(200, makeReleases("0.1.0")))
+		registerResponses(t, "0.1.0")
+		tmpDir := setupCurrent(t, "0.1.0")
 		err := upgrade.Upgrade(&upgrade.Input{
-			CurrentVersion: "0.1.0"})
+			CurrentVersion: "0.1.0",
+			TargetPath:     tmpDir + "/cage",
+		})
 		assert.NoError(t, err)
+		assertUpgraded(t, tmpDir, "0.1.0")
 	})
 	t.Run("pre-release", func(t *testing.T) {
-		httpmock.Activate()
-		defer httpmock.DeactivateAndReset()
-
-		httpmock.RegisterResponder("GET", "https://api.github.com/repos/loilo-inc/canarycage/releases",
-			httpmock.NewJsonResponderOrPanic(200, makeReleases("0.1.0", "0.2.0-pre")))
-		httpmock.RegisterResponder("GET", "https://localhost/0.2.0-pre/canarycage_0.2.0-pre_checksums.txt",
-			httpmock.NewStringResponder(200, "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b  "+binaryAssetName))
-		httpmock.RegisterResponder("GET", "https://localhost/0.2.0-pre/"+binaryAssetName,
-			httpmock.NewStringResponder(200, "1"))
-		tmpDir, err := os.MkdirTemp("", "canarycage")
-		assert.NoError(t, err)
-		err = os.WriteFile(tmpDir+"/cage", []byte("0.1.0"), 0644)
-		assert.NoError(t, err)
-		err = upgrade.Upgrade(&upgrade.Input{
+		registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
+		tmpDir := setupCurrent(t, "0.1.0")
+		err := upgrade.Upgrade(&upgrade.Input{
 			CurrentVersion: "0.1.0",
 			PreRelease:     true,
 			TargetPath:     tmpDir + "/cage"})
-		assert.NoError(t, err)
-		if content, err := os.ReadFile(tmpDir + "/cage"); err != nil {
+		if err != nil {
 			t.Fatal(err)
-		} else {
-			assert.Equal(t, "1", string(content))
 		}
+		assertUpgraded(t, tmpDir, "0.2.1-rc1")
+	})
+	t.Run("should upgrade if current version is not a valid semver", func(t *testing.T) {
+		registerResponses(t, "0.1.0", "0.2.0")
+		tmpDir := setupCurrent(t, "dev")
+		err := upgrade.Upgrade(&upgrade.Input{
+			CurrentVersion: "dev",
+			TargetPath:     tmpDir + "/cage"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertUpgraded(t, tmpDir, "0.2.0")
 	})
 	t.Run("parse checksum error", func(t *testing.T) {
 		httpmock.Activate()
