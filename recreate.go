@@ -42,9 +42,9 @@ func (c *cage) Recreate(ctx context.Context) (*RecreateResult, error) {
 		return nil, err
 	}
 	transitServiceName := fmt.Sprintf("%s-%d", *oldService.ServiceName, c.Time.Now().Unix())
-	newServiceInput := *c.Env.ServiceDefinitionInput
-	curDesiredCount := oldService.DesiredCount
 	c.Env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinitionArn
+	curDesiredCount := oldService.DesiredCount
+	newServiceInput := *c.Env.ServiceDefinitionInput
 	transitServiceDifinitonInput := *c.Env.ServiceDefinitionInput
 	transitServiceDifinitonInput.ServiceName = &transitServiceName
 	transitServiceDifinitonInput.DesiredCount = aws.Int32(1)

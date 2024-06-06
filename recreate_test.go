@@ -100,6 +100,9 @@ func TestRecreate(t *testing.T) {
 		assert.Equal(t, mocker.RunningTaskSize(), 1)
 		assert.Equal(t, len(mocker.TaskDefinitions.List()), 1)
 		assert.Equal(t, *mocker.Services["service"].ServiceName, *result.Service.ServiceName)
+		td := mocker.TaskDefinitions.List()[0]
+		assert.Equal(t, *td.TaskDefinitionArn, *result.TaskDefinition.TaskDefinitionArn)
+		assert.Equal(t, *mocker.Services["service"].TaskDefinition, *result.TaskDefinition.TaskDefinitionArn)
 	})
 	t.Run("should error if failed to describe old service", func(t *testing.T) {
 		cagecli, _, ecsMock, _ := setup(t, 0)
