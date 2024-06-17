@@ -69,6 +69,9 @@ func (c *cage) RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult
 	} else {
 		nextTaskDefinition = o
 	}
+	if input.UpdateService {
+		log.Info("--updateService flag is set. use provided service configurations for canary test instead of current service")
+	}
 	log.Infof("starting canary task...")
 	canaryTask, startCanaryTaskErr := c.StartCanaryTask(ctx, nextTaskDefinition, input)
 	// ensure canary task stopped after rolling out either success or failure
