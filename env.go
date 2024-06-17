@@ -34,6 +34,7 @@ const TaskDefinitionArnKey = "CAGE_TASK_DEFINITION_ARN"
 const CanaryInstanceArnKey = "CAGE_CANARY_INSTANCE_ARN"
 const RegionKey = "CAGE_REGION"
 const CanaryTaskIdleDuration = "CAGE_CANARY_TASK_IDLE_DURATION"
+const UpdateServiceKey = "CAGE_UPDATE_SERVIEC"
 
 func EnsureEnvars(
 	dest *Envars,

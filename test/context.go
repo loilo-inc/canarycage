@@ -167,6 +167,9 @@ func (ctx *MockContext) UpdateService(c context.Context, input *ecs.UpdateServic
 	s.DesiredCount = nextDesiredCount
 	s.TaskDefinition = nextTaskDefinition
 	s.RunningCount = nextDesiredCount
+	s.ServiceRegistries = input.ServiceRegistries
+	s.NetworkConfiguration = input.NetworkConfiguration
+	s.LoadBalancers = input.LoadBalancers
 	s.Deployments = []types.Deployment{
 		{
 			DesiredCount:   nextDesiredCount,

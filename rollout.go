@@ -16,13 +16,18 @@ import (
 	"golang.org/x/xerrors"
 )
 
+type RollOutInput struct {
+	// UpdateService is a flag to update service with changed configurations except for task definition
+	UpdateService bool
+}
+
 type RollOutResult struct {
 	StartTime     time.Time
 	EndTime       time.Time
 	ServiceIntact bool
 }
 
-func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
+func (c *cage) RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult, error) {
 	ret := &RollOutResult{
 		StartTime:     c.Time.Now(),
 		ServiceIntact: true,
@@ -70,7 +75,7 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 	}
 	log.Infof("starting canary task...")
 	var canaryTask *StartCanaryTaskOutput
-	if o, err := c.StartCanaryTask(ctx, nextTaskDefinition); err != nil {
+	if o, err := c.StartCanaryTask(ctx, nextTaskDefinition, input); err != nil {
 		log.Errorf("failed to start canary task due to: %s", err)
 		return throw(err)
 	} else {
@@ -121,16 +126,23 @@ func (c *cage) RollOut(ctx context.Context) (*RollOutResult, error) {
 		"updating the task definition of '%s' into '%s:%d'...",
 		c.Env.Service, *nextTaskDefinition.Family, nextTaskDefinition.Revision,
 	)
-	if _, err := c.Ecs.UpdateService(ctx, &ecs.UpdateServiceInput{
+	updateInput := &ecs.UpdateServiceInput{
 		Cluster:        &c.Env.Cluster,
 		Service:        &c.Env.Service,
 		TaskDefinition: nextTaskDefinition.TaskDefinitionArn,
-	}); err != nil {
+	}
+	if input.UpdateService {
+		updateInput.LoadBalancers = c.Env.ServiceDefinitionInput.LoadBalancers
+		updateInput.NetworkConfiguration = c.Env.ServiceDefinitionInput.NetworkConfiguration
+		updateInput.ServiceConnectConfiguration = c.Env.ServiceDefinitionInput.ServiceConnectConfiguration
+		updateInput.ServiceRegistries = c.Env.ServiceDefinitionInput.ServiceRegistries
+		updateInput.PlatformVersion = c.Env.ServiceDefinitionInput.PlatformVersion
+		updateInput.VolumeConfigurations = c.Env.ServiceDefinitionInput.VolumeConfigurations
+	}
+	if _, err := c.Ecs.UpdateService(ctx, updateInput); err != nil {
 		return throw(err)
 	}
 	log.Infof("waiting for service '%s' to be stable...", c.Env.Service)
-	//TODO: avoid stdout sticking while CI
-
 	if err := ecs.NewServicesStableWaiter(c.Ecs).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &c.Env.Cluster,
 		Services: []string{c.Env.Service},
@@ -221,15 +233,30 @@ type StartCanaryTaskOutput struct {
 	targetPort          *int32
 }
 
-func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes.TaskDefinition) (*StartCanaryTaskOutput, error) {
-	var service ecstypes.Service
-	if o, err := c.Ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
-		Cluster:  &c.Env.Cluster,
-		Services: []string{c.Env.Service},
-	}); err != nil {
-		return nil, err
+func (c *cage) StartCanaryTask(
+	ctx context.Context,
+	nextTaskDefinition *ecstypes.TaskDefinition,
+	input *RollOutInput,
+) (*StartCanaryTaskOutput, error) {
+	var networkConfiguration *ecstypes.NetworkConfiguration
+	var platformVersion *string
+	var loadBalancers []ecstypes.LoadBalancer
+	if input.UpdateService {
+		networkConfiguration = c.Env.ServiceDefinitionInput.NetworkConfiguration
+		platformVersion = c.Env.ServiceDefinitionInput.PlatformVersion
+		loadBalancers = c.Env.ServiceDefinitionInput.LoadBalancers
 	} else {
-		service = o.Services[0]
+		if o, err := c.Ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
+			Cluster:  &c.Env.Cluster,
+			Services: []string{c.Env.Service},
+		}); err != nil {
+			return nil, err
+		} else {
+			service := o.Services[0]
+			networkConfiguration = service.NetworkConfiguration
+			platformVersion = service.PlatformVersion
+			loadBalancers = service.LoadBalancers
+		}
 	}
 	var taskArn *string
 	if c.Env.CanaryInstanceArn != "" {
@@ -237,7 +264,7 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 		startTask := &ecs.StartTaskInput{
 			Cluster:              &c.Env.Cluster,
 			Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.Env.Service)),
-			NetworkConfiguration: service.NetworkConfiguration,
+			NetworkConfiguration: networkConfiguration,
 			TaskDefinition:       nextTaskDefinition.TaskDefinitionArn,
 			ContainerInstances:   []string{c.Env.CanaryInstanceArn},
 		}
@@ -251,10 +278,10 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 		if o, err := c.Ecs.RunTask(ctx, &ecs.RunTaskInput{
 			Cluster:              &c.Env.Cluster,
 			Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.Env.Service)),
-			NetworkConfiguration: service.NetworkConfiguration,
+			NetworkConfiguration: networkConfiguration,
 			TaskDefinition:       nextTaskDefinition.TaskDefinitionArn,
 			LaunchType:           ecstypes.LaunchTypeFargate,
-			PlatformVersion:      service.PlatformVersion,
+			PlatformVersion:      platformVersion,
 		}); err != nil {
 			return nil, err
 		} else {
@@ -278,8 +305,8 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 	} else {
 		task = o.Tasks[0]
 	}
-	if len(service.LoadBalancers) == 0 {
-		log.Infof("no load balancer is attached to service '%s'. skip registration to target group", *service.ServiceName)
+	if len(loadBalancers) == 0 {
+		log.Infof("no load balancer is attached to service '%s'. skip registration to target group", c.Env.Service)
 		log.Infof("wait %d seconds for ensuring the task goes stable", c.Env.CanaryTaskIdleDuration)
 		wait := make(chan bool)
 		go func() {
@@ -316,7 +343,7 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 	var targetPort *int32
 	var subnet ec2types.Subnet
 	for _, container := range nextTaskDefinition.ContainerDefinitions {
-		if *container.Name == *service.LoadBalancers[0].ContainerName {
+		if *container.Name == *loadBalancers[0].ContainerName {
 			targetPort = container.PortMappings[0].HostPort
 		}
 	}
@@ -363,7 +390,7 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 		log.Infof("canary task was placed: instanceId = '%s', hostPort = '%d', az = '%s'", *targetId, *targetPort, *subnet.AvailabilityZone)
 	}
 	if _, err := c.Alb.RegisterTargets(ctx, &elbv2.RegisterTargetsInput{
-		TargetGroupArn: service.LoadBalancers[0].TargetGroupArn,
+		TargetGroupArn: loadBalancers[0].TargetGroupArn,
 		Targets: []elbv2types.TargetDescription{{
 			AvailabilityZone: subnet.AvailabilityZone,
 			Id:               targetId,
@@ -373,7 +400,7 @@ func (c *cage) StartCanaryTask(ctx context.Context, nextTaskDefinition *ecstypes
 		return nil, err
 	}
 	return &StartCanaryTaskOutput{
-		targetGroupArn: service.LoadBalancers[0].TargetGroupArn,
+		targetGroupArn: loadBalancers[0].TargetGroupArn,
 		targetId:       targetId,
 		targetPort:     targetPort,
 		task:           task,
