@@ -38,19 +38,25 @@ func TestCommands(t *testing.T) {
 	t.Run("rollout", func(t *testing.T) {
 		t.Run("basic", func(t *testing.T) {
 			app, cagecli := setup(t, stdinService)
-			cagecli.EXPECT().RollOut(gomock.Any(), gomock.Any()).Return(&cage.RollOutResult{}, nil)
+			cagecli.EXPECT().RollOut(gomock.Any(), &cage.RollOutInput{}).Return(&cage.RollOutResult{}, nil)
 			err := app.Run([]string{"cage", "rollout", "--region", "ap-notheast-1", "../../../fixtures"})
 			assert.NoError(t, err)
 		})
 		t.Run("basic/ci", func(t *testing.T) {
 			app, cagecli := setup(t, "")
-			cagecli.EXPECT().RollOut(gomock.Any(), gomock.Any()).Return(&cage.RollOutResult{}, nil)
+			cagecli.EXPECT().RollOut(gomock.Any(), &cage.RollOutInput{}).Return(&cage.RollOutResult{}, nil)
 			err := app.Run([]string{"cage", "rollout", "--region", "ap-notheast-1", "../../../fixtures"})
+			assert.NoError(t, err)
+		})
+		t.Run("basic/udate-service", func(t *testing.T) {
+			app, cagecli := setup(t, stdinService)
+			cagecli.EXPECT().RollOut(gomock.Any(), &cage.RollOutInput{UpdateService: true}).Return(&cage.RollOutResult{}, nil)
+			err := app.Run([]string{"cage", "rollout", "--region", "ap-notheast-1", "--updateService", "../../../fixtures"})
 			assert.NoError(t, err)
 		})
 		t.Run("error", func(t *testing.T) {
 			app, cagecli := setup(t, stdinService)
-			cagecli.EXPECT().RollOut(gomock.Any(), gomock.Any()).Return(&cage.RollOutResult{}, fmt.Errorf("error"))
+			cagecli.EXPECT().RollOut(gomock.Any(), &cage.RollOutInput{}).Return(&cage.RollOutResult{}, fmt.Errorf("error"))
 			err := app.Run([]string{"cage", "rollout", "--region", "ap-notheast-1", "../../../fixtures"})
 			assert.EqualError(t, err, "error")
 		})

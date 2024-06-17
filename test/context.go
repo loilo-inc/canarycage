@@ -93,6 +93,9 @@ func (ctx *MockContext) CreateService(c context.Context, input *ecs.CreateServic
 		HealthCheckGracePeriodSeconds: aws.Int32(0),
 		Status:                        &st,
 		ServiceArn:                    &idstr,
+		PlatformVersion:               input.PlatformVersion,
+		ServiceRegistries:             input.ServiceRegistries,
+		NetworkConfiguration:          input.NetworkConfiguration,
 		Deployments: []types.Deployment{
 			{
 				DesiredCount:   *input.DesiredCount,
@@ -109,9 +112,10 @@ func (ctx *MockContext) CreateService(c context.Context, input *ecs.CreateServic
 	log.Debugf("%s: running=%d, desired=%d", *input.ServiceName, ret.RunningCount, *input.DesiredCount)
 	for i := 0; i < int(*input.DesiredCount); i++ {
 		ctx.StartTask(c, &ecs.StartTaskInput{
-			Cluster:        input.Cluster,
-			Group:          aws.String(fmt.Sprintf("service:%s", *input.ServiceName)),
-			TaskDefinition: input.TaskDefinition,
+			Cluster:              input.Cluster,
+			Group:                aws.String(fmt.Sprintf("service:%s", *input.ServiceName)),
+			NetworkConfiguration: input.NetworkConfiguration,
+			TaskDefinition:       input.TaskDefinition,
 		})
 	}
 	ctx.mux.Lock()
@@ -167,6 +171,7 @@ func (ctx *MockContext) UpdateService(c context.Context, input *ecs.UpdateServic
 	s.DesiredCount = nextDesiredCount
 	s.TaskDefinition = nextTaskDefinition
 	s.RunningCount = nextDesiredCount
+	s.PlatformVersion = input.PlatformVersion
 	s.ServiceRegistries = input.ServiceRegistries
 	s.NetworkConfiguration = input.NetworkConfiguration
 	s.LoadBalancers = input.LoadBalancers
@@ -221,18 +226,21 @@ func (ctx *MockContext) StartTask(_ context.Context, input *ecs.StartTaskInput, 
 		return nil, fmt.Errorf("task definition not found: %s", *input.TaskDefinition)
 	}
 	taskArn := fmt.Sprintf("arn:aws:ecs:us-west-2:012345678910:task/%s", uuid.New().String())
-	attachments := []types.Attachment{{
+	attachment := types.Attachment{
 		Details: []types.KeyValuePair{
 			{
 				Name:  aws.String("privateIPv4Address"),
 				Value: aws.String("127.0.0.1"),
 			},
-			{
-				Name:  aws.String("subnetId"),
-				Value: aws.String("subnet-1234567890abcdefg"),
-			},
 		},
-	}}
+	}
+	if input.NetworkConfiguration != nil {
+		subnet := input.NetworkConfiguration.AwsvpcConfiguration.Subnets[0]
+		attachment.Details = append(attachment.Details, types.KeyValuePair{
+			Name:  aws.String("subnetId"),
+			Value: &subnet,
+		})
+	}
 	containers := make([]types.Container, len(td.ContainerDefinitions))
 	for i, v := range td.ContainerDefinitions {
 		containers[i] = types.Container{
@@ -263,7 +271,7 @@ func (ctx *MockContext) StartTask(_ context.Context, input *ecs.StartTaskInput, 
 	}
 	ret.LaunchType = launchType
 	if launchType == types.LaunchTypeFargate {
-		ret.Attachments = attachments
+		ret.Attachments = []types.Attachment{attachment}
 	} else {
 		ret.ContainerInstanceArn = aws.String("arn:aws:ecs:us-west-2:1234567890:container-instance/12345678-hoge-hoge-1234-1f2o3o4ba5r")
 	}
@@ -291,7 +299,7 @@ func (ctx *MockContext) RunTask(c context.Context, input *ecs.RunTaskInput, _ ..
 func (ctx *MockContext) StopTask(_ context.Context, input *ecs.StopTaskInput, _ ...func(options *ecs.Options)) (*ecs.StopTaskOutput, error) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	log.Debugf("stop: %s", input)
+	log.Debugf("stop: %s", *input.Task)
 	ret, ok := ctx.Tasks[*input.Task]
 	if !ok {
 		return nil, fmt.Errorf("task not found: %s", *input.Task)

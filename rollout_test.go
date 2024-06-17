@@ -87,7 +87,6 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 	})
-
 	t.Run("stop rolloing out when canary task is not registered to target group", func(t *testing.T) {
 		envars := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
@@ -130,7 +129,67 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		_, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
 		assert.NotNil(t, err)
 	})
-
+	t.Run("update service", func(t *testing.T) {
+		envars := test.DefaultEnvars()
+		ctrl := gomock.NewController(t)
+		mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 1, "FARGATE")
+		newLb := ecstypes.LoadBalancer{
+			ContainerName:  aws.String("container"),
+			ContainerPort:  aws.Int32(80),
+			TargetGroupArn: aws.String("arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/new-target-group/abcdefg"),
+		}
+		newNetwork := &ecstypes.NetworkConfiguration{
+			AwsvpcConfiguration: &ecstypes.AwsVpcConfiguration{
+				Subnets:        []string{"subnet-1234567890abcdefg"},
+				SecurityGroups: []string{"sg-12345678"},
+			},
+		}
+		envars.ServiceDefinitionInput.LoadBalancers = []ecstypes.LoadBalancer{newLb}
+		envars.ServiceDefinitionInput.NetworkConfiguration = newNetwork
+		envars.ServiceDefinitionInput.PlatformVersion = aws.String("LATEST")
+		cagecli := cage.NewCage(&cage.Input{
+			Env:  envars,
+			ECS:  ecsMock,
+			ALB:  albMock,
+			EC2:  ec2Mock,
+			Time: test.NewFakeTime(),
+		})
+		ctx := context.Background()
+		service, _ := mctx.GetService(envars.Service)
+		assert.Equal(t, "1.4.0", *service.PlatformVersion)
+		assert.NotNil(t, service.NetworkConfiguration)
+		assert.NotNil(t, service.LoadBalancers)
+		_, err := cagecli.RollOut(ctx, &cage.RollOutInput{UpdateService: true})
+		assert.NoError(t, err)
+		service, _ = mctx.GetService(envars.Service)
+		assert.Equal(t, "LATEST", *service.PlatformVersion)
+		assert.Equal(t, *newNetwork, *service.NetworkConfiguration)
+		assert.Equal(t, *service.LoadBalancers[0].ContainerName, *newLb.ContainerName)
+	})
+	t.Run("should stop canary task if error occurs before registering target", func(t *testing.T) {
+		envars := test.DefaultEnvars()
+		ctrl := gomock.NewController(t)
+		mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 1, "FARGATE")
+		cagecli := cage.NewCage(&cage.Input{
+			Env:  envars,
+			ECS:  ecsMock,
+			ALB:  albMock,
+			EC2:  ec2Mock,
+			Time: test.NewFakeTime(),
+		})
+		ctx := context.Background()
+		envars.ServiceDefinitionInput.LoadBalancers = []ecstypes.LoadBalancer{
+			{
+				ContainerName:  aws.String("missing-container"),
+				ContainerPort:  aws.Int32(80),
+				TargetGroupArn: aws.String("arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/new-target-group/abcdefg"),
+			},
+		}
+		result, err := cagecli.RollOut(ctx, &cage.RollOutInput{UpdateService: true})
+		assert.EqualError(t, err, "couldn't find host port in container definition")
+		assert.Equal(t, result.ServiceIntact, true)
+		assert.Equal(t, 1, mctx.RunningTaskSize())
+	})
 	t.Run("Show error if service doesn't exist", func(t *testing.T) {
 		envars := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
@@ -239,6 +298,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			}
 		}
 	})
+
 }
 
 func TestCage_RollOut_EC2(t *testing.T) {
