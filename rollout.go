@@ -252,7 +252,8 @@ func (c *cage) StartCanaryTask(
 			loadBalancers = service.LoadBalancers
 		}
 	}
-	var task ecstypes.Task
+	// Phase 1: Start canary task
+	var taskArn *string
 	if c.Env.CanaryInstanceArn != "" {
 		// ec2
 		startTask := &ecs.StartTaskInput{
@@ -265,7 +266,7 @@ func (c *cage) StartCanaryTask(
 		if o, err := c.Ecs.StartTask(ctx, startTask); err != nil {
 			return result, err
 		} else {
-			task = o.Tasks[0]
+			taskArn = o.Tasks[0].TaskArn
 		}
 	} else {
 		// fargate
@@ -279,18 +280,19 @@ func (c *cage) StartCanaryTask(
 		}); err != nil {
 			return result, err
 		} else {
-			task = o.Tasks[0]
+			taskArn = o.Tasks[0].TaskArn
 		}
 	}
-	result.taskArn = task.TaskArn
-	log.Infof("🥚 waiting for canary task '%s' is running...", *task.TaskArn)
+	result.taskArn = taskArn
+	// Phase 2: Wait until canary task is running
+	log.Infof("🥚 waiting for canary task '%s' is running...", *taskArn)
 	if err := ecs.NewTasksRunningWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
-		Tasks:   []string{*task.TaskArn},
+		Tasks:   []string{*taskArn},
 	}, c.MaxWait); err != nil {
 		return result, err
 	}
-	log.Infof("🐣 canary task '%s' is running!", *task.TaskArn)
+	log.Infof("🐣 canary task '%s' is running!", *taskArn)
 	if len(loadBalancers) == 0 {
 		log.Infof("no load balancer is attached to service '%s'. skip registration to target group", c.Env.Service)
 		log.Infof("wait %d seconds for ensuring the task goes stable", c.Env.CanaryTaskIdleDuration)
@@ -311,7 +313,7 @@ func (c *cage) StartCanaryTask(
 		<-wait
 		o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 			Cluster: &c.Env.Cluster,
-			Tasks:   []string{*task.TaskArn},
+			Tasks:   []string{*taskArn},
 		})
 		if err != nil {
 			return result, err
@@ -321,6 +323,16 @@ func (c *cage) StartCanaryTask(
 			return result, xerrors.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
 		}
 		return result, nil
+	}
+	// Phase 3: Get task details after network interface is attached
+	var task ecstypes.Task
+	if o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+		Cluster: &c.Env.Cluster,
+		Tasks:   []string{*taskArn},
+	}); err != nil {
+		return result, err
+	} else {
+		task = o.Tasks[0]
 	}
 	var targetId *string
 	var targetPort *int32
