@@ -38,3 +38,19 @@ func (c *cage) Up(ctx context.Context) (*UpResult, error) {
 		return &UpResult{TaskDefinition: td, Service: service}, nil
 	}
 }
+
+func (c *cage) createService(ctx context.Context, serviceDefinitionInput *ecs.CreateServiceInput) (*ecstypes.Service, error) {
+	log.Infof("creating service '%s' with task-definition '%s'...", *serviceDefinitionInput.ServiceName, *serviceDefinitionInput.TaskDefinition)
+	o, err := c.Ecs.CreateService(ctx, serviceDefinitionInput)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create service '%s': %w", *serviceDefinitionInput.ServiceName, err)
+	}
+	log.Infof("waiting for service '%s' to be STABLE", *serviceDefinitionInput.ServiceName)
+	if err := ecs.NewServicesStableWaiter(c.Ecs).Wait(ctx, &ecs.DescribeServicesInput{
+		Cluster:  &c.Env.Cluster,
+		Services: []string{*serviceDefinitionInput.ServiceName},
+	}, c.MaxWait); err != nil {
+		return nil, xerrors.Errorf("failed to wait for service '%s' to be STABLE: %w", *serviceDefinitionInput.ServiceName, err)
+	}
+	return o.Service, nil
+}

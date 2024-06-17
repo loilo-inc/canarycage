@@ -30,7 +30,6 @@ func main() {
 		cmds.Up(&envars),
 		cmds.RollOut(&envars),
 		cmds.Run(&envars),
-		cmds.Recreate(&envars),
 		cmds.Upgrade(upgrade.NewUpgrader(version)),
 	}
 	app.Flags = []cli.Flag{

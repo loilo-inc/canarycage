@@ -1,4 +1,3 @@
-//go:generate go run github.com/golang/mock/mockgen -source $GOFILE -destination ../mocks/mock_$GOPACKAGE/$GOFILE -package mock_$GOPACKAGE
 package cage
 
 import (
@@ -11,8 +10,7 @@ import (
 type Cage interface {
 	Up(ctx context.Context) (*UpResult, error)
 	Run(ctx context.Context, input *RunInput) (*RunResult, error)
-	RollOut(ctx context.Context) (*RollOutResult, error)
-	Recreate(ctx context.Context) (*RecreateResult, error)
+	RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult, error)
 }
 
 type Time interface {

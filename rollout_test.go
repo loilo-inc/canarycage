@@ -44,7 +44,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 				Time: test.NewFakeTime(),
 			})
 			ctx := context.Background()
-			result, err := cagecli.RollOut(ctx)
+			result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
 			assert.NoError(t, err)
 			assert.False(t, result.ServiceIntact)
 			assert.Equal(t, 1, mctx.ActiveServiceSize())
@@ -83,11 +83,10 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		result, err := cagecli.RollOut(ctx)
+		result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 	})
-
 	t.Run("stop rolloing out when canary task is not registered to target group", func(t *testing.T) {
 		envars := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
@@ -127,10 +126,70 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		_, err := cagecli.RollOut(ctx)
+		_, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
 		assert.NotNil(t, err)
 	})
-
+	t.Run("update service", func(t *testing.T) {
+		envars := test.DefaultEnvars()
+		ctrl := gomock.NewController(t)
+		mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 1, "FARGATE")
+		newLb := ecstypes.LoadBalancer{
+			ContainerName:  aws.String("container"),
+			ContainerPort:  aws.Int32(80),
+			TargetGroupArn: aws.String("arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/new-target-group/abcdefg"),
+		}
+		newNetwork := &ecstypes.NetworkConfiguration{
+			AwsvpcConfiguration: &ecstypes.AwsVpcConfiguration{
+				Subnets:        []string{"subnet-1234567890abcdefg"},
+				SecurityGroups: []string{"sg-12345678"},
+			},
+		}
+		envars.ServiceDefinitionInput.LoadBalancers = []ecstypes.LoadBalancer{newLb}
+		envars.ServiceDefinitionInput.NetworkConfiguration = newNetwork
+		envars.ServiceDefinitionInput.PlatformVersion = aws.String("LATEST")
+		cagecli := cage.NewCage(&cage.Input{
+			Env:  envars,
+			ECS:  ecsMock,
+			ALB:  albMock,
+			EC2:  ec2Mock,
+			Time: test.NewFakeTime(),
+		})
+		ctx := context.Background()
+		service, _ := mctx.GetService(envars.Service)
+		assert.Equal(t, "1.4.0", *service.PlatformVersion)
+		assert.NotNil(t, service.NetworkConfiguration)
+		assert.NotNil(t, service.LoadBalancers)
+		_, err := cagecli.RollOut(ctx, &cage.RollOutInput{UpdateService: true})
+		assert.NoError(t, err)
+		service, _ = mctx.GetService(envars.Service)
+		assert.Equal(t, "LATEST", *service.PlatformVersion)
+		assert.Equal(t, *newNetwork, *service.NetworkConfiguration)
+		assert.Equal(t, *service.LoadBalancers[0].ContainerName, *newLb.ContainerName)
+	})
+	t.Run("should stop canary task if error occurs before registering target", func(t *testing.T) {
+		envars := test.DefaultEnvars()
+		ctrl := gomock.NewController(t)
+		mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 1, "FARGATE")
+		cagecli := cage.NewCage(&cage.Input{
+			Env:  envars,
+			ECS:  ecsMock,
+			ALB:  albMock,
+			EC2:  ec2Mock,
+			Time: test.NewFakeTime(),
+		})
+		ctx := context.Background()
+		envars.ServiceDefinitionInput.LoadBalancers = []ecstypes.LoadBalancer{
+			{
+				ContainerName:  aws.String("missing-container"),
+				ContainerPort:  aws.Int32(80),
+				TargetGroupArn: aws.String("arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/new-target-group/abcdefg"),
+			},
+		}
+		result, err := cagecli.RollOut(ctx, &cage.RollOutInput{UpdateService: true})
+		assert.EqualError(t, err, "couldn't find host port in container definition")
+		assert.Equal(t, result.ServiceIntact, true)
+		assert.Equal(t, 1, mctx.RunningTaskSize())
+	})
 	t.Run("Show error if service doesn't exist", func(t *testing.T) {
 		envars := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
@@ -143,7 +202,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			ALB: albMock,
 		})
 		ctx := context.Background()
-		_, err := cagecli.RollOut(ctx)
+		_, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
 		assert.EqualError(t, err, "service 'service' doesn't exist. Run 'cage up' or create service before rolling out")
 	})
 	t.Run("Roll out even if the service does not have a load balancer", func(t *testing.T) {
@@ -160,7 +219,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		if res, err := cagecli.RollOut(ctx); err != nil {
+		if res, err := cagecli.RollOut(ctx, &cage.RollOutInput{}); err != nil {
 			t.Fatalf(err.Error())
 		} else if res.ServiceIntact {
 			t.Fatalf("no")
@@ -183,7 +242,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			ECS:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
-		_, err := cagecli.RollOut(context.Background())
+		_, err := cagecli.RollOut(context.Background(), &cage.RollOutInput{})
 		assert.EqualError(t, err, "😵 'service' status is 'INACTIVE'. Stop rolling out")
 	})
 	t.Run("Stop rolling out if the canary task container does not become healthy", func(t *testing.T) {
@@ -229,7 +288,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		res, err := cagecli.RollOut(ctx)
+		res, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
 		assert.NotNil(t, res)
 		assert.NotNil(t, err)
 
@@ -239,6 +298,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			}
 		}
 	})
+
 }
 
 func TestCage_RollOut_EC2(t *testing.T) {
@@ -274,7 +334,7 @@ func TestCage_RollOut_EC2(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		result, err := cagecli.RollOut(ctx)
+		result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
 		if err != nil {
 			t.Fatalf("%s", err)
 		}
@@ -304,7 +364,7 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 		Time: test.NewFakeTime(),
 	})
 	ctx := context.Background()
-	result, err := cagecli.RollOut(ctx)
+	result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
 	if err == nil {
 		t.Fatal("Rollout with no container instance should be error")
 	} else {
@@ -339,7 +399,7 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 		Time: test.NewFakeTime(),
 	})
 	ctx := context.Background()
-	result, err := cagecli.RollOut(ctx)
+	result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
 	if err != nil {
 		t.Fatalf("%s", err)
 	}

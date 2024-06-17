@@ -15,7 +15,7 @@ import (
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 )
 
-func Setup(ctrl *gomock.Controller, envars *cage.Envars, currentTaskCount int, launchType string) (
+func Setup(ctrl *gomock.Controller, envars *cage.Envars, currentTaskCount int, launchType ecstypes.LaunchType) (
 	*MockContext,
 	*mock_awsiface.MockEcsClient,
 	*mock_awsiface.MockAlbClient,
@@ -48,14 +48,11 @@ func Setup(ctrl *gomock.Controller, envars *cage.Envars, currentTaskCount int, l
 	ec2Mock.EXPECT().DescribeInstances(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeInstances).AnyTimes()
 	td, _ := mocker.RegisterTaskDefinition(context.Background(), envars.TaskDefinitionInput)
 	if currentTaskCount >= 0 {
-		a := &ecs.CreateServiceInput{
-			ServiceName:    &envars.Service,
-			LoadBalancers:  envars.ServiceDefinitionInput.LoadBalancers,
-			TaskDefinition: td.TaskDefinition.TaskDefinitionArn,
-			DesiredCount:   aws.Int32(int32(currentTaskCount)),
-			LaunchType:     ecstypes.LaunchType(launchType),
-		}
-		svc, _ := mocker.CreateService(context.Background(), a)
+		input := *envars.ServiceDefinitionInput
+		input.TaskDefinition = td.TaskDefinition.TaskDefinitionArn
+		input.DesiredCount = aws.Int32(int32(currentTaskCount))
+		input.LaunchType = launchType
+		svc, _ := mocker.CreateService(context.Background(), &input)
 		if len(svc.Service.LoadBalancers) > 0 {
 			_, _ = mocker.RegisterTarget(context.Background(), &elbv2.RegisterTargetsInput{
 				TargetGroupArn: svc.Service.LoadBalancers[0].TargetGroupArn,

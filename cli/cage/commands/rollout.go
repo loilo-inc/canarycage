@@ -11,6 +11,7 @@ import (
 func (c *CageCommands) RollOut(
 	envars *cage.Envars,
 ) *cli.Command {
+	var updateServiceConf bool
 	return &cli.Command{
 		Name:        "rollout",
 		Usage:       "roll out ECS service to next task definition",
@@ -29,6 +30,12 @@ func (c *CageCommands) RollOut(
 				Usage:       "EC2 instance ARN for placing canary task. required only when LaunchType is EC2",
 				Destination: &envars.CanaryInstanceArn,
 			},
+			&cli.BoolFlag{
+				Name:        "updateService",
+				EnvVars:     []string{cage.UpdateServiceKey},
+				Usage:       "Update service configurations except for task definiton. Default is false.",
+				Destination: &updateServiceConf,
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			dir, _, err := c.requireArgs(ctx, 1, 1)
@@ -42,7 +49,7 @@ func (c *CageCommands) RollOut(
 			if err := c.Prompt.ConfirmService(envars); err != nil {
 				return err
 			}
-			result, err := cagecli.RollOut(context.Background())
+			result, err := cagecli.RollOut(context.Background(), &cage.RollOutInput{UpdateService: updateServiceConf})
 			if err != nil {
 				if result.ServiceIntact {
 					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", envars.Service)
