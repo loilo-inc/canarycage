@@ -21,6 +21,7 @@ var (
 func main() {
 	app := cli.NewApp()
 	app.Name = "canarycage"
+	app.HelpName = "cage"
 	app.Version = fmt.Sprintf("%s (commit: %s, date: %s)", version, commit, date)
 	app.Usage = "A deployment tool for AWS ECS"
 	app.Description = "A deployment tool for AWS ECS"
