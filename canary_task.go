@@ -82,45 +82,49 @@ func (c *CanaryTask) Wait(ctx context.Context) error {
 	log.Infof("canary task '%s' ensured.", *c.taskArn)
 	if c.lb == nil {
 		log.Infof("no load balancer is attached to service '%s'. skip registration to target group", c.Env.Service)
-		log.Infof("wait %d seconds for ensuring the task goes stable", c.Env.CanaryTaskIdleDuration)
-		wait := make(chan bool)
-		go func() {
-			duration := c.Env.CanaryTaskIdleDuration
-			for duration > 0 {
-				log.Infof("still waiting...; %d seconds left", duration)
-				wt := 10
-				if duration < 10 {
-					wt = duration
-				}
-				<-c.Time.NewTimer(time.Duration(wt) * time.Second).C
-				duration -= 10
-			}
-			wait <- true
-		}()
-		<-wait
-		o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
-			Cluster: &c.Env.Cluster,
-			Tasks:   []string{*c.taskArn},
-		})
-		if err != nil {
-			return err
-		}
-		task := o.Tasks[0]
-		if *task.LastStatus != "RUNNING" {
-			return xerrors.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
-		}
-		return nil
+		return c.waitForIdleDuration(ctx)
 	} else {
 		if err := c.registerToTargetGroup(ctx); err != nil {
 			return err
 		}
 		log.Infof("😷 ensuring canary task to become healthy...")
-		if err := c.ensureTaskHealthy(ctx); err != nil {
+		if err := c.waitUntilTargetHealthy(ctx); err != nil {
 			return err
 		}
 		log.Info("🤩 canary task is healthy!")
 		return nil
 	}
+}
+
+func (c *CanaryTask) waitForIdleDuration(ctx context.Context) error {
+	log.Infof("wait %d seconds for canary task to be stable...", c.Env.CanaryTaskIdleDuration)
+	wait := make(chan bool)
+	go func() {
+		duration := c.Env.CanaryTaskIdleDuration
+		for duration > 0 {
+			log.Infof("still waiting...; %d seconds left", duration)
+			wt := 10
+			if duration < 10 {
+				wt = duration
+			}
+			<-c.Time.NewTimer(time.Duration(wt) * time.Second).C
+			duration -= 10
+		}
+		wait <- true
+	}()
+	<-wait
+	o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+		Cluster: &c.Env.Cluster,
+		Tasks:   []string{*c.taskArn},
+	})
+	if err != nil {
+		return err
+	}
+	task := o.Tasks[0]
+	if *task.LastStatus != "RUNNING" {
+		return xerrors.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
+	}
+	return nil
 }
 
 func (c *CanaryTask) waitUntilHealthCeheckPassed(ctx context.Context) error {
@@ -251,7 +255,7 @@ func (c *CanaryTask) registerToTargetGroup(ctx context.Context) error {
 	return nil
 }
 
-func (c *CanaryTask) ensureTaskHealthy(
+func (c *CanaryTask) waitUntilTargetHealthy(
 	ctx context.Context,
 ) error {
 	log.Infof("checking the health state of canary task...")

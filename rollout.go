@@ -20,34 +20,31 @@ type RollOutResult struct {
 }
 
 func (c *cage) RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult, error) {
-	ret := &RollOutResult{
+	result := &RollOutResult{
 		ServiceIntact: true,
 	}
-	var service ecstypes.Service
 	if out, err := c.Ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
 		Cluster: &c.Env.Cluster,
 		Services: []string{
 			c.Env.Service,
 		},
 	}); err != nil {
-		log.Errorf("failed to describe current service due to: %s", err)
-		return ret, err
+		return result, xerrors.Errorf("failed to describe current service due to: %w", err)
 	} else if len(out.Services) == 0 {
-		return ret, xerrors.Errorf("service '%s' doesn't exist. Run 'cage up' or create service before rolling out", c.Env.Service)
+		return result, xerrors.Errorf("service '%s' doesn't exist. Run 'cage up' or create service before rolling out", c.Env.Service)
 	} else {
-		service = out.Services[0]
-	}
-	if *service.Status != "ACTIVE" {
-		return ret, xerrors.Errorf("😵 '%s' status is '%s'. Stop rolling out", c.Env.Service, *service.Status)
-	}
-	if service.LaunchType == ecstypes.LaunchTypeEc2 && c.Env.CanaryInstanceArn == "" {
-		return ret, xerrors.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'")
+		service := out.Services[0]
+		if *service.Status != "ACTIVE" {
+			return result, xerrors.Errorf("😵 '%s' status is '%s'. Stop rolling out", c.Env.Service, *service.Status)
+		}
+		if service.LaunchType == ecstypes.LaunchTypeEc2 && c.Env.CanaryInstanceArn == "" {
+			return result, xerrors.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'")
+		}
 	}
 	log.Infof("ensuring next task definition...")
 	var nextTaskDefinition *ecstypes.TaskDefinition
 	if o, err := c.CreateNextTaskDefinition(ctx); err != nil {
-		log.Errorf("failed to register next task definition due to: %s", err)
-		return ret, err
+		return result, xerrors.Errorf("failed to register next task definition due to: %w", err)
 	} else {
 		nextTaskDefinition = o
 	}
@@ -77,8 +74,7 @@ func (c *cage) RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult
 		}
 	}()
 	if startCanaryTaskErr != nil {
-		log.Errorf("failed to start canary task due to: %s", startCanaryTaskErr)
-		return ret, startCanaryTaskErr
+		return result, xerrors.Errorf("failed to start canary task due to: %w", startCanaryTaskErr)
 	}
 	eg := errgroup.Group{}
 	for _, canaryTask := range canaryTasks {
@@ -87,8 +83,7 @@ func (c *cage) RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		log.Errorf("failed to wait for canary task due to: %s", err)
-		return ret, err
+		return result, xerrors.Errorf("failed to wait for canary task due to: %w", err)
 	}
 	log.Infof(
 		"updating the task definition of '%s' into '%s:%d'...",
@@ -108,22 +103,22 @@ func (c *cage) RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult
 		updateInput.VolumeConfigurations = c.Env.ServiceDefinitionInput.VolumeConfigurations
 	}
 	if _, err := c.Ecs.UpdateService(ctx, updateInput); err != nil {
-		return ret, err
+		return result, err
 	}
-	ret.ServiceIntact = false
+	result.ServiceIntact = false
 	log.Infof("waiting for service '%s' to be stable...", c.Env.Service)
 	if err := ecs.NewServicesStableWaiter(c.Ecs).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &c.Env.Cluster,
 		Services: []string{c.Env.Service},
 	}, c.MaxWait); err != nil {
-		return ret, err
+		return result, err
 	}
 	log.Infof("🥴 service '%s' has become to be stable!", c.Env.Service)
 	log.Infof(
 		"🐥 service '%s' successfully rolled out to '%s:%d'!",
 		c.Env.Service, *nextTaskDefinition.Family, nextTaskDefinition.Revision,
 	)
-	return ret, nil
+	return result, nil
 }
 
 func (c *cage) StartCanaryTasks(
