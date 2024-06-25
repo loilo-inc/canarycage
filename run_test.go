@@ -55,6 +55,7 @@ func TestCage_Run(t *testing.T) {
 		container := "container"
 		ctx := context.Background()
 		env, mocker, ecsMock := setupForBasic(t)
+		env.CanaryTaskRunningWait = 1
 		gomock.InOrder(
 			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
@@ -85,6 +86,7 @@ func TestCage_Run(t *testing.T) {
 		container := "container"
 		ctx := context.Background()
 		env, mocker, ecsMock := setupForBasic(t)
+		env.CanaryTaskStoppedWait = 1
 		gomock.InOrder(
 			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTasks).Times(2),
@@ -97,7 +99,6 @@ func TestCage_Run(t *testing.T) {
 		result, err := cagecli.Run(ctx, &cage.RunInput{
 			Container: &container,
 			Overrides: overrides,
-			// MaxWait:   1,
 		})
 		assert.Nil(t, result)
 		assert.EqualError(t, err, "task failed to stop: exceeded max wait time for TasksStopped waiter")

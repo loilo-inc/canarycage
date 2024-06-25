@@ -39,10 +39,10 @@ const CanaryInstanceArnKey = "CAGE_CANARY_INSTANCE_ARN"
 const RegionKey = "CAGE_REGION"
 const CanaryTaskIdleDuration = "CAGE_CANARY_TASK_IDLE_DURATION"
 const UpdateServiceKey = "CAGE_UPDATE_SERVIEC"
-const CanaryTaskRunningWait = "CAGE_CANARY_TASK_RUNNING_WAIT"
-const CanaryTaskHealthCheckWait = "CAGE_CANARY_TASK_HEALTH_CHECK_WAIT"
-const CanaryTaskStoppedWait = "CAGE_CANARY_TASK_STOPPED_WAIT"
-const ServiceStableWait = "CAGE_SERVICE_STABLE_WAIT"
+const TaskRunningTimeout = "CAGE_TASK_RUNNING_TIMEOUT"
+const TaskHealthCheckTimeout = "CAGE_TASK_HEALTH_CHECK_TIMEOUT"
+const TaskStoppedTimeout = "CAGE_TASK_STOPPED_TIMEOUT"
+const ServiceStableTimeout = "CAGE_SERVICE_STABLE_TIMEOUT"
 
 func EnsureEnvars(
 	dest *Envars,
