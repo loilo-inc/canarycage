@@ -129,10 +129,12 @@ func (c *cage) StartCanaryTasks(
 	var networkConfiguration *ecstypes.NetworkConfiguration
 	var platformVersion *string
 	var loadBalancers []ecstypes.LoadBalancer
+	var serviceRegistries []ecstypes.ServiceRegistry
 	if input.UpdateService {
 		networkConfiguration = c.Env.ServiceDefinitionInput.NetworkConfiguration
 		platformVersion = c.Env.ServiceDefinitionInput.PlatformVersion
 		loadBalancers = c.Env.ServiceDefinitionInput.LoadBalancers
+		serviceRegistries = c.Env.ServiceDefinitionInput.ServiceRegistries
 	} else {
 		if o, err := c.Ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
 			Cluster:  &c.Env.Cluster,
@@ -144,9 +146,11 @@ func (c *cage) StartCanaryTasks(
 			networkConfiguration = service.NetworkConfiguration
 			platformVersion = service.PlatformVersion
 			loadBalancers = service.LoadBalancers
+			serviceRegistries = service.ServiceRegistries
 		}
 	}
 	var results []*CanaryTask
+
 	if len(loadBalancers) == 0 {
 		task := &CanaryTask{
 			c, nextTaskDefinition, nil, networkConfiguration, platformVersion, nil, nil,

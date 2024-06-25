@@ -13,11 +13,13 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
 	"golang.org/x/xerrors"
 )
 
 type CanaryTarget struct {
-	targetGroupArn   *string
+	// targetGroupArn   *string
+	// serviceRegistry  *string
 	targetId         *string
 	targetPort       *int32
 	availabilityZone *string
@@ -27,6 +29,7 @@ type CanaryTask struct {
 	*cage
 	td                   *ecstypes.TaskDefinition
 	lb                   *ecstypes.LoadBalancer
+	srv                  *ecstypes.ServiceRegistry
 	networkConfiguration *ecstypes.NetworkConfiguration
 	platformVersion      *string
 	taskArn              *string
@@ -127,6 +130,25 @@ func (c *CanaryTask) waitForIdleDuration(ctx context.Context) error {
 	return nil
 }
 
+func (c *CanaryTask) waitUntilSrvInstanceHelthCheckPassed(ctx context.Context) error {
+	task := c.taskArn
+	attrs := map[string]string{
+		"AWS_INSTANCE_IPV4":          "",
+		"AVAILABILITY_ZONE":          c.Env.Region,
+		"AWS_INIT_HEALTH_STATUS":     "UNHEALTHY",
+		"ECS_CLUSTER_NAME":           c.Env.Cluster,
+		"ECS_SERVICE_NAME":           c.Env.Service,
+		"ECS_TASK_DEFINITION_FAMILY": *c.td.Family,
+		"REGION":                     c.Env.Region,
+	}
+	if c.srv.ContainerName
+	c.Srv.RegisterInstance(ctx, &servicediscovery.RegisterInstanceInput{
+		Attributes: attrs,
+		ServiceId:  c.serviceRegistry,
+		InstanceId: c.taskArn,
+	})
+}
+
 func (c *CanaryTask) waitUntilHealthCeheckPassed(ctx context.Context) error {
 	log.Infof("😷 ensuring canary task container(s) to become healthy...")
 	containerHasHealthChecks := map[string]struct{}{}
@@ -167,27 +189,32 @@ func (c *CanaryTask) waitUntilHealthCeheckPassed(ctx context.Context) error {
 	return xerrors.Errorf("😨 canary task hasn't become to be healthy")
 }
 
-func (c *CanaryTask) registerToTargetGroup(ctx context.Context) error {
+func (c *CanaryTask) describeTaskTarget(ctx context.Context) (*CanaryTarget, error) {
 	// Phase 3: Get task details after network interface is attached
 	var task ecstypes.Task
+	var result CanaryTarget
 	if o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
 		Tasks:   []string{*c.taskArn},
 	}); err != nil {
-		return err
+		return nil, err
 	} else {
 		task = o.Tasks[0]
 	}
 	var targetId *string
 	var targetPort *int32
 	var subnet ec2types.Subnet
-	for _, container := range c.td.ContainerDefinitions {
-		if *container.Name == *c.lb.ContainerName {
-			targetPort = container.PortMappings[0].HostPort
+	if c.lb != nil {
+		for _, container := range c.td.ContainerDefinitions {
+			if *container.Name == *c.lb.ContainerName {
+				targetPort = container.PortMappings[0].HostPort
+			}
 		}
+	} else if c.serviceRegistry != nil {
+		targetPort = aws.Int32(80)
 	}
 	if targetPort == nil {
-		return xerrors.Errorf("couldn't find host port in container definition")
+		return nil, xerrors.Errorf("couldn't find host port in container definition")
 	}
 	if c.Env.CanaryInstanceArn == "" { // Fargate
 		details := task.Attachments[0].Details
@@ -201,12 +228,12 @@ func (c *CanaryTask) registerToTargetGroup(ctx context.Context) error {
 			}
 		}
 		if subnetId == nil || privateIp == nil {
-			return xerrors.Errorf("couldn't find subnetId or privateIPv4Address in task details")
+			return nil, xerrors.Errorf("couldn't find subnetId or privateIPv4Address in task details")
 		}
 		if o, err := c.Ec2.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
 			SubnetIds: []string{*subnetId},
 		}); err != nil {
-			return err
+			return nil, err
 		} else {
 			subnet = o.Subnets[0]
 		}
@@ -218,40 +245,47 @@ func (c *CanaryTask) registerToTargetGroup(ctx context.Context) error {
 			Cluster:            &c.Env.Cluster,
 			ContainerInstances: []string{c.Env.CanaryInstanceArn},
 		}); err != nil {
-			return err
+			return nil, err
 		} else {
 			containerInstance = outputs.ContainerInstances[0]
 		}
 		if o, err := c.Ec2.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
 			InstanceIds: []string{*containerInstance.Ec2InstanceId},
 		}); err != nil {
-			return err
+			return nil, err
 		} else if sn, err := c.Ec2.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
 			SubnetIds: []string{*o.Reservations[0].Instances[0].SubnetId},
 		}); err != nil {
-			return err
+			return nil, err
 		} else {
 			targetId = containerInstance.Ec2InstanceId
 			subnet = sn.Subnets[0]
 		}
 		log.Infof("canary task was placed: instanceId = '%s', hostPort = '%d', az = '%s'", *targetId, *targetPort, *subnet.AvailabilityZone)
 	}
+	return &CanaryTarget{
+		targetId:         targetId,
+		targetPort:       targetPort,
+		availabilityZone: subnet.AvailabilityZone,
+	}, nil
+}
+
+func (c *CanaryTask) registerToTargetGroup(ctx context.Context) error {
+	info, err := c.describeTaskTarget(ctx)
+	if err != nil {
+		return err
+	}
 	if _, err := c.Alb.RegisterTargets(ctx, &elbv2.RegisterTargetsInput{
 		TargetGroupArn: c.lb.TargetGroupArn,
 		Targets: []elbv2types.TargetDescription{{
-			AvailabilityZone: subnet.AvailabilityZone,
-			Id:               targetId,
-			Port:             targetPort,
+			AvailabilityZone: info.availabilityZone,
+			Id:               info.targetId,
+			Port:             info.targetPort,
 		}},
 	}); err != nil {
 		return err
 	}
-	c.target = &CanaryTarget{
-		targetGroupArn:   c.lb.TargetGroupArn,
-		targetId:         targetId,
-		targetPort:       targetPort,
-		availabilityZone: subnet.AvailabilityZone,
-	}
+	c.target = info
 	return nil
 }
 

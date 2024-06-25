@@ -23,6 +23,7 @@ type cage struct {
 	Ecs     awsiface.EcsClient
 	Alb     awsiface.AlbClient
 	Ec2     awsiface.Ec2Client
+	Srv     awsiface.SrvClient
 	Time    Time
 	MaxWait time.Duration
 }
@@ -32,6 +33,7 @@ type Input struct {
 	ECS     awsiface.EcsClient
 	ALB     awsiface.AlbClient
 	EC2     awsiface.Ec2Client
+	SRV     awsiface.SrvClient
 	Time    Time
 	MaxWait time.Duration
 }
@@ -45,6 +47,7 @@ func NewCage(input *Input) Cage {
 		Ecs:     input.ECS,
 		Alb:     input.ALB,
 		Ec2:     input.EC2,
+		Srv:     input.SRV,
 		Time:    input.Time,
 		MaxWait: 5 * time.Minute,
 	}
