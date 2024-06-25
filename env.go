@@ -11,16 +11,20 @@ import (
 )
 
 type Envars struct {
-	_                      struct{} `type:"struct"`
-	CI                     bool     `json:"ci" type:"bool"`
-	Region                 string   `json:"region" type:"string"`
-	Cluster                string   `json:"cluster" type:"string" required:"true"`
-	Service                string   `json:"service" type:"string" required:"true"`
-	CanaryInstanceArn      string
-	TaskDefinitionArn      string `json:"nextTaskDefinitionArn" type:"string"`
-	TaskDefinitionInput    *ecs.RegisterTaskDefinitionInput
-	ServiceDefinitionInput *ecs.CreateServiceInput
-	CanaryTaskIdleDuration int
+	_                         struct{} `type:"struct"`
+	CI                        bool     `json:"ci" type:"bool"`
+	Region                    string   `json:"region" type:"string"`
+	Cluster                   string   `json:"cluster" type:"string" required:"true"`
+	Service                   string   `json:"service" type:"string" required:"true"`
+	CanaryInstanceArn         string
+	TaskDefinitionArn         string `json:"nextTaskDefinitionArn" type:"string"`
+	TaskDefinitionInput       *ecs.RegisterTaskDefinitionInput
+	ServiceDefinitionInput    *ecs.CreateServiceInput
+	CanaryTaskIdleDuration    int // sec
+	CanaryTaskRunningWait     int // sec
+	CanaryTaskHealthCheckWait int // sec
+	CanaryTaskStoppedWait     int // sec
+	ServiceStableWait         int // sec
 }
 
 // required
@@ -35,6 +39,10 @@ const CanaryInstanceArnKey = "CAGE_CANARY_INSTANCE_ARN"
 const RegionKey = "CAGE_REGION"
 const CanaryTaskIdleDuration = "CAGE_CANARY_TASK_IDLE_DURATION"
 const UpdateServiceKey = "CAGE_UPDATE_SERVIEC"
+const CanaryTaskRunningWait = "CAGE_CANARY_TASK_RUNNING_WAIT"
+const CanaryTaskHealthCheckWait = "CAGE_CANARY_TASK_HEALTH_CHECK_WAIT"
+const CanaryTaskStoppedWait = "CAGE_CANARY_TASK_STOPPED_WAIT"
+const ServiceStableWait = "CAGE_SERVICE_STABLE_WAIT"
 
 func EnsureEnvars(
 	dest *Envars,

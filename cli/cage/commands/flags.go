@@ -48,3 +48,43 @@ func CanaryTaskIdleDurationFlag(dest *int) *cli.IntFlag {
 		Value:       10,
 	}
 }
+
+func TaskRunningWaitFlag(dest *int) *cli.IntFlag {
+	return &cli.IntFlag{
+		Name:        "canaryTaskRunningWait",
+		EnvVars:     []string{cage.CanaryTaskRunningWait},
+		Usage:       "Duration seconds for waiting canary task running",
+		Destination: dest,
+		Value:       300,
+	}
+}
+
+func TaskHealthCheckWaitFlag(dest *int) *cli.IntFlag {
+	return &cli.IntFlag{
+		Name:        "canaryTaskHealthCheckWait",
+		EnvVars:     []string{cage.CanaryTaskHealthCheckWait},
+		Usage:       "Duration seconds for waiting canary task health check",
+		Destination: dest,
+		Value:       300,
+	}
+}
+
+func TaskStoppedWaitFlag(dest *int) *cli.IntFlag {
+	return &cli.IntFlag{
+		Name:        "canaryTaskStoppedWait",
+		EnvVars:     []string{cage.CanaryTaskStoppedWait},
+		Usage:       "Duration seconds for waiting canary task stopped",
+		Destination: dest,
+		Value:       300,
+	}
+}
+
+func ServiceStableWaitFlag(dest *int) *cli.IntFlag {
+	return &cli.IntFlag{
+		Name:        "serviceStableWait",
+		EnvVars:     []string{cage.ServiceStableWait},
+		Usage:       "Duration seconds for waiting service stable",
+		Destination: dest,
+		Value:       300,
+	}
+}

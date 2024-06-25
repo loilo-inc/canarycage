@@ -110,7 +110,7 @@ func (c *cage) RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult
 	if err := ecs.NewServicesStableWaiter(c.Ecs).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &c.Env.Cluster,
 		Services: []string{c.Env.Service},
-	}, c.MaxWait); err != nil {
+	}, c.Timeout.ServiceStable()); err != nil {
 		return result, err
 	}
 	log.Infof("🥴 service '%s' has become to be stable!", c.Env.Service)

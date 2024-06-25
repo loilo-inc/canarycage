@@ -40,9 +40,7 @@ func TestCage_Run(t *testing.T) {
 		)
 		cagecli := cage.NewCage(&cage.Input{
 			Env:  env,
-			ECS:  ecsMock,
-			ALB:  nil,
-			EC2:  nil,
+			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
 		result, err := cagecli.Run(ctx, &cage.RunInput{
@@ -71,13 +69,13 @@ func TestCage_Run(t *testing.T) {
 		)
 		cagecli := cage.NewCage(&cage.Input{
 			Env:  env,
-			ECS:  ecsMock,
+			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
 		result, err := cagecli.Run(ctx, &cage.RunInput{
 			Container: &container,
 			Overrides: overrides,
-			MaxWait:   1,
+			// MaxWait:   1,
 		})
 		assert.Nil(t, result)
 		assert.EqualError(t, err, "task failed to start: exceeded max wait time for TasksRunning waiter")
@@ -93,13 +91,13 @@ func TestCage_Run(t *testing.T) {
 		)
 		cagecli := cage.NewCage(&cage.Input{
 			Env:  env,
-			ECS:  ecsMock,
+			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
 		result, err := cagecli.Run(ctx, &cage.RunInput{
 			Container: &container,
 			Overrides: overrides,
-			MaxWait:   1,
+			// MaxWait:   1,
 		})
 		assert.Nil(t, result)
 		assert.EqualError(t, err, "task failed to stop: exceeded max wait time for TasksStopped waiter")
@@ -122,7 +120,7 @@ func TestCage_Run(t *testing.T) {
 		)
 		cagecli := cage.NewCage(&cage.Input{
 			Env:  env,
-			ECS:  ecsMock,
+			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
 		result, err := cagecli.Run(ctx, &cage.RunInput{
@@ -150,7 +148,7 @@ func TestCage_Run(t *testing.T) {
 		)
 		cagecli := cage.NewCage(&cage.Input{
 			Env:  env,
-			ECS:  ecsMock,
+			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
 		result, err := cagecli.Run(ctx, &cage.RunInput{
@@ -166,9 +164,7 @@ func TestCage_Run(t *testing.T) {
 		env, _, ecsMock := setupForBasic(t)
 		cagecli := cage.NewCage(&cage.Input{
 			Env:  env,
-			ECS:  ecsMock,
-			ALB:  nil,
-			EC2:  nil,
+			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
 		result, err := cagecli.Run(ctx, &cage.RunInput{

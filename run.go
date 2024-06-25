@@ -2,7 +2,6 @@ package cage
 
 import (
 	"context"
-	"time"
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -14,8 +13,8 @@ import (
 type RunInput struct {
 	Container *string
 	Overrides *types.TaskOverride
-	MaxWait   time.Duration
 }
+
 type RunResult struct {
 	ExitCode int32
 }
@@ -30,9 +29,6 @@ func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container 
 }
 
 func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
-	if input.MaxWait == 0 {
-		input.MaxWait = 5 * time.Minute
-	}
 	if !containerExistsInDefinition(c.Env.TaskDefinitionInput, input.Container) {
 		return nil, xerrors.Errorf("🚫 '%s' not found in container definitions", *input.Container)
 	}
@@ -57,7 +53,7 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 	if err := ecs.NewTasksRunningWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
 		Tasks:   []string{*taskArn},
-	}, input.MaxWait); err != nil {
+	}, c.Timeout.TaskRunning()); err != nil {
 		return nil, xerrors.Errorf("task failed to start: %w", err)
 	}
 	log.Infof("task '%s' is running", *taskArn)
@@ -65,7 +61,7 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 	if result, err := ecs.NewTasksStoppedWaiter(c.Ecs).WaitForOutput(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
 		Tasks:   []string{*taskArn},
-	}, input.MaxWait); err != nil {
+	}, c.Timeout.TaskStopped()); err != nil {
 		return nil, xerrors.Errorf("task failed to stop: %w", err)
 	} else {
 		task := result.Tasks[0]

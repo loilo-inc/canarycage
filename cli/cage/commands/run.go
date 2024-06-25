@@ -21,6 +21,8 @@ func (c *CageCommands) Run(
 		Flags: []cli.Flag{
 			RegionFlag(&envars.Region),
 			ClusterFlag(&envars.Cluster),
+			TaskRunningWaitFlag(&envars.CanaryTaskRunningWait),
+			TaskStoppedWaitFlag(&envars.CanaryTaskStoppedWait),
 		},
 		Action: func(ctx *cli.Context) error {
 			dir, rest, err := c.requireArgs(ctx, 3, 100)

@@ -18,9 +18,7 @@ func TestCage_Up(t *testing.T) {
 		delete(ctx.Services, env.Service)
 		cagecli := cage.NewCage(&cage.Input{
 			Env: env,
-			ECS: ecsMock,
-			ALB: nil,
-			EC2: nil,
+			Ecs: ecsMock,
 		})
 		result, err := cagecli.Up(context.Background())
 		assert.Nil(t, err)
@@ -33,9 +31,7 @@ func TestCage_Up(t *testing.T) {
 		_, ecsMock, _, _ := test.Setup(ctrl, env, 1, "FARGATE")
 		cagecli := cage.NewCage(&cage.Input{
 			Env: env,
-			ECS: ecsMock,
-			ALB: nil,
-			EC2: nil,
+			Ecs: ecsMock,
 		})
 		result, err := cagecli.Up(context.Background())
 		assert.Nil(t, result)
