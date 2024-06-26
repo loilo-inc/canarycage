@@ -51,6 +51,28 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			assert.Equal(t, v, mctx.RunningTaskSize())
 		}
 	})
+	t.Run("multiple load balancers", func(t *testing.T) {
+		log.Info("====")
+		envars := test.DefaultEnvars()
+		lb := envars.ServiceDefinitionInput.LoadBalancers[0]
+		envars.ServiceDefinitionInput.LoadBalancers = []ecstypes.LoadBalancer{lb, lb}
+		ctrl := gomock.NewController(t)
+
+		mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 1, "FARGATE")
+		cagecli := cage.NewCage(&cage.Input{
+			Env:  envars,
+			ECS:  ecsMock,
+			ALB:  albMock,
+			EC2:  ec2Mock,
+			Time: test.NewFakeTime(),
+		})
+		ctx := context.Background()
+		result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
+		assert.NoError(t, err)
+		assert.False(t, result.ServiceIntact)
+		assert.Equal(t, 1, mctx.ActiveServiceSize())
+		assert.Equal(t, 1, mctx.RunningTaskSize())
+	})
 	t.Run("wait until canary task is registered to target group", func(t *testing.T) {
 		envars := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
@@ -186,7 +208,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			},
 		}
 		result, err := cagecli.RollOut(ctx, &cage.RollOutInput{UpdateService: true})
-		assert.EqualError(t, err, "couldn't find host port in container definition")
+		assert.EqualError(t, err, "failed to wait for canary task due to: couldn't find host port in container definition")
 		assert.Equal(t, result.ServiceIntact, true)
 		assert.Equal(t, 1, mctx.RunningTaskSize())
 	})
