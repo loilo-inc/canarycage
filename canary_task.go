@@ -75,7 +75,7 @@ func (c *CanaryTask) Wait(ctx context.Context) error {
 		return err
 	}
 	log.Infof("🐣 canary task '%s' is running!", *c.taskArn)
-	if err := c.waitUntilHealthCeheckPassed(ctx); err != nil {
+	if err := c.waitUntilHealthCheckPassed(ctx); err != nil {
 		return err
 	}
 	log.Info("🤩 canary task container(s) is healthy!")
@@ -126,7 +126,7 @@ func (c *CanaryTask) waitForIdleDuration(ctx context.Context) error {
 	return nil
 }
 
-func (c *CanaryTask) waitUntilHealthCeheckPassed(ctx context.Context) error {
+func (c *CanaryTask) waitUntilHealthCheckPassed(ctx context.Context) error {
 	log.Infof("😷 ensuring canary task container(s) to become healthy...")
 	containerHasHealthChecks := map[string]struct{}{}
 	for _, definition := range c.td.ContainerDefinitions {
