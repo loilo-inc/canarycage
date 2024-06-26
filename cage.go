@@ -46,6 +46,6 @@ func NewCage(input *Input) Cage {
 		Alb:     input.ALB,
 		Ec2:     input.EC2,
 		Time:    input.Time,
-		MaxWait: 5 * time.Minute,
+		MaxWait: 15 * time.Minute,
 	}
 }
