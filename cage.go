@@ -43,7 +43,7 @@ func NewCage(input *Input) Cage {
 	return &cage{
 		Input: input,
 		Timeout: timeout.NewManager(
-			10*time.Minute,
+			15*time.Minute,
 			&timeout.Input{
 				TaskRunningWait:     taskRunningWait,
 				TaskHealthCheckWait: taskHealthCheckWait,
