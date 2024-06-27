@@ -49,7 +49,7 @@ func (c *cage) createService(ctx context.Context, serviceDefinitionInput *ecs.Cr
 	if err := ecs.NewServicesStableWaiter(c.Ecs).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &c.Env.Cluster,
 		Services: []string{*serviceDefinitionInput.ServiceName},
-	}, c.MaxWait); err != nil {
+	}, c.Timeout.ServiceStable()); err != nil {
 		return nil, xerrors.Errorf("failed to wait for service '%s' to be STABLE: %w", *serviceDefinitionInput.ServiceName, err)
 	}
 	return o.Service, nil

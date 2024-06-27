@@ -36,6 +36,10 @@ func (c *CageCommands) RollOut(
 				Usage:       "Update service configurations except for task definiton. Default is false.",
 				Destination: &updateServiceConf,
 			},
+			TaskRunningWaitFlag(&envars.CanaryTaskRunningWait),
+			TaskHealthCheckWaitFlag(&envars.CanaryTaskHealthCheckWait),
+			TaskStoppedWaitFlag(&envars.CanaryTaskStoppedWait),
+			ServiceStableWaitFlag(&envars.ServiceStableWait),
 		},
 		Action: func(ctx *cli.Context) error {
 			dir, _, err := c.requireArgs(ctx, 1, 1)

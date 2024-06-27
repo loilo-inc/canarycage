@@ -22,6 +22,7 @@ func (c *CageCommands) Up(
 			ServiceFlag(&envars.Service),
 			TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
 			CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
+			ServiceStableWaitFlag(&envars.ServiceStableWait),
 		},
 		Action: func(ctx *cli.Context) error {
 			dir, _, err := c.requireArgs(ctx, 1, 1)

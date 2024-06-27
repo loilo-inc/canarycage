@@ -22,8 +22,10 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 			TaskDefinitionArn: "arn://aaa",
 		}
 		c := &cage.CageExport{
-			Env: env,
-			Ecs: ecsMock,
+			Input: &cage.Input{
+				Env: env,
+				Ecs: ecsMock,
+			},
 		}
 		ecsMock.EXPECT().DescribeTaskDefinition(gomock.Any(), gomock.Any()).Return(&ecs.DescribeTaskDefinitionOutput{
 			TaskDefinition: &ecstypes.TaskDefinition{},
@@ -39,8 +41,10 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 			TaskDefinitionArn: "arn://aaa",
 		}
 		c := &cage.CageExport{
-			Env: env,
-			Ecs: ecsMock,
+			Input: &cage.Input{
+				Env: env,
+				Ecs: ecsMock,
+			},
 		}
 		ecsMock.EXPECT().DescribeTaskDefinition(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("error"))
 		td, err := c.CreateNextTaskDefinition(context.Background())
@@ -52,8 +56,10 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		env := test.DefaultEnvars()
 		c := &cage.CageExport{
-			Env: env,
-			Ecs: ecsMock,
+			Input: &cage.Input{
+				Env: env,
+				Ecs: ecsMock,
+			},
 		}
 		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).Return(&ecs.RegisterTaskDefinitionOutput{
 			TaskDefinition: &ecstypes.TaskDefinition{
@@ -70,8 +76,10 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		env := test.DefaultEnvars()
 		c := &cage.CageExport{
-			Env: env,
-			Ecs: ecsMock,
+			Input: &cage.Input{
+				Env: env,
+				Ecs: ecsMock,
+			},
 		}
 		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("error"))
 		td, err := c.CreateNextTaskDefinition(context.Background())
