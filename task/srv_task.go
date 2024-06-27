@@ -29,24 +29,23 @@ func NewSrvTask(input *Input, registry *ecstypes.ServiceRegistry) Task {
 }
 
 func (c *srvTask) Wait(ctx context.Context) error {
-	if err := c.wait(ctx); err != nil {
+	if err := c.waitForTask(ctx); err != nil {
 		return err
 	}
 	if err := c.registerToSrvDiscovery(ctx); err != nil {
 		return err
 	}
-	log.Infof("😷 ensuring canary task to become healthy...")
+	log.Infof("canary task '%s' is registered to service discovery instance '%s'", *c.taskArn, *c.inst.InstanceId)
+	log.Infof("😷 ensuring canary service instance to become healthy...")
 	if err := c.waitUntilSrvInstHelthy(ctx); err != nil {
 		return err
 	}
-	log.Info("🤩 canary task is healthy!")
+	log.Info("🤩 canary service instance is healthy!")
 	return nil
 }
 
 func (c *srvTask) Stop(ctx context.Context) error {
-	if err := c.deregisterSrvInst(ctx); err != nil {
-		return err
-	}
+	c.deregisterSrvInst(ctx)
 	return c.stopTask(ctx)
 }
 
@@ -133,12 +132,15 @@ func (c *srvTask) waitUntilSrvInstHelthy(
 
 func (c *srvTask) deregisterSrvInst(
 	ctx context.Context,
-) error {
+) {
+	if c.inst == nil {
+		return
+	}
 	if _, err := c.Srv.DeregisterInstance(ctx, &servicediscovery.DeregisterInstanceInput{
 		ServiceId:  c.srv.Id,
 		InstanceId: c.inst.InstanceId,
 	}); err != nil {
-		return xerrors.Errorf("failed to deregister the canary task from service discovery: %w", err)
+		log.Errorf("failed to deregister the canary task from service discovery: %v", err)
+		log.Errorf("continuing to stop the canary task...")
 	}
-	return nil
 }

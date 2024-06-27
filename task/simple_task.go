@@ -19,7 +19,7 @@ func NewSimpleTask(input *Input) Task {
 }
 
 func (c *simpleTask) Wait(ctx context.Context) error {
-	if err := c.wait(ctx); err != nil {
+	if err := c.waitForTask(ctx); err != nil {
 		return err
 	}
 	return c.waitForIdleDuration(ctx)

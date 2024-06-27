@@ -74,7 +74,7 @@ func (c *common) Start(ctx context.Context) error {
 	return nil
 }
 
-func (c *common) wait(ctx context.Context) error {
+func (c *common) waitForTask(ctx context.Context) error {
 	log.Infof("🥚 waiting for canary task '%s' is running...", *c.taskArn)
 	if err := ecs.NewTasksRunningWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
@@ -220,7 +220,6 @@ func (c *common) getEc2Target(ctx context.Context, dest *CanaryTarget) error {
 
 func (c *common) stopTask(ctx context.Context) error {
 	if c.taskArn == nil {
-		log.Info("no canary task to stop")
 		return nil
 	}
 	log.Infof("stopping the canary task '%s'...", *c.taskArn)
