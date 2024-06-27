@@ -43,8 +43,52 @@ func CanaryTaskIdleDurationFlag(dest *int) *cli.IntFlag {
 	return &cli.IntFlag{
 		Name:        "canaryTaskIdleDuration",
 		EnvVars:     []string{cage.CanaryTaskIdleDuration},
-		Usage:       "Idle duration seconds for ensuring canary task that has no attached load balancer",
+		Usage:       "duration seconds for waiting canary task that isn't attached to target group considered as ready for serving traffic",
 		Destination: dest,
 		Value:       10,
+	}
+}
+
+func TaskRunningWaitFlag(dest *int) *cli.IntFlag {
+	return &cli.IntFlag{
+		Name:        "taskRunningTimeout",
+		EnvVars:     []string{cage.TaskRunningTimeout},
+		Usage:       "max duration seconds for waiting canary task running",
+		Destination: dest,
+		Category:    "ADVANCED",
+		Value:       900, // 15 minutes
+	}
+}
+
+func TaskHealthCheckWaitFlag(dest *int) *cli.IntFlag {
+	return &cli.IntFlag{
+		Name:        "taskHealthCheckTimeout",
+		EnvVars:     []string{cage.TaskHealthCheckTimeout},
+		Usage:       "max duration seconds for waiting canary task health check",
+		Destination: dest,
+		Category:    "ADVANCED",
+		Value:       900,
+	}
+}
+
+func TaskStoppedWaitFlag(dest *int) *cli.IntFlag {
+	return &cli.IntFlag{
+		Name:        "taskStoppedTimeout",
+		EnvVars:     []string{cage.TaskStoppedTimeout},
+		Usage:       "max duration seconds for waiting canary task stopped",
+		Destination: dest,
+		Category:    "ADVANCED",
+		Value:       900,
+	}
+}
+
+func ServiceStableWaitFlag(dest *int) *cli.IntFlag {
+	return &cli.IntFlag{
+		Name:        "serviceStableTimeout",
+		EnvVars:     []string{cage.ServiceStableTimeout},
+		Usage:       "max duration seconds for waiting service stable",
+		Destination: dest,
+		Category:    "ADVANCED",
+		Value:       900,
 	}
 }

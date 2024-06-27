@@ -40,9 +40,9 @@ func DefalutCageCliProvider(envars *cage.Envars) (cage.Cage, error) {
 	}
 	cagecli := cage.NewCage(&cage.Input{
 		Env: envars,
-		ECS: ecs.NewFromConfig(conf),
-		EC2: ec2.NewFromConfig(conf),
-		ALB: elasticloadbalancingv2.NewFromConfig(conf),
+		Ecs: ecs.NewFromConfig(conf),
+		Ec2: ec2.NewFromConfig(conf),
+		Alb: elasticloadbalancingv2.NewFromConfig(conf),
 	})
 	return cagecli, nil
 }

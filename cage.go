@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/loilo-inc/canarycage/awsiface"
+	"github.com/loilo-inc/canarycage/timeout"
 )
 
 type Cage interface {
@@ -19,36 +20,36 @@ type Time interface {
 }
 
 type cage struct {
-	Env     *Envars
-	Ecs     awsiface.EcsClient
-	Alb     awsiface.AlbClient
-	Ec2     awsiface.Ec2Client
-	Srv     awsiface.SrvClient
-	Time    Time
-	MaxWait time.Duration
+	*Input
+	Timeout timeout.Manager
 }
 
 type Input struct {
-	Env     *Envars
-	ECS     awsiface.EcsClient
-	ALB     awsiface.AlbClient
-	EC2     awsiface.Ec2Client
-	SRV     awsiface.SrvClient
-	Time    Time
-	MaxWait time.Duration
+	Env  *Envars
+	Ecs  awsiface.EcsClient
+	Alb  awsiface.AlbClient
+	Ec2  awsiface.Ec2Client
+	Srv  awsiface.SrvClient
+	Time Time
 }
 
 func NewCage(input *Input) Cage {
 	if input.Time == nil {
 		input.Time = &timeImpl{}
 	}
+	taskRunningWait := (time.Duration)(input.Env.CanaryTaskRunningWait) * time.Second
+	taskHealthCheckWait := (time.Duration)(input.Env.CanaryTaskHealthCheckWait) * time.Second
+	taskStoppedWait := (time.Duration)(input.Env.CanaryTaskStoppedWait) * time.Second
+	serviceStableWait := (time.Duration)(input.Env.ServiceStableWait) * time.Second
 	return &cage{
-		Env:     input.Env,
-		Ecs:     input.ECS,
-		Alb:     input.ALB,
-		Ec2:     input.EC2,
-		Srv:     input.SRV,
-		Time:    input.Time,
-		MaxWait: 5 * time.Minute,
+		Input: input,
+		Timeout: timeout.NewManager(
+			15*time.Minute,
+			&timeout.Input{
+				TaskRunningWait:     taskRunningWait,
+				TaskHealthCheckWait: taskHealthCheckWait,
+				TaskStoppedWait:     taskStoppedWait,
+				ServiceStableWait:   serviceStableWait,
+			}),
 	}
 }

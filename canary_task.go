@@ -3,6 +3,7 @@ package cage
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/apex/log"
@@ -74,11 +75,11 @@ func (c *CanaryTask) Wait(ctx context.Context) error {
 	if err := ecs.NewTasksRunningWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
 		Tasks:   []string{*c.taskArn},
-	}, c.MaxWait); err != nil {
+	}, c.Timeout.TaskRunning()); err != nil {
 		return err
 	}
 	log.Infof("🐣 canary task '%s' is running!", *c.taskArn)
-	if err := c.waitUntilHealthCeheckPassed(ctx); err != nil {
+	if err := c.waitUntilHealthCheckPassed(ctx); err != nil {
 		return err
 	}
 	log.Info("🤩 canary task container(s) is healthy!")
@@ -101,21 +102,20 @@ func (c *CanaryTask) Wait(ctx context.Context) error {
 
 func (c *CanaryTask) waitForIdleDuration(ctx context.Context) error {
 	log.Infof("wait %d seconds for canary task to be stable...", c.Env.CanaryTaskIdleDuration)
-	wait := make(chan bool)
-	go func() {
-		duration := c.Env.CanaryTaskIdleDuration
-		for duration > 0 {
-			log.Infof("still waiting...; %d seconds left", duration)
-			wt := 10
-			if duration < 10 {
-				wt = duration
-			}
-			<-c.Time.NewTimer(time.Duration(wt) * time.Second).C
+	duration := c.Env.CanaryTaskIdleDuration
+	for duration > 0 {
+		wt := 10
+		if duration < 10 {
+			wt = duration
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-c.Time.NewTimer(time.Duration(wt) * time.Second).C:
 			duration -= 10
 		}
-		wait <- true
-	}()
-	<-wait
+		log.Infof("still waiting...; %d seconds left", duration)
+	}
 	o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
 		Tasks:   []string{*c.taskArn},
@@ -149,7 +149,7 @@ func (c *CanaryTask) waitUntilSrvInstanceHelthCheckPassed(ctx context.Context) e
 	})
 }
 
-func (c *CanaryTask) waitUntilHealthCeheckPassed(ctx context.Context) error {
+func (c *CanaryTask) waitUntilHealthCheckPassed(ctx context.Context) error {
 	log.Infof("😷 ensuring canary task container(s) to become healthy...")
 	containerHasHealthChecks := map[string]struct{}{}
 	for _, definition := range c.td.ContainerDefinitions {
@@ -157,8 +157,11 @@ func (c *CanaryTask) waitUntilHealthCeheckPassed(ctx context.Context) error {
 			containerHasHealthChecks[*definition.Name] = struct{}{}
 		}
 	}
-	for count := 0; count < 10; count++ {
-		<-c.Time.NewTimer(time.Duration(15) * time.Second).C
+	healthCheckWait := c.Timeout.TaskHealthCheck()
+	healthCheckPeriod := 15 * time.Second
+	countPerPeriod := int(healthCheckWait.Seconds() / 15)
+	for count := 0; count < countPerPeriod; count++ {
+		<-c.Time.NewTimer(healthCheckPeriod).C
 		log.Infof("canary task '%s' waits until %d container(s) become healthy", *c.taskArn, len(containerHasHealthChecks))
 		if o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 			Cluster: &c.Env.Cluster,
@@ -341,10 +344,36 @@ func (c *CanaryTask) waitUntilTargetHealthy(
 	}
 }
 
+func (c *CanaryTask) targetDeregistrationDelay(ctx context.Context) (time.Duration, error) {
+	deregistrationDelay := 300 * time.Second
+	if o, err := c.Alb.DescribeTargetGroupAttributes(ctx, &elbv2.DescribeTargetGroupAttributesInput{
+		TargetGroupArn: c.target.targetGroupArn,
+	}); err != nil {
+		return deregistrationDelay, err
+	} else {
+		// find deregistration_delay.timeout_seconds
+		for _, attr := range o.Attributes {
+			if *attr.Key == "deregistration_delay.timeout_seconds" {
+				if value, err := strconv.ParseInt(*attr.Value, 10, 64); err != nil {
+					return deregistrationDelay, err
+				} else {
+					deregistrationDelay = time.Duration(value) * time.Second
+				}
+			}
+		}
+	}
+	return deregistrationDelay, nil
+}
+
 func (c *CanaryTask) Stop(ctx context.Context) error {
 	if c.target == nil {
 		log.Info("no load balancer is attached to service. Skip deregisteration.")
 	} else {
+		deregistrationDelay, err := c.targetDeregistrationDelay(ctx)
+		if err != nil {
+			log.Errorf("failed to get deregistration delay: %v", err)
+			log.Errorf("deregistration delay is set to %d seconds", deregistrationDelay)
+		}
 		log.Infof("deregistering the canary task from target group '%s'...", c.target.targetId)
 		if _, err := c.Alb.DeregisterTargets(ctx, &elbv2.DeregisterTargetsInput{
 			TargetGroupArn: c.target.targetGroupArn,
@@ -354,22 +383,28 @@ func (c *CanaryTask) Stop(ctx context.Context) error {
 				Port:             c.target.targetPort,
 			}},
 		}); err != nil {
-			return err
+			log.Errorf("failed to deregister the canary task from target group: %v", err)
+			log.Errorf("continuing to stop the canary task...")
+		} else {
+			log.Infof("deregister operation accepted. waiting for the canary task to be deregistered...")
+			deregisterWait := deregistrationDelay + time.Minute // add 1 minute for safety
+			if err := elbv2.NewTargetDeregisteredWaiter(c.Alb).Wait(ctx, &elbv2.DescribeTargetHealthInput{
+				TargetGroupArn: c.target.targetGroupArn,
+				Targets: []elbv2types.TargetDescription{{
+					AvailabilityZone: c.target.availabilityZone,
+					Id:               c.target.targetId,
+					Port:             c.target.targetPort,
+				}},
+			}, deregisterWait); err != nil {
+				log.Errorf("failed to wait for the canary task deregistered from target group: %v", err)
+				log.Errorf("continuing to stop the canary task...")
+			} else {
+				log.Infof(
+					"canary task '%s' has successfully been deregistered from target group '%s'",
+					*c.taskArn, *c.target.targetId,
+				)
+			}
 		}
-		if err := elbv2.NewTargetDeregisteredWaiter(c.Alb).Wait(ctx, &elbv2.DescribeTargetHealthInput{
-			TargetGroupArn: c.target.targetGroupArn,
-			Targets: []elbv2types.TargetDescription{{
-				AvailabilityZone: c.target.availabilityZone,
-				Id:               c.target.targetId,
-				Port:             c.target.targetPort,
-			}},
-		}, c.MaxWait); err != nil {
-			return err
-		}
-		log.Infof(
-			"canary task '%s' has successfully been deregistered from target group '%s'",
-			*c.taskArn, c.target.targetId,
-		)
 	}
 	log.Infof("stopping the canary task '%s'...", *c.taskArn)
 	if _, err := c.Ecs.StopTask(ctx, &ecs.StopTaskInput{
@@ -381,7 +416,7 @@ func (c *CanaryTask) Stop(ctx context.Context) error {
 	if err := ecs.NewTasksStoppedWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
 		Tasks:   []string{*c.taskArn},
-	}, c.MaxWait); err != nil {
+	}, c.Timeout.TaskStopped()); err != nil {
 		return err
 	}
 	log.Infof("canary task '%s' has successfully been stopped", *c.taskArn)
