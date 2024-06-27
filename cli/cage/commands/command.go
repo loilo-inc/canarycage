@@ -10,6 +10,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
+	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 )
@@ -29,16 +31,16 @@ func NewCageCommands(
 	}
 }
 
-type cageCliProvier = func(envars *cage.Envars) (cage.Cage, error)
+type cageCliProvier = func(envars *env.Envars) (types.Cage, error)
 
-func DefalutCageCliProvider(envars *cage.Envars) (cage.Cage, error) {
+func DefalutCageCliProvider(envars *env.Envars) (types.Cage, error) {
 	conf, err := config.LoadDefaultConfig(
 		context.Background(),
 		config.WithRegion(envars.Region))
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load aws config: %w", err)
 	}
-	cagecli := cage.NewCage(&cage.Input{
+	cagecli := cage.NewCage(&types.Input{
 		Env: envars,
 		Ecs: ecs.NewFromConfig(conf),
 		Ec2: ec2.NewFromConfig(conf),
@@ -63,20 +65,20 @@ func (c *CageCommands) requireArgs(
 }
 
 func (c *CageCommands) setupCage(
-	envars *cage.Envars,
+	envars *env.Envars,
 	dir string,
-) (cage.Cage, error) {
-	td, svc, err := cage.LoadDefinitionsFromFiles(dir)
+) (types.Cage, error) {
+	td, svc, err := env.LoadDefinitionsFromFiles(dir)
 	if err != nil {
 		return nil, err
 	}
-	cage.MergeEnvars(envars, &cage.Envars{
+	env.MergeEnvars(envars, &env.Envars{
 		Cluster:                *svc.Cluster,
 		Service:                *svc.ServiceName,
 		TaskDefinitionInput:    td,
 		ServiceDefinitionInput: svc,
 	})
-	if err := cage.EnsureEnvars(envars); err != nil {
+	if err := env.EnsureEnvars(envars); err != nil {
 		return nil, err
 	}
 	cagecli, err := c.cageCliProvier(envars)

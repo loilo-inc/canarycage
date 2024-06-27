@@ -9,11 +9,11 @@ push-test-container: test-container
 	docker push loilodev/http-server:latest
 version:
 	go run cli/cage/main.go -v | cut -f 3 -d ' '
-mocks: mocks/mock_awsiface/iface.go mocks/mock_cage/iface.go mocks/mock_upgrade/upgrade.go
+mocks: mocks/mock_awsiface/iface.go mocks/mock_types/iface.go mocks/mock_upgrade/upgrade.go
 mocks/mock_awsiface/iface.go: awsiface/iface.go
 	$(MOCKGEN) -source=./awsiface/iface.go > mocks/mock_awsiface/iface.go
-mocks/mock_cage/iface.go: cage.go
-	$(MOCKGEN) -source=./cage.go > mocks/mock_cage/cage.go
+mocks/mock_types/iface.go: cage.go
+	$(MOCKGEN) -source=./types/iface.go > mocks/mock_types/iface.go
 mocks/mock_upgrade/upgrade.go: cli/cage/upgrade/upgrade.go
 	$(MOCKGEN) -source=./cli/cage/upgrade/upgrade.go > mocks/mock_upgrade/upgrade.go
 .PHONY: mocks

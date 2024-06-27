@@ -5,9 +5,9 @@ import (
 	"log"
 	"os"
 
-	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/cli/cage/commands"
 	"github.com/loilo-inc/canarycage/cli/cage/upgrade"
+	"github.com/loilo-inc/canarycage/env"
 	"github.com/urfave/cli/v2"
 )
 
@@ -25,7 +25,7 @@ func main() {
 	app.Version = fmt.Sprintf("%s (commit: %s, date: %s)", version, commit, date)
 	app.Usage = "A deployment tool for AWS ECS"
 	app.Description = "A deployment tool for AWS ECS"
-	envars := cage.Envars{}
+	envars := env.Envars{}
 	cmds := commands.NewCageCommands(os.Stdin, commands.DefalutCageCliProvider)
 	app.Commands = []*cli.Command{
 		cmds.Up(&envars),

@@ -1,11 +1,14 @@
-package cage
+package env_test
 
 import (
-	"github.com/stretchr/testify/assert"
 	"log"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/loilo-inc/canarycage/env"
 )
 
 func TestTimeAdd(t *testing.T) {
@@ -19,7 +22,7 @@ func TestTimeAdd(t *testing.T) {
 func TestReadFileAndApplyEnvars(t *testing.T) {
 	os.Setenv("HOGE", "hogehoge")
 	os.Setenv("FUGA", "fugafuga")
-	d, err := ReadFileAndApplyEnvars("./fixtures/template.txt")
+	d, err := env.ReadFileAndApplyEnvars("./fixtures/template.txt")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

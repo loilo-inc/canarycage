@@ -37,7 +37,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 				t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
 			}
 
-			cagecli := cage.NewCage(&cage.Input{
+			cagecli := cage.NewCage(&types.Input{
 				Env:  envars,
 				Ecs:  ecsMock,
 				Alb:  albMock,
@@ -60,7 +60,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		ctrl := gomock.NewController(t)
 
 		mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 1, "FARGATE")
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  envars,
 			Ecs:  ecsMock,
 			Alb:  albMock,
@@ -99,7 +99,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			}, nil).Times(2),
 			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
 		)
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  envars,
 			Ecs:  ecsMock,
 			Alb:  albMock,
@@ -143,7 +143,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			}, nil),
 			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
 		)
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  envars,
 			Ecs:  ecsMock,
 			Ec2:  ec2Mock,
@@ -172,7 +172,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		envars.ServiceDefinitionInput.LoadBalancers = []ecstypes.LoadBalancer{newLb}
 		envars.ServiceDefinitionInput.NetworkConfiguration = newNetwork
 		envars.ServiceDefinitionInput.PlatformVersion = aws.String("LATEST")
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  envars,
 			Ecs:  ecsMock,
 			Alb:  albMock,
@@ -195,7 +195,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		envars := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
 		mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 1, "FARGATE")
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  envars,
 			Ecs:  ecsMock,
 			Alb:  albMock,
@@ -220,7 +220,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mocker, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 2, "FARGATE")
 		delete(mocker.Services, envars.Service)
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env: envars,
 			Ecs: ecsMock,
 			Ec2: ec2Mock,
@@ -236,7 +236,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		envars.CanaryTaskIdleDuration = 1
 		ctrl := gomock.NewController(t)
 		_, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 2, "FARGATE")
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  envars,
 			Ecs:  ecsMock,
 			Alb:  albMock,
@@ -262,7 +262,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 				},
 			}, nil,
 		)
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  envars,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
@@ -305,7 +305,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask).AnyTimes()
 		ecsMock.EXPECT().StopTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.StopTask).AnyTimes()
 
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  envars,
 			Ecs:  ecsMock,
 			Ec2:  ec2Mock,
@@ -351,7 +351,7 @@ func TestCage_RollOut_EC2(t *testing.T) {
 		if taskCnt := mctx.RunningTaskSize(); taskCnt != v {
 			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
 		}
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  envars,
 			Ecs:  ecsMock,
 			Ec2:  ec2Mock,
@@ -381,7 +381,7 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 	if taskCnt := mctx.RunningTaskSize(); taskCnt != 1 {
 		t.Fatalf("current tasks not setup: %d/%d", 1, taskCnt)
 	}
-	cagecli := cage.NewCage(&cage.Input{
+	cagecli := cage.NewCage(&types.Input{
 		Env:  envars,
 		Ecs:  ecsMock,
 		Ec2:  ec2Mock,
@@ -416,7 +416,7 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 		Attributes: []ecstypes.Attribute{},
 	}, nil).AnyTimes()
 	ecsMock.EXPECT().PutAttributes(gomock.Any(), gomock.Any()).Return(&ecs.PutAttributesOutput{}, nil).AnyTimes()
-	cagecli := cage.NewCage(&cage.Input{
+	cagecli := cage.NewCage(&types.Input{
 		Env:  envars,
 		Ecs:  ecsMock,
 		Ec2:  ec2Mock,

@@ -4,12 +4,13 @@ import (
 	"context"
 
 	"github.com/apex/log"
-	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
 )
 
 func (c *CageCommands) RollOut(
-	envars *cage.Envars,
+	envars *env.Envars,
 ) *cli.Command {
 	var updateServiceConf bool
 	return &cli.Command{
@@ -26,13 +27,13 @@ func (c *CageCommands) RollOut(
 			CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
 			&cli.StringFlag{
 				Name:        "canaryInstanceArn",
-				EnvVars:     []string{cage.CanaryInstanceArnKey},
+				EnvVars:     []string{env.CanaryInstanceArnKey},
 				Usage:       "EC2 instance ARN for placing canary task. required only when LaunchType is EC2",
 				Destination: &envars.CanaryInstanceArn,
 			},
 			&cli.BoolFlag{
 				Name:        "updateService",
-				EnvVars:     []string{cage.UpdateServiceKey},
+				EnvVars:     []string{env.UpdateServiceKey},
 				Usage:       "Update service configurations except for task definiton. Default is false.",
 				Destination: &updateServiceConf,
 			},
@@ -53,7 +54,7 @@ func (c *CageCommands) RollOut(
 			if err := c.Prompt.ConfirmService(envars); err != nil {
 				return err
 			}
-			result, err := cagecli.RollOut(context.Background(), &cage.RollOutInput{UpdateService: updateServiceConf})
+			result, err := cagecli.RollOut(context.Background(), &types.RollOutInput{UpdateService: updateServiceConf})
 			if err != nil {
 				if result.ServiceIntact {
 					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", envars.Service)

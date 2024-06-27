@@ -4,27 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/awsiface"
+	"github.com/loilo-inc/canarycage/env"
 )
-
-type Envars struct {
-	_                         struct{} `type:"struct"`
-	CI                        bool     `json:"ci" type:"bool"`
-	Region                    string   `json:"region" type:"string"`
-	Cluster                   string   `json:"cluster" type:"string" required:"true"`
-	Service                   string   `json:"service" type:"string" required:"true"`
-	CanaryInstanceArn         string
-	TaskDefinitionArn         string `json:"nextTaskDefinitionArn" type:"string"`
-	TaskDefinitionInput       *ecs.RegisterTaskDefinitionInput
-	ServiceDefinitionInput    *ecs.CreateServiceInput
-	CanaryTaskIdleDuration    int // sec
-	CanaryTaskRunningWait     int // sec
-	CanaryTaskHealthCheckWait int // sec
-	CanaryTaskStoppedWait     int // sec
-	ServiceStableWait         int // sec
-}
 
 type Cage interface {
 	Up(ctx context.Context) (*UpResult, error)
@@ -38,13 +21,14 @@ type Time interface {
 }
 
 type Input struct {
-	Env  *Envars
+	Env  *env.Envars
 	Ecs  awsiface.EcsClient
 	Alb  awsiface.AlbClient
 	Ec2  awsiface.Ec2Client
 	Srv  awsiface.SrvClient
 	Time Time
 }
+
 type RunInput struct {
 	Container *string
 	Overrides *ecstypes.TaskOverride

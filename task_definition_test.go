@@ -8,8 +8,10 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/golang/mock/gomock"
 	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 	"github.com/loilo-inc/canarycage/test"
+	"github.com/loilo-inc/canarycage/types"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/xerrors"
 )
@@ -18,11 +20,11 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 	t.Run("should return task definition if taskDefinitionArn is set", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
-		env := &cage.Envars{
+		env := &env.Envars{
 			TaskDefinitionArn: "arn://aaa",
 		}
 		c := &cage.CageExport{
-			Input: &cage.Input{
+			Input: &types.Input{
 				Env: env,
 				Ecs: ecsMock,
 			},
@@ -37,11 +39,11 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 	t.Run("should return error if taskDefinitionArn is set and failed to describe task definition", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
-		env := &cage.Envars{
+		env := &env.Envars{
 			TaskDefinitionArn: "arn://aaa",
 		}
 		c := &cage.CageExport{
-			Input: &cage.Input{
+			Input: &types.Input{
 				Env: env,
 				Ecs: ecsMock,
 			},
@@ -56,7 +58,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		env := test.DefaultEnvars()
 		c := &cage.CageExport{
-			Input: &cage.Input{
+			Input: &types.Input{
 				Env: env,
 				Ecs: ecsMock,
 			},
@@ -76,7 +78,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		env := test.DefaultEnvars()
 		c := &cage.CageExport{
-			Input: &cage.Input{
+			Input: &types.Input{
 				Env: env,
 				Ecs: ecsMock,
 			},

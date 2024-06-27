@@ -51,15 +51,8 @@ func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.R
 		_ = recover()
 		eg := errgroup.Group{}
 		for _, canaryTask := range canaryTasks {
-			if canaryTask.taskArn == nil {
-				continue
-			}
 			eg.Go(func() error {
-				err := canaryTask.Stop(ctx)
-				if err != nil {
-					log.Errorf("failed to stop canary task '%s': %s", *canaryTask.taskArn, err)
-				}
-				return err
+				return canaryTask.Stop(ctx)
 			})
 		}
 		if err := eg.Wait(); err != nil {

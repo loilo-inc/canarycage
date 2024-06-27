@@ -7,6 +7,7 @@ import (
 	"github.com/golang/mock/gomock"
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/test"
+	"github.com/loilo-inc/canarycage/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,7 +17,7 @@ func TestCage_Up(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		ctx, ecsMock, _, _ := test.Setup(ctrl, env, 1, "FARGATE")
 		delete(ctx.Services, env.Service)
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env: env,
 			Ecs: ecsMock,
 		})
@@ -29,7 +30,7 @@ func TestCage_Up(t *testing.T) {
 		env := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
 		_, ecsMock, _, _ := test.Setup(ctrl, env, 1, "FARGATE")
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env: env,
 			Ecs: ecsMock,
 		})

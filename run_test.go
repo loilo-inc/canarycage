@@ -9,6 +9,7 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/golang/mock/gomock"
 	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/loilo-inc/canarycage/types"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestCage_Run(t *testing.T) {
-	setupForBasic := func(t *testing.T) (*cage.Envars,
+	setupForBasic := func(t *testing.T) (*env.Envars,
 		*test.MockContext,
 		*mock_awsiface.MockEcsClient) {
 		env := test.DefaultEnvars()
@@ -39,7 +40,7 @@ func TestCage_Run(t *testing.T) {
 				return mocker.DescribeTasks(ctx, input)
 			}),
 		)
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
@@ -69,7 +70,7 @@ func TestCage_Run(t *testing.T) {
 				},
 			),
 		)
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
@@ -91,7 +92,7 @@ func TestCage_Run(t *testing.T) {
 			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTasks).Times(2),
 		)
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
@@ -119,7 +120,7 @@ func TestCage_Run(t *testing.T) {
 				return mocker.DescribeTasks(ctx, input)
 			}),
 		)
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
@@ -147,7 +148,7 @@ func TestCage_Run(t *testing.T) {
 				return mocker.DescribeTasks(ctx, input)
 			}),
 		)
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
@@ -163,7 +164,7 @@ func TestCage_Run(t *testing.T) {
 		overrides := &ecstypes.TaskOverride{}
 		ctx := context.Background()
 		env, _, ecsMock := setupForBasic(t)
-		cagecli := cage.NewCage(&cage.Input{
+		cagecli := cage.NewCage(&types.Input{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),

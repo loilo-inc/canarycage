@@ -11,11 +11,11 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/golang/mock/gomock"
-	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 )
 
-func Setup(ctrl *gomock.Controller, envars *cage.Envars, currentTaskCount int, launchType ecstypes.LaunchType) (
+func Setup(ctrl *gomock.Controller, envars *env.Envars, currentTaskCount int, launchType ecstypes.LaunchType) (
 	*MockContext,
 	*mock_awsiface.MockEcsClient,
 	*mock_awsiface.MockAlbClient,
@@ -62,13 +62,13 @@ func Setup(ctrl *gomock.Controller, envars *cage.Envars, currentTaskCount int, l
 	return mocker, ecsMock, albMock, ec2Mock
 }
 
-func DefaultEnvars() *cage.Envars {
+func DefaultEnvars() *env.Envars {
 	d, _ := os.ReadFile("fixtures/task-definition.json")
 	var taskDefinition ecs.RegisterTaskDefinitionInput
 	if err := json.Unmarshal(d, &taskDefinition); err != nil {
 		log.Fatalf(err.Error())
 	}
-	return &cage.Envars{
+	return &env.Envars{
 		Region:                 "us-west-2",
 		Cluster:                "cage-test",
 		Service:                "service",

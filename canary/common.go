@@ -230,18 +230,22 @@ func (c *common) getEc2Target(ctx context.Context, dest *CanaryTarget) error {
 }
 
 func (c *common) stopTask(ctx context.Context) error {
+	if c.taskArn == nil {
+		log.Info("no canary task to stop")
+		return nil
+	}
 	log.Infof("stopping the canary task '%s'...", *c.taskArn)
 	if _, err := c.Ecs.StopTask(ctx, &ecs.StopTaskInput{
 		Cluster: &c.Env.Cluster,
 		Task:    c.taskArn,
 	}); err != nil {
-		return err
+		return xerrors.Errorf("failed to stop canary task: %w", err)
 	}
 	if err := ecs.NewTasksStoppedWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
 		Tasks:   []string{*c.taskArn},
 	}, c.Timeout.TaskStopped()); err != nil {
-		return err
+		return xerrors.Errorf("failed to wait for canary task to be stopped: %w", err)
 	}
 	log.Infof("canary task '%s' has successfully been stopped", *c.taskArn)
 	return nil
