@@ -6,15 +6,11 @@ import (
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/xerrors"
 )
 
-type UpResult struct {
-	TaskDefinition *ecstypes.TaskDefinition
-	Service        *ecstypes.Service
-}
-
-func (c *cage) Up(ctx context.Context) (*UpResult, error) {
+func (c *cage) Up(ctx context.Context) (*types.UpResult, error) {
 	td, err := c.CreateNextTaskDefinition(ctx)
 	if err != nil {
 		return nil, err
@@ -35,7 +31,7 @@ func (c *cage) Up(ctx context.Context) (*UpResult, error) {
 	if service, err := c.createService(ctx, c.Env.ServiceDefinitionInput); err != nil {
 		return nil, err
 	} else {
-		return &UpResult{TaskDefinition: td, Service: service}, nil
+		return &types.UpResult{TaskDefinition: td, Service: service}, nil
 	}
 }
 

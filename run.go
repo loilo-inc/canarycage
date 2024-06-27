@@ -6,18 +6,10 @@ import (
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/xerrors"
 )
-
-type RunInput struct {
-	Container *string
-	Overrides *types.TaskOverride
-}
-
-type RunResult struct {
-	ExitCode int32
-}
 
 func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container *string) bool {
 	for _, v := range td.ContainerDefinitions {
@@ -28,7 +20,7 @@ func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container 
 	return false
 }
 
-func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
+func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult, error) {
 	if !containerExistsInDefinition(c.Env.TaskDefinitionInput, input.Container) {
 		return nil, xerrors.Errorf("🚫 '%s' not found in container definitions", *input.Container)
 	}
@@ -39,7 +31,7 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 	o, err := c.Ecs.RunTask(ctx, &ecs.RunTaskInput{
 		Cluster:              &c.Env.Cluster,
 		TaskDefinition:       td.TaskDefinitionArn,
-		LaunchType:           types.LaunchTypeFargate,
+		LaunchType:           ecstypes.LaunchTypeFargate,
 		NetworkConfiguration: c.Env.ServiceDefinitionInput.NetworkConfiguration,
 		PlatformVersion:      c.Env.ServiceDefinitionInput.PlatformVersion,
 		Overrides:            input.Overrides,
@@ -72,7 +64,7 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 				} else if *c.ExitCode != 0 {
 					return nil, xerrors.Errorf("task exited with %d", *c.ExitCode)
 				}
-				return &RunResult{ExitCode: *c.ExitCode}, nil
+				return &types.RunResult{ExitCode: *c.ExitCode}, nil
 			}
 		}
 		// Never reached?

@@ -6,12 +6,13 @@ import (
 
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/timeout"
+	"github.com/loilo-inc/canarycage/types"
 )
 
 type Cage interface {
-	Up(ctx context.Context) (*UpResult, error)
-	Run(ctx context.Context, input *RunInput) (*RunResult, error)
-	RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult, error)
+	Up(ctx context.Context) (*types.UpResult, error)
+	Run(ctx context.Context, input *types.RunInput) (*types.RunResult, error)
+	RollOut(ctx context.Context, input *types.RollOutInput) (*types.RollOutResult, error)
 }
 
 type Time interface {

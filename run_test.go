@@ -11,6 +11,7 @@ import (
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 	"github.com/loilo-inc/canarycage/test"
+	"github.com/loilo-inc/canarycage/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,7 +44,7 @@ func TestCage_Run(t *testing.T) {
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
-		result, err := cagecli.Run(ctx, &cage.RunInput{
+		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: &container,
 			Overrides: overrides,
 		})
@@ -73,7 +74,7 @@ func TestCage_Run(t *testing.T) {
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
-		result, err := cagecli.Run(ctx, &cage.RunInput{
+		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: &container,
 			Overrides: overrides,
 		})
@@ -95,7 +96,7 @@ func TestCage_Run(t *testing.T) {
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
-		result, err := cagecli.Run(ctx, &cage.RunInput{
+		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: &container,
 			Overrides: overrides,
 		})
@@ -123,7 +124,7 @@ func TestCage_Run(t *testing.T) {
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
-		result, err := cagecli.Run(ctx, &cage.RunInput{
+		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: &container,
 			Overrides: overrides,
 		})
@@ -151,7 +152,7 @@ func TestCage_Run(t *testing.T) {
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
-		result, err := cagecli.Run(ctx, &cage.RunInput{
+		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: &container,
 			Overrides: overrides,
 		})
@@ -167,7 +168,7 @@ func TestCage_Run(t *testing.T) {
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
-		result, err := cagecli.Run(ctx, &cage.RunInput{
+		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: aws.String("foo"),
 			Overrides: overrides,
 		})

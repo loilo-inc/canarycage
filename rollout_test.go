@@ -16,6 +16,7 @@ import (
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 	"github.com/loilo-inc/canarycage/test"
+	"github.com/loilo-inc/canarycage/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -44,7 +45,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 				Time: test.NewFakeTime(),
 			})
 			ctx := context.Background()
-			result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
+			result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 			assert.NoError(t, err)
 			assert.False(t, result.ServiceIntact)
 			assert.Equal(t, 1, mctx.ActiveServiceSize())
@@ -67,7 +68,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
+		result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		assert.NoError(t, err)
 		assert.False(t, result.ServiceIntact)
 		assert.Equal(t, 1, mctx.ActiveServiceSize())
@@ -106,7 +107,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
+		result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 	})
@@ -150,7 +151,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		_, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
+		_, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		assert.NotNil(t, err)
 	})
 	t.Run("update service", func(t *testing.T) {
@@ -183,7 +184,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		assert.Equal(t, "1.4.0", *service.PlatformVersion)
 		assert.NotNil(t, service.NetworkConfiguration)
 		assert.NotNil(t, service.LoadBalancers)
-		_, err := cagecli.RollOut(ctx, &cage.RollOutInput{UpdateService: true})
+		_, err := cagecli.RollOut(ctx, &types.RollOutInput{UpdateService: true})
 		assert.NoError(t, err)
 		service, _ = mctx.GetService(envars.Service)
 		assert.Equal(t, "LATEST", *service.PlatformVersion)
@@ -209,7 +210,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 				TargetGroupArn: aws.String("arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/new-target-group/abcdefg"),
 			},
 		}
-		result, err := cagecli.RollOut(ctx, &cage.RollOutInput{UpdateService: true})
+		result, err := cagecli.RollOut(ctx, &types.RollOutInput{UpdateService: true})
 		assert.EqualError(t, err, "failed to wait for canary task due to: couldn't find host port in container definition")
 		assert.Equal(t, result.ServiceIntact, true)
 		assert.Equal(t, 1, mctx.RunningTaskSize())
@@ -226,7 +227,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Alb: albMock,
 		})
 		ctx := context.Background()
-		_, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
+		_, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		assert.EqualError(t, err, "service 'service' doesn't exist. Run 'cage up' or create service before rolling out")
 	})
 	t.Run("Roll out even if the service does not have a load balancer", func(t *testing.T) {
@@ -243,7 +244,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		if res, err := cagecli.RollOut(ctx, &cage.RollOutInput{}); err != nil {
+		if res, err := cagecli.RollOut(ctx, &types.RollOutInput{}); err != nil {
 			t.Fatalf(err.Error())
 		} else if res.ServiceIntact {
 			t.Fatalf("no")
@@ -266,7 +267,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
 		})
-		_, err := cagecli.RollOut(context.Background(), &cage.RollOutInput{})
+		_, err := cagecli.RollOut(context.Background(), &types.RollOutInput{})
 		assert.EqualError(t, err, "😵 'service' status is 'INACTIVE'. Stop rolling out")
 	})
 	t.Run("Stop rolling out if the canary task container does not become healthy", func(t *testing.T) {
@@ -312,7 +313,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		res, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
+		res, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		assert.NotNil(t, res)
 		assert.NotNil(t, err)
 
@@ -358,7 +359,7 @@ func TestCage_RollOut_EC2(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
+		result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		if err != nil {
 			t.Fatalf("%s", err)
 		}
@@ -388,7 +389,7 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 		Time: test.NewFakeTime(),
 	})
 	ctx := context.Background()
-	result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
+	result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 	if err == nil {
 		t.Fatal("Rollout with no container instance should be error")
 	} else {
@@ -423,7 +424,7 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 		Time: test.NewFakeTime(),
 	})
 	ctx := context.Background()
-	result, err := cagecli.RollOut(ctx, &cage.RollOutInput{})
+	result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 	if err != nil {
 		t.Fatalf("%s", err)
 	}

@@ -6,21 +6,14 @@ import (
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/loilo-inc/canarycage/canary"
+	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 )
 
-type RollOutInput struct {
-	// UpdateService is a flag to update service with changed configurations except for task definition
-	UpdateService bool
-}
-
-type RollOutResult struct {
-	ServiceIntact bool
-}
-
-func (c *cage) RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult, error) {
-	result := &RollOutResult{
+func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.RollOutResult, error) {
+	result := &types.RollOutResult{
 		ServiceIntact: true,
 	}
 	if out, err := c.Ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
@@ -124,8 +117,8 @@ func (c *cage) RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult
 func (c *cage) StartCanaryTasks(
 	ctx context.Context,
 	nextTaskDefinition *ecstypes.TaskDefinition,
-	input *RollOutInput,
-) ([]*CanaryTask, error) {
+	input *types.RollOutInput,
+) ([]canary.Task, error) {
 	var networkConfiguration *ecstypes.NetworkConfiguration
 	var platformVersion *string
 	var loadBalancers []ecstypes.LoadBalancer
@@ -149,25 +142,44 @@ func (c *cage) StartCanaryTasks(
 			serviceRegistries = service.ServiceRegistries
 		}
 	}
-	var results []*CanaryTask
-
-	if len(loadBalancers) == 0 {
-		task := &CanaryTask{
-			c, nextTaskDefinition, nil, networkConfiguration, platformVersion, nil, nil,
-		}
+	var results []canary.Task
+	for _, lb := range loadBalancers {
+		task := canary.NewAlbTask(&canary.Input{
+			Input:           c.Input,
+			Network:         networkConfiguration,
+			TaskDefinition:  nextTaskDefinition,
+			PlatformVersion: platformVersion,
+			Timeout:         c.Timeout,
+		}, &lb)
 		results = append(results, task)
 		if err := task.Start(ctx); err != nil {
 			return results, err
 		}
-	} else {
-		for _, lb := range loadBalancers {
-			task := &CanaryTask{
-				c, nextTaskDefinition, &lb, networkConfiguration, platformVersion, nil, nil,
-			}
-			results = append(results, task)
-			if err := task.Start(ctx); err != nil {
-				return results, err
-			}
+	}
+	for _, srv := range serviceRegistries {
+		task := canary.NewSrvTask(&canary.Input{
+			Input:           c.Input,
+			Network:         networkConfiguration,
+			TaskDefinition:  nextTaskDefinition,
+			PlatformVersion: platformVersion,
+			Timeout:         c.Timeout,
+		}, &srv)
+		results = append(results, task)
+		if err := task.Start(ctx); err != nil {
+			return results, err
+		}
+	}
+	if len(results) == 0 {
+		task := canary.NewSimpleTask(&canary.Input{
+			Input:           c.Input,
+			Network:         networkConfiguration,
+			TaskDefinition:  nextTaskDefinition,
+			PlatformVersion: platformVersion,
+			Timeout:         c.Timeout,
+		})
+		results = append(results, task)
+		if err := task.Start(ctx); err != nil {
+			return results, err
 		}
 	}
 	return results, nil
