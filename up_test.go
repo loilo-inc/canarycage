@@ -17,7 +17,7 @@ func TestCage_Up(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		ctx, ecsMock, _, _ := test.Setup(ctrl, env, 1, "FARGATE")
 		delete(ctx.Services, env.Service)
-		cagecli := cage.NewCage(&types.Input{
+		cagecli := cage.NewCage(&types.Deps{
 			Env: env,
 			Ecs: ecsMock,
 		})
@@ -30,7 +30,7 @@ func TestCage_Up(t *testing.T) {
 		env := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
 		_, ecsMock, _, _ := test.Setup(ctrl, env, 1, "FARGATE")
-		cagecli := cage.NewCage(&types.Input{
+		cagecli := cage.NewCage(&types.Deps{
 			Env: env,
 			Ecs: ecsMock,
 		})

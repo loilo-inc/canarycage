@@ -1,4 +1,4 @@
-package canary
+package task
 
 import (
 	"context"
@@ -9,8 +9,13 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// simpleTask is a task that isn't attachet to any load balancer or service discovery
 type simpleTask struct {
 	*common
+}
+
+func NewSimpleTask(input *Input) Task {
+	return &simpleTask{common: &common{Input: input}}
 }
 
 func (c *simpleTask) Wait(ctx context.Context) error {

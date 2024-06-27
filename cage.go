@@ -8,11 +8,11 @@ import (
 )
 
 type cage struct {
-	*types.Input
+	*types.Deps
 	Timeout timeout.Manager
 }
 
-func NewCage(input *types.Input) types.Cage {
+func NewCage(input *types.Deps) types.Cage {
 	if input.Time == nil {
 		input.Time = &timeImpl{}
 	}
@@ -21,7 +21,7 @@ func NewCage(input *types.Input) types.Cage {
 	taskStoppedWait := (time.Duration)(input.Env.CanaryTaskStoppedWait) * time.Second
 	serviceStableWait := (time.Duration)(input.Env.ServiceStableWait) * time.Second
 	return &cage{
-		Input: input,
+		Deps: input,
 		Timeout: timeout.NewManager(
 			15*time.Minute,
 			&timeout.Input{

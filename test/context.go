@@ -453,7 +453,9 @@ func (ctx *MockContext) DescribeInstances(_ context.Context, input *ec2.Describe
 	return &ec2.DescribeInstancesOutput{
 		Reservations: []ec2types.Reservation{{
 			Instances: []ec2types.Instance{{
-				SubnetId: aws.String("us-west-2a"),
+				InstanceId:       aws.String("i-123456"),
+				PrivateIpAddress: aws.String("127.0.1.0"),
+				SubnetId:         aws.String("us-west-2a"),
 			}},
 		}},
 	}, nil

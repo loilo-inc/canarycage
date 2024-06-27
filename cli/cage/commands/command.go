@@ -40,7 +40,7 @@ func DefalutCageCliProvider(envars *env.Envars) (types.Cage, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load aws config: %w", err)
 	}
-	cagecli := cage.NewCage(&types.Input{
+	cagecli := cage.NewCage(&types.Deps{
 		Env: envars,
 		Ecs: ecs.NewFromConfig(conf),
 		Ec2: ec2.NewFromConfig(conf),

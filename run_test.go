@@ -40,7 +40,7 @@ func TestCage_Run(t *testing.T) {
 				return mocker.DescribeTasks(ctx, input)
 			}),
 		)
-		cagecli := cage.NewCage(&types.Input{
+		cagecli := cage.NewCage(&types.Deps{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
@@ -70,7 +70,7 @@ func TestCage_Run(t *testing.T) {
 				},
 			),
 		)
-		cagecli := cage.NewCage(&types.Input{
+		cagecli := cage.NewCage(&types.Deps{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
@@ -92,7 +92,7 @@ func TestCage_Run(t *testing.T) {
 			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTasks).Times(2),
 		)
-		cagecli := cage.NewCage(&types.Input{
+		cagecli := cage.NewCage(&types.Deps{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
@@ -120,7 +120,7 @@ func TestCage_Run(t *testing.T) {
 				return mocker.DescribeTasks(ctx, input)
 			}),
 		)
-		cagecli := cage.NewCage(&types.Input{
+		cagecli := cage.NewCage(&types.Deps{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
@@ -148,7 +148,7 @@ func TestCage_Run(t *testing.T) {
 				return mocker.DescribeTasks(ctx, input)
 			}),
 		)
-		cagecli := cage.NewCage(&types.Input{
+		cagecli := cage.NewCage(&types.Deps{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),
@@ -164,7 +164,7 @@ func TestCage_Run(t *testing.T) {
 		overrides := &ecstypes.TaskOverride{}
 		ctx := context.Background()
 		env, _, ecsMock := setupForBasic(t)
-		cagecli := cage.NewCage(&types.Input{
+		cagecli := cage.NewCage(&types.Deps{
 			Env:  env,
 			Ecs:  ecsMock,
 			Time: test.NewFakeTime(),

@@ -24,7 +24,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 			TaskDefinitionArn: "arn://aaa",
 		}
 		c := &cage.CageExport{
-			Input: &types.Input{
+			Deps: &types.Deps{
 				Env: env,
 				Ecs: ecsMock,
 			},
@@ -43,7 +43,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 			TaskDefinitionArn: "arn://aaa",
 		}
 		c := &cage.CageExport{
-			Input: &types.Input{
+			Deps: &types.Deps{
 				Env: env,
 				Ecs: ecsMock,
 			},
@@ -58,7 +58,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		env := test.DefaultEnvars()
 		c := &cage.CageExport{
-			Input: &types.Input{
+			Deps: &types.Deps{
 				Env: env,
 				Ecs: ecsMock,
 			},
@@ -78,7 +78,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		env := test.DefaultEnvars()
 		c := &cage.CageExport{
-			Input: &types.Input{
+			Deps: &types.Deps{
 				Env: env,
 				Ecs: ecsMock,
 			},

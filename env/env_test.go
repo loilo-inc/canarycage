@@ -1,8 +1,10 @@
 package env_test
 
 import (
+	"os"
 	"testing"
 
+	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/stretchr/testify/assert"
@@ -82,4 +84,20 @@ func TestMergeEnvars(t *testing.T) {
 	assert.Equal(t, e1.Region, "us-west-2")
 	assert.Equal(t, e1.Cluster, "hoge")
 	assert.Equal(t, e1.Service, "fuga")
+}
+
+func TestReadFileAndApplyEnvars(t *testing.T) {
+	os.Setenv("HOGE", "hogehoge")
+	os.Setenv("FUGA", "fugafuga")
+	d, err := env.ReadFileAndApplyEnvars("./fixtures/template.txt")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	s := string(d)
+	e := `HOGE=hogehoge
+FUGA=fugafuga
+fugafuga=hogehoge`
+	if s != e {
+		log.Fatalf("e: %s, a: %s", e, s)
+	}
 }

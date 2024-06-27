@@ -6,7 +6,7 @@ import (
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/loilo-inc/canarycage/canary"
+	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -111,7 +111,7 @@ func (c *cage) StartCanaryTasks(
 	ctx context.Context,
 	nextTaskDefinition *ecstypes.TaskDefinition,
 	input *types.RollOutInput,
-) ([]canary.Task, error) {
+) ([]task.Task, error) {
 	var networkConfiguration *ecstypes.NetworkConfiguration
 	var platformVersion *string
 	var loadBalancers []ecstypes.LoadBalancer
@@ -135,14 +135,14 @@ func (c *cage) StartCanaryTasks(
 			serviceRegistries = service.ServiceRegistries
 		}
 	}
-	var results []canary.Task
+	var results []task.Task
 	for _, lb := range loadBalancers {
-		task := canary.NewAlbTask(&canary.Input{
-			Input:           c.Input,
-			Network:         networkConfiguration,
-			TaskDefinition:  nextTaskDefinition,
-			PlatformVersion: platformVersion,
-			Timeout:         c.Timeout,
+		task := task.NewAlbTask(&task.Input{
+			Deps:                 c.Deps,
+			NetworkConfiguration: networkConfiguration,
+			TaskDefinition:       nextTaskDefinition,
+			PlatformVersion:      platformVersion,
+			Timeout:              c.Timeout,
 		}, &lb)
 		results = append(results, task)
 		if err := task.Start(ctx); err != nil {
@@ -150,12 +150,12 @@ func (c *cage) StartCanaryTasks(
 		}
 	}
 	for _, srv := range serviceRegistries {
-		task := canary.NewSrvTask(&canary.Input{
-			Input:           c.Input,
-			Network:         networkConfiguration,
-			TaskDefinition:  nextTaskDefinition,
-			PlatformVersion: platformVersion,
-			Timeout:         c.Timeout,
+		task := task.NewSrvTask(&task.Input{
+			Deps:                 c.Deps,
+			NetworkConfiguration: networkConfiguration,
+			TaskDefinition:       nextTaskDefinition,
+			PlatformVersion:      platformVersion,
+			Timeout:              c.Timeout,
 		}, &srv)
 		results = append(results, task)
 		if err := task.Start(ctx); err != nil {
@@ -163,12 +163,12 @@ func (c *cage) StartCanaryTasks(
 		}
 	}
 	if len(results) == 0 {
-		task := canary.NewSimpleTask(&canary.Input{
-			Input:           c.Input,
-			Network:         networkConfiguration,
-			TaskDefinition:  nextTaskDefinition,
-			PlatformVersion: platformVersion,
-			Timeout:         c.Timeout,
+		task := task.NewSimpleTask(&task.Input{
+			Deps:                 c.Deps,
+			NetworkConfiguration: networkConfiguration,
+			TaskDefinition:       nextTaskDefinition,
+			PlatformVersion:      platformVersion,
+			Timeout:              c.Timeout,
 		})
 		results = append(results, task)
 		if err := task.Start(ctx); err != nil {

@@ -20,7 +20,7 @@ type Time interface {
 	NewTimer(time.Duration) *time.Timer
 }
 
-type Input struct {
+type Deps struct {
 	Env  *env.Envars
 	Ecs  awsiface.EcsClient
 	Alb  awsiface.AlbClient

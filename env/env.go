@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -118,4 +120,22 @@ func ReadAndUnmarshalJson(path string, dest interface{}) ([]byte, error) {
 		}
 		return d, nil
 	}
+}
+
+func ReadFileAndApplyEnvars(path string) ([]byte, error) {
+	d, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	str := string(d)
+	reg := regexp.MustCompile(`\${(.+?)}`)
+	submatches := reg.FindAllStringSubmatch(str, -1)
+	for _, m := range submatches {
+		if envar, ok := os.LookupEnv(m[1]); ok {
+			str = strings.Replace(str, m[0], envar, -1)
+		} else {
+			log.Fatalf("envar literal '%s' found in %s but was not defined", m[0], path)
+		}
+	}
+	return []byte(str), nil
 }

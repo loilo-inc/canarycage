@@ -1,4 +1,4 @@
-package canary
+package task
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// albTask is a task that is attached to an Application Load Balancer
 type albTask struct {
 	*common
 	lb     *ecstypes.LoadBalancer
@@ -86,31 +87,33 @@ func (c *albTask) Stop(ctx context.Context) error {
 	return c.stopTask(ctx)
 }
 
-func (c *albTask) getTargetPort(ctx context.Context) (int32, error) {
+func (c *albTask) getTargetPort() (int32, error) {
 	for _, container := range c.TaskDefinition.ContainerDefinitions {
 		if *container.Name == *c.lb.ContainerName {
-			return *container.PortMappings[0].ContainerPort, nil
+			return *container.PortMappings[0].HostPort, nil
 		}
 	}
 	return 0, xerrors.Errorf("couldn't find host port in container definition")
 }
 
 func (c *albTask) registerToTargetGroup(ctx context.Context) error {
-	info, err := c.describeTaskTarget(ctx, c.getTargetPort)
-	if err != nil {
+	if targetPort, err := c.getTargetPort(); err != nil {
 		return err
+	} else if target, err := c.describeTaskTarget(ctx, targetPort); err != nil {
+		return err
+	} else {
+		c.target = target
 	}
 	if _, err := c.Alb.RegisterTargets(ctx, &elbv2.RegisterTargetsInput{
 		TargetGroupArn: c.lb.TargetGroupArn,
 		Targets: []elbv2types.TargetDescription{{
-			AvailabilityZone: &info.availabilityZone,
-			Id:               &info.targetId,
-			Port:             &info.targetPort,
+			AvailabilityZone: &c.target.availabilityZone,
+			Id:               &c.target.targetId,
+			Port:             &c.target.targetPort,
 		}},
 	}); err != nil {
 		return err
 	}
-	c.target = info
 	return nil
 }
 

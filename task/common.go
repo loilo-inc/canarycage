@@ -1,4 +1,4 @@
-package canary
+package task
 
 import (
 	"context"
@@ -31,10 +31,10 @@ type Task interface {
 
 type Input struct {
 	*types.Deps
-	TaskDefinition  *ecstypes.TaskDefinition
-	Network         *ecstypes.NetworkConfiguration
-	PlatformVersion *string
-	Timeout         timeout.Manager
+	TaskDefinition       *ecstypes.TaskDefinition
+	NetworkConfiguration *ecstypes.NetworkConfiguration
+	PlatformVersion      *string
+	Timeout              timeout.Manager
 }
 
 type common struct {
@@ -48,7 +48,7 @@ func (c *common) Start(ctx context.Context) error {
 		startTask := &ecs.StartTaskInput{
 			Cluster:              &c.Env.Cluster,
 			Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.Env.Service)),
-			NetworkConfiguration: c.Network,
+			NetworkConfiguration: c.NetworkConfiguration,
 			TaskDefinition:       c.TaskDefinition.TaskDefinitionArn,
 			ContainerInstances:   []string{c.Env.CanaryInstanceArn},
 		}
@@ -62,7 +62,7 @@ func (c *common) Start(ctx context.Context) error {
 		if o, err := c.Ecs.RunTask(ctx, &ecs.RunTaskInput{
 			Cluster:              &c.Env.Cluster,
 			Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.Env.Service)),
-			NetworkConfiguration: c.Network,
+			NetworkConfiguration: c.NetworkConfiguration,
 			TaskDefinition:       c.TaskDefinition.TaskDefinitionArn,
 			LaunchType:           ecstypes.LaunchTypeFargate,
 			PlatformVersion:      c.PlatformVersion,
@@ -84,7 +84,7 @@ func (c *common) wait(ctx context.Context) error {
 		return err
 	}
 	log.Infof("🐣 canary task '%s' is running!", *c.taskArn)
-	if err := c.waitUntilHealthCheckPassed(ctx); err != nil {
+	if err := c.waitContainerHealthCheck(ctx); err != nil {
 		return err
 	}
 	log.Info("🤩 canary task container(s) is healthy!")
@@ -92,7 +92,7 @@ func (c *common) wait(ctx context.Context) error {
 	return nil
 }
 
-func (c *common) waitUntilHealthCheckPassed(ctx context.Context) error {
+func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 	log.Infof("😷 ensuring canary task container(s) to become healthy...")
 	containerHasHealthChecks := map[string]struct{}{}
 	for _, definition := range c.TaskDefinition.ContainerDefinitions {
@@ -137,14 +137,8 @@ func (c *common) waitUntilHealthCheckPassed(ctx context.Context) error {
 
 func (c *common) describeTaskTarget(
 	ctx context.Context,
-	getTargetPort func(ctx context.Context) (int32, error),
+	targetPort int32,
 ) (*CanaryTarget, error) {
-	var targetPort int32
-	if v, err := getTargetPort(ctx); err != nil {
-		return nil, err
-	} else {
-		targetPort = v
-	}
 	target := CanaryTarget{targetPort: targetPort}
 	if c.Env.CanaryInstanceArn == "" { // Fargate
 		if err := c.getFargateTarget(ctx, &target); err != nil {

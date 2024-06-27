@@ -1,4 +1,4 @@
-package canary
+package task
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// srvTask is a task that is attached to an Service Discovery
 type srvTask struct {
 	*common
 	registry *ecstypes.ServiceRegistry
@@ -49,15 +50,8 @@ func (c *srvTask) Stop(ctx context.Context) error {
 	return c.stopTask(ctx)
 }
 
-func (c *srvTask) getTargetPort(ctx context.Context) (int32, error) {
-	if c.registry.Port != nil {
-		return *c.registry.Port, nil
-	}
-	return 80, nil
-}
-
 func (c *srvTask) registerToSrvDiscovery(ctx context.Context) error {
-	target, err := c.describeTaskTarget(ctx, c.getTargetPort)
+	target, err := c.describeTaskTarget(ctx, *c.registry.Port)
 	if err != nil {
 		return err
 	}
