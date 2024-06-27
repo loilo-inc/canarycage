@@ -76,7 +76,6 @@ func TestCage_Run(t *testing.T) {
 		result, err := cagecli.Run(ctx, &cage.RunInput{
 			Container: &container,
 			Overrides: overrides,
-			// MaxWait:   1,
 		})
 		assert.Nil(t, result)
 		assert.EqualError(t, err, "task failed to start: exceeded max wait time for TasksRunning waiter")
