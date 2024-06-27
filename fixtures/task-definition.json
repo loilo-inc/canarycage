@@ -7,13 +7,6 @@
     {
       "name": "container",
       "image": "",
-      "repositoryCredentials": {
-        "credentialsParameter": ""
-      },
-      "cpu": 0,
-      "memory": 0,
-      "memoryReservation": 0,
-      "links": [""],
       "portMappings": [
         {
           "containerPort": 8000,
@@ -21,80 +14,6 @@
         }
       ],
       "essential": true,
-      "entryPoint": [""],
-      "command": [""],
-      "environment": [
-        {
-          "name": "",
-          "value": ""
-        }
-      ],
-      "mountPoints": [
-        {
-          "sourceVolume": "",
-          "containerPath": "",
-          "readOnly": true
-        }
-      ],
-      "volumesFrom": [
-        {
-          "sourceContainer": "",
-          "readOnly": true
-        }
-      ],
-      "linuxParameters": {
-        "capabilities": {
-          "add": [""],
-          "drop": [""]
-        },
-        "devices": [
-          {
-            "hostPath": "",
-            "containerPath": "",
-            "permissions": ["mknod"]
-          }
-        ],
-        "initProcessEnabled": true,
-        "sharedMemorySize": 0,
-        "tmpfs": [
-          {
-            "containerPath": "",
-            "size": 0,
-            "mountOptions": [""]
-          }
-        ]
-      },
-      "hostname": "",
-      "user": "",
-      "workingDirectory": "",
-      "disableNetworking": true,
-      "privileged": true,
-      "readonlyRootFilesystem": true,
-      "dnsServers": [""],
-      "dnsSearchDomains": [""],
-      "extraHosts": [
-        {
-          "hostname": "",
-          "ipAddress": ""
-        }
-      ],
-      "dockerSecurityOptions": [""],
-      "dockerLabels": {
-        "KeyName": ""
-      },
-      "ulimits": [
-        {
-          "name": "core",
-          "softLimit": 0,
-          "hardLimit": 0
-        }
-      ],
-      "logConfiguration": {
-        "logDriver": "gelf",
-        "options": {
-          "KeyName": ""
-        }
-      },
       "healthCheck": {
         "command": [""],
         "interval": 0,
@@ -106,94 +25,12 @@
     {
       "name": "containerWithoutHealthCheck",
       "image": "",
-      "repositoryCredentials": {
-        "credentialsParameter": ""
-      },
-      "cpu": 0,
-      "memory": 0,
-      "memoryReservation": 0,
-      "links": [""],
       "portMappings": [
         {
           "containerPort": 8000,
           "hostPort": 80
         }
-      ],
-      "essential": true,
-      "entryPoint": [""],
-      "command": [""],
-      "environment": [
-        {
-          "name": "",
-          "value": ""
-        }
-      ],
-      "mountPoints": [
-        {
-          "sourceVolume": "",
-          "containerPath": "",
-          "readOnly": true
-        }
-      ],
-      "volumesFrom": [
-        {
-          "sourceContainer": "",
-          "readOnly": true
-        }
-      ],
-      "linuxParameters": {
-        "capabilities": {
-          "add": [""],
-          "drop": [""]
-        },
-        "devices": [
-          {
-            "hostPath": "",
-            "containerPath": "",
-            "permissions": ["mknod"]
-          }
-        ],
-        "initProcessEnabled": true,
-        "sharedMemorySize": 0,
-        "tmpfs": [
-          {
-            "containerPath": "",
-            "size": 0,
-            "mountOptions": [""]
-          }
-        ]
-      },
-      "hostname": "",
-      "user": "",
-      "workingDirectory": "",
-      "disableNetworking": true,
-      "privileged": true,
-      "readonlyRootFilesystem": true,
-      "dnsServers": [""],
-      "dnsSearchDomains": [""],
-      "extraHosts": [
-        {
-          "hostname": "",
-          "ipAddress": ""
-        }
-      ],
-      "dockerSecurityOptions": [""],
-      "dockerLabels": {
-        "KeyName": ""
-      },
-      "ulimits": [
-        {
-          "name": "core",
-          "softLimit": 0,
-          "hardLimit": 0
-        }
-      ],
-      "logConfiguration": {
-        "logDriver": "gelf",
-        "options": {
-          "KeyName": ""
-        }
-      }
+      ]
     }
   ],
   "requiresCompatibilities": ["FARGATE"],

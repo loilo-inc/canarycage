@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -43,16 +42,16 @@ type common struct {
 }
 
 func (c *common) Start(ctx context.Context) error {
+	group := fmt.Sprintf("cage:canary-task:%s", c.Env.Service)
 	if c.Env.CanaryInstanceArn != "" {
 		// ec2
-		startTask := &ecs.StartTaskInput{
+		if o, err := c.Ecs.StartTask(ctx, &ecs.StartTaskInput{
 			Cluster:              &c.Env.Cluster,
-			Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.Env.Service)),
+			Group:                &group,
 			NetworkConfiguration: c.NetworkConfiguration,
 			TaskDefinition:       c.TaskDefinition.TaskDefinitionArn,
 			ContainerInstances:   []string{c.Env.CanaryInstanceArn},
-		}
-		if o, err := c.Ecs.StartTask(ctx, startTask); err != nil {
+		}); err != nil {
 			return err
 		} else {
 			c.taskArn = o.Tasks[0].TaskArn
@@ -61,7 +60,7 @@ func (c *common) Start(ctx context.Context) error {
 		// fargate
 		if o, err := c.Ecs.RunTask(ctx, &ecs.RunTaskInput{
 			Cluster:              &c.Env.Cluster,
-			Group:                aws.String(fmt.Sprintf("cage:canary-task:%s", c.Env.Service)),
+			Group:                &group,
 			NetworkConfiguration: c.NetworkConfiguration,
 			TaskDefinition:       c.TaskDefinition.TaskDefinitionArn,
 			LaunchType:           ecstypes.LaunchTypeFargate,

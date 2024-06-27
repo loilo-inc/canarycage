@@ -390,12 +390,9 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 	})
 	ctx := context.Background()
 	result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
-	if err == nil {
-		t.Fatal("Rollout with no container instance should be error")
-	} else {
-		assert.True(t, regexp.MustCompile("canaryInstanceArn is required").MatchString(err.Error()))
-		assert.NotNil(t, result)
-	}
+	assert.NoError(t, err)
+	assert.True(t, regexp.MustCompile("canaryInstanceArn is required").MatchString(err.Error()))
+	assert.NotNil(t, result)
 }
 
 func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
@@ -425,9 +422,7 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 	})
 	ctx := context.Background()
 	result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
-	if err != nil {
-		t.Fatalf("%s", err)
-	}
+	assert.NoError(t, err)
 	assert.False(t, result.ServiceIntact)
 	assert.Equal(t, 1, mctx.ActiveServiceSize())
 	assert.Equal(t, 1, mctx.RunningTaskSize())

@@ -34,7 +34,7 @@ func TaskDefinitionArnFlag(dest *string) *cli.StringFlag {
 	return &cli.StringFlag{
 		Name:        "taskDefinitionArn",
 		EnvVars:     []string{env.TaskDefinitionArnKey},
-		Usage:       "full arn for next task definition. if not specified, use task-definition.json for registration",
+		Usage:       "full arn or family:revision of task definition. if not specified, new task definition will be created based on task-definition.json",
 		Destination: dest,
 	}
 }

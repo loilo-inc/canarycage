@@ -50,6 +50,9 @@ func EnsureEnvars(
 	dest *Envars,
 ) error {
 	// required
+	if dest.Region == "" {
+		return xerrors.Errorf("--region [%s] is required", RegionKey)
+	}
 	if dest.Cluster == "" {
 		return xerrors.Errorf("--cluster [%s] is required", ClusterKey)
 	} else if dest.Service == "" {
@@ -58,33 +61,33 @@ func EnsureEnvars(
 	if dest.TaskDefinitionArn == "" && dest.TaskDefinitionInput == nil {
 		return xerrors.Errorf("--nextTaskDefinitionArn or deploy context must be provided")
 	}
-	if dest.Region == "" {
-		log.Fatalf("region must be specified. set --region flag or see also https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html")
-	}
 	return nil
 }
 
-func LoadDefinitionsFromFiles(dir string) (
-	*ecs.RegisterTaskDefinitionInput,
-	*ecs.CreateServiceInput,
-	error,
-) {
+func LoadServiceDefiniton(dir string) (*ecs.CreateServiceInput, error) {
 	svcPath := filepath.Join(dir, "service.json")
-	tdPath := filepath.Join(dir, "task-definition.json")
 	_, noSvc := os.Stat(svcPath)
-	_, noTd := os.Stat(tdPath)
 	var service ecs.CreateServiceInput
-	var td ecs.RegisterTaskDefinitionInput
-	if noSvc != nil || noTd != nil {
-		return nil, nil, xerrors.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
+	if noSvc != nil {
+		return nil, xerrors.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
 	}
 	if _, err := ReadAndUnmarshalJson(svcPath, &service); err != nil {
-		return nil, nil, xerrors.Errorf("failed to read and unmarshal service.json: %s", err)
+		return nil, xerrors.Errorf("failed to read and unmarshal service.json: %s", err)
+	}
+	return &service, nil
+}
+
+func LoadTaskDefiniton(dir string) (*ecs.RegisterTaskDefinitionInput, error) {
+	tdPath := filepath.Join(dir, "task-definition.json")
+	_, noTd := os.Stat(tdPath)
+	var td ecs.RegisterTaskDefinitionInput
+	if noTd != nil {
+		return nil, xerrors.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
 	}
 	if _, err := ReadAndUnmarshalJson(tdPath, &td); err != nil {
-		return nil, nil, xerrors.Errorf("failed to read and unmarshal task-definition.json: %s", err)
+		return nil, xerrors.Errorf("failed to read and unmarshal task-definition.json: %s", err)
 	}
-	return &td, &service, nil
+	return &td, nil
 }
 
 func MergeEnvars(dest *Envars, src *Envars) {

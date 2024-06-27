@@ -68,15 +68,25 @@ func (c *CageCommands) setupCage(
 	envars *env.Envars,
 	dir string,
 ) (types.Cage, error) {
-	td, svc, err := env.LoadDefinitionsFromFiles(dir)
-	if err != nil {
+	var service *ecs.CreateServiceInput
+	var taskDefinition *ecs.RegisterTaskDefinitionInput
+	if srv, err := env.LoadServiceDefiniton(dir); err != nil {
 		return nil, err
+	} else {
+		service = srv
+	}
+	if envars.TaskDefinitionArn == "" {
+		if td, err := env.LoadTaskDefiniton(dir); err != nil {
+			return nil, err
+		} else {
+			taskDefinition = td
+		}
 	}
 	env.MergeEnvars(envars, &env.Envars{
-		Cluster:                *svc.Cluster,
-		Service:                *svc.ServiceName,
-		TaskDefinitionInput:    td,
-		ServiceDefinitionInput: svc,
+		Cluster:                *service.Cluster,
+		Service:                *service.ServiceName,
+		TaskDefinitionInput:    taskDefinition,
+		ServiceDefinitionInput: service,
 	})
 	if err := env.EnsureEnvars(envars); err != nil {
 		return nil, err
