@@ -9,7 +9,7 @@ import (
 )
 
 func TestManager(t *testing.T) {
-	t.Run("no configu", func(t *testing.T) {
+	t.Run("no config", func(t *testing.T) {
 		man := timeout.NewManager(10, &timeout.Input{})
 		assert.Equal(t, time.Duration(10), man.TaskRunning())
 		assert.Equal(t, time.Duration(10), man.TaskStopped())

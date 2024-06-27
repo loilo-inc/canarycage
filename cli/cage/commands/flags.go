@@ -56,7 +56,7 @@ func TaskRunningWaitFlag(dest *int) *cli.IntFlag {
 		Usage:       "max duration seconds for waiting canary task running",
 		Destination: dest,
 		Category:    "ADVANCED",
-		Value:       300,
+		Value:       900, // 15 minutes
 	}
 }
 
@@ -67,7 +67,7 @@ func TaskHealthCheckWaitFlag(dest *int) *cli.IntFlag {
 		Usage:       "max duration seconds for waiting canary task health check",
 		Destination: dest,
 		Category:    "ADVANCED",
-		Value:       300,
+		Value:       900,
 	}
 }
 
@@ -78,7 +78,7 @@ func TaskStoppedWaitFlag(dest *int) *cli.IntFlag {
 		Usage:       "max duration seconds for waiting canary task stopped",
 		Destination: dest,
 		Category:    "ADVANCED",
-		Value:       300,
+		Value:       900,
 	}
 }
 
@@ -89,6 +89,6 @@ func ServiceStableWaitFlag(dest *int) *cli.IntFlag {
 		Usage:       "max duration seconds for waiting service stable",
 		Destination: dest,
 		Category:    "ADVANCED",
-		Value:       300,
+		Value:       900,
 	}
 }
