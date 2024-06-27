@@ -76,7 +76,7 @@ func (c *CanaryTask) Wait(ctx context.Context) error {
 		return err
 	}
 	log.Infof("🐣 canary task '%s' is running!", *c.taskArn)
-	if err := c.waitUntilHealthCeheckPassed(ctx); err != nil {
+	if err := c.waitUntilHealthCheckPassed(ctx); err != nil {
 		return err
 	}
 	log.Info("🤩 canary task container(s) is healthy!")
@@ -99,21 +99,20 @@ func (c *CanaryTask) Wait(ctx context.Context) error {
 
 func (c *CanaryTask) waitForIdleDuration(ctx context.Context) error {
 	log.Infof("wait %d seconds for canary task to be stable...", c.Env.CanaryTaskIdleDuration)
-	wait := make(chan bool)
-	go func() {
-		duration := c.Env.CanaryTaskIdleDuration
-		for duration > 0 {
-			log.Infof("still waiting...; %d seconds left", duration)
-			wt := 10
-			if duration < 10 {
-				wt = duration
-			}
-			<-c.Time.NewTimer(time.Duration(wt) * time.Second).C
+	duration := c.Env.CanaryTaskIdleDuration
+	for duration > 0 {
+		wt := 10
+		if duration < 10 {
+			wt = duration
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-c.Time.NewTimer(time.Duration(wt) * time.Second).C:
 			duration -= 10
 		}
-		wait <- true
-	}()
-	<-wait
+		log.Infof("still waiting...; %d seconds left", duration)
+	}
 	o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
 		Tasks:   []string{*c.taskArn},
@@ -128,7 +127,7 @@ func (c *CanaryTask) waitForIdleDuration(ctx context.Context) error {
 	return nil
 }
 
-func (c *CanaryTask) waitUntilHealthCeheckPassed(ctx context.Context) error {
+func (c *CanaryTask) waitUntilHealthCheckPassed(ctx context.Context) error {
 	log.Infof("😷 ensuring canary task container(s) to become healthy...")
 	containerHasHealthChecks := map[string]struct{}{}
 	for _, definition := range c.td.ContainerDefinitions {
