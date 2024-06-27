@@ -122,51 +122,54 @@ func (c *albTask) waitUntilTargetHealthy(
 ) error {
 	log.Infof("checking the health state of canary task...")
 	var unusedCount = 0
-	var initialized = false
 	var recentState *elbv2types.TargetHealthStateEnum
-	for {
-		<-c.Time.NewTimer(time.Duration(15) * time.Second).C
-		if o, err := c.Alb.DescribeTargetHealth(ctx, &elbv2.DescribeTargetHealthInput{
-			TargetGroupArn: c.lb.TargetGroupArn,
-			Targets: []elbv2types.TargetDescription{{
-				Id:               &c.target.targetId,
-				Port:             &c.target.targetPort,
-				AvailabilityZone: &c.target.availabilityZone,
-			}},
-		}); err != nil {
-			return err
-		} else {
-			for _, desc := range o.TargetHealthDescriptions {
-				if *desc.Target.Id == c.target.targetId && *desc.Target.Port == c.target.targetPort {
-					recentState = &desc.TargetHealth.State
+	rest := c.Timeout.TargetHealthCheck()
+	waitPeriod := 15 * time.Second
+	for rest > 0 && unusedCount < 5 {
+		if rest < waitPeriod {
+			waitPeriod = rest
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-c.Time.NewTimer(waitPeriod).C:
+			if o, err := c.Alb.DescribeTargetHealth(ctx, &elbv2.DescribeTargetHealthInput{
+				TargetGroupArn: c.lb.TargetGroupArn,
+				Targets: []elbv2types.TargetDescription{{
+					Id:               &c.target.targetId,
+					Port:             &c.target.targetPort,
+					AvailabilityZone: &c.target.availabilityZone,
+				}},
+			}); err != nil {
+				return err
+			} else {
+				for _, desc := range o.TargetHealthDescriptions {
+					if *desc.Target.Id == c.target.targetId && *desc.Target.Port == c.target.targetPort {
+						recentState = &desc.TargetHealth.State
+					}
 				}
-			}
-			if recentState == nil {
-				return xerrors.Errorf("'%s' is not registered to the target group '%s'", c.target.targetId, *c.lb.TargetGroupArn)
-			}
-			log.Infof("canary task '%s' (%s:%d) state is: %s", *c.taskArn, c.target.targetId, c.target.targetPort, *recentState)
-			switch *recentState {
-			case "healthy":
-				return nil
-			case "initial":
-				initialized = true
-				log.Infof("still checking the state...")
-				continue
-			case "unused":
-				unusedCount++
-				if !initialized && unusedCount < 5 {
-					continue
+				if recentState == nil {
+					return xerrors.Errorf("'%s' is not registered to the target group '%s'", c.target.targetId, *c.lb.TargetGroupArn)
 				}
-			default:
+				log.Infof("canary task '%s' (%s:%d) state is: %s", *c.taskArn, c.target.targetId, c.target.targetPort, *recentState)
+				switch *recentState {
+				case "healthy":
+					return nil
+				case "unused":
+					unusedCount++
+				default:
+					log.Infof("still checking the state...")
+				}
 			}
 		}
-		// unhealthy, draining, unused
-		log.Errorf("😨 canary task '%s' is unhealthy", *c.taskArn)
-		return xerrors.Errorf(
-			"canary task '%s' (%s:%d) hasn't become to be healthy. The most recent state: %s",
-			*c.taskArn, c.target.targetId, c.target.targetPort, *recentState,
-		)
+		rest -= waitPeriod
 	}
+	// unhealthy, draining, unused
+	log.Errorf("😨 canary task '%s' is unhealthy", *c.taskArn)
+	return xerrors.Errorf(
+		"canary task '%s' (%s:%d) hasn't become to be healthy. The most recent state: %s",
+		*c.taskArn, c.target.targetId, c.target.targetPort, *recentState,
+	)
 }
 
 func (c *albTask) targetDeregistrationDelay(ctx context.Context) (time.Duration, error) {

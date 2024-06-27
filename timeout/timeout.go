@@ -3,10 +3,11 @@ package timeout
 import "time"
 
 type Input struct {
-	TaskStoppedWait     time.Duration
-	TaskRunningWait     time.Duration
-	TaskHealthCheckWait time.Duration
-	ServiceStableWait   time.Duration
+	TaskStoppedWait       time.Duration
+	TaskRunningWait       time.Duration
+	TaskHealthCheckWait   time.Duration
+	TargetHealthCheckWait time.Duration
+	ServiceStableWait     time.Duration
 }
 
 type Manager interface {
@@ -14,6 +15,7 @@ type Manager interface {
 	TaskHealthCheck() time.Duration
 	TaskStopped() time.Duration
 	ServiceStable() time.Duration
+	TargetHealthCheck() time.Duration
 }
 
 type manager struct {
@@ -55,6 +57,13 @@ func (t *manager) TaskStopped() time.Duration {
 func (t *manager) ServiceStable() time.Duration {
 	if t.ServiceStableWait > 0 {
 		return t.ServiceStableWait
+	}
+	return t.DefaultTimeout
+}
+
+func (t *manager) TargetHealthCheck() time.Duration {
+	if t.TargetHealthCheckWait > 0 {
+		return t.TargetHealthCheckWait
 	}
 	return t.DefaultTimeout
 }

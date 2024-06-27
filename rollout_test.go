@@ -2,7 +2,6 @@ package cage_test
 
 import (
 	"context"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -390,8 +389,7 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 	})
 	ctx := context.Background()
 	result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
-	assert.NoError(t, err)
-	assert.True(t, regexp.MustCompile("canaryInstanceArn is required").MatchString(err.Error()))
+	assert.ErrorContains(t, err, "canaryInstanceArn is required")
 	assert.NotNil(t, result)
 }
 

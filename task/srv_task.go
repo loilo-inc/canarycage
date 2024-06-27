@@ -95,9 +95,12 @@ func (c *srvTask) registerToSrvDiscovery(ctx context.Context) error {
 func (c *srvTask) waitUntilSrvInstHelthy(
 	ctx context.Context,
 ) error {
-	var maxWait = 900
-	var waitPeriod = 15
-	for maxWait > 0 {
+	var rest = c.Timeout.TargetHealthCheck()
+	var waitPeriod = 15 * time.Second
+	for rest > 0 {
+		if rest < waitPeriod {
+			waitPeriod = rest
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -121,7 +124,7 @@ func (c *srvTask) waitUntilSrvInstHelthy(
 						return nil
 					}
 				}
-				maxWait -= waitPeriod
+				rest -= waitPeriod
 			}
 		}
 	}

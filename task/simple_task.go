@@ -31,19 +31,19 @@ func (c *simpleTask) Stop(ctx context.Context) error {
 
 func (c *simpleTask) waitForIdleDuration(ctx context.Context) error {
 	log.Infof("wait %d seconds for canary task to be stable...", c.Env.CanaryTaskIdleDuration)
-	duration := c.Env.CanaryTaskIdleDuration
-	for duration > 0 {
-		wt := 10
-		if duration < 10 {
-			wt = duration
+	rest := time.Duration(c.Env.CanaryTaskIdleDuration) * time.Second
+	waitPeriod := 15 * time.Second
+	for rest > 0 {
+		if rest < waitPeriod {
+			waitPeriod = rest
 		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-c.Time.NewTimer(time.Duration(wt) * time.Second).C:
-			duration -= 10
+		case <-c.Time.NewTimer(waitPeriod).C:
+			rest -= waitPeriod
 		}
-		log.Infof("still waiting...; %d seconds left", duration)
+		log.Infof("still waiting...; %d seconds left", rest)
 	}
 	o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 		Cluster: &c.Env.Cluster,
