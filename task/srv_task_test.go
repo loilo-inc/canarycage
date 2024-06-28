@@ -36,12 +36,15 @@ func TestSrvTask(t *testing.T) {
 		NetworkConfiguration: ecsSvc.Service.NetworkConfiguration,
 		Timeout:              timeout.NewManager(1, &timeout.Input{}),
 	}, &ecstypes.ServiceRegistry{RegistryArn: &registryArn})
-	srvSvc := mocker.CreateSrvService(srvNsName, srvSvcName)
+	_ = mocker.CreateSrvService(srvNsName, srvSvcName)
 	err := stask.Start(ctx)
 	assert.NoError(t, err)
-	mocker.PutSrvInstHealth(*srvSvc.Id, "healthy")
+	taskId := task.ArnToId(*stask.TaskArn())
+	mocker.PutSrvInstHealth(taskId, "healthy")
 	err = stask.Wait(ctx)
 	assert.NoError(t, err)
 	err = stask.Stop(ctx)
 	assert.NoError(t, err)
+	assert.Equal(t, 1, mocker.RunningTaskSize())
+	assert.Equal(t, 0, len(mocker.SrvInsts))
 }

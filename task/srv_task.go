@@ -50,6 +50,7 @@ func (c *srvTask) Stop(ctx context.Context) error {
 }
 
 func (c *srvTask) registerToSrvDiscovery(ctx context.Context) error {
+	log.Infof("registring canary task '%s' to service discovery...", *c.taskArn)
 	var targetPort int32
 	if c.registry.Port != nil {
 		targetPort = *c.registry.Port
@@ -126,9 +127,6 @@ func (c *srvTask) waitUntilSrvInstHelthy(
 			}); err != nil {
 				return xerrors.Errorf("failed to discover instances: %w", err)
 			} else {
-				if len(list.Instances) == 0 {
-					return xerrors.Errorf("no healthy instances found")
-				}
 				for _, inst := range list.Instances {
 					if *inst.InstanceId == *c.instId {
 						return nil
@@ -147,6 +145,7 @@ func (c *srvTask) deregisterSrvInst(
 	if c.instId == nil {
 		return
 	}
+	log.Info("deregistering the canary task from service discovery...")
 	if _, err := c.Srv.DeregisterInstance(ctx, &servicediscovery.DeregisterInstanceInput{
 		ServiceId:  c.srv.Id,
 		InstanceId: c.instId,
@@ -154,4 +153,5 @@ func (c *srvTask) deregisterSrvInst(
 		log.Errorf("failed to deregister the canary task from service discovery: %v", err)
 		log.Errorf("continuing to stop the canary task...")
 	}
+	log.Infof("canary task '%s' is deregistered from service discovery", *c.taskArn)
 }

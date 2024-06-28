@@ -68,6 +68,10 @@ func (c *common) Start(ctx context.Context) error {
 	return nil
 }
 
+func (c *common) TaskArn() *string {
+	return c.taskArn
+}
+
 func (c *common) waitForTask(ctx context.Context) error {
 	log.Infof("🥚 waiting for canary task '%s' is running...", *c.taskArn)
 	if err := ecs.NewTasksRunningWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{

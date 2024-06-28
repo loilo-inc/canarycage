@@ -57,6 +57,19 @@ func (s *SrvServer) DiscoverInstances(ctx context.Context, params *servicediscov
 	var summories []srvtypes.HttpInstanceSummary
 	for _, inst := range insts {
 		health := s.SrvInstHelths[*inst.Id]
+		if !matchInst(inst, params) {
+			continue
+		}
+		switch params.HealthStatus {
+		case srvtypes.HealthStatusFilterHealthy:
+			if health != srvtypes.HealthStatusHealthy {
+				continue
+			}
+		case srvtypes.HealthStatusFilterUnhealthy:
+			if health != srvtypes.HealthStatusUnhealthy {
+				continue
+			}
+		}
 		summories = append(summories, srvtypes.HttpInstanceSummary{
 			Attributes:    inst.Attributes,
 			InstanceId:    inst.Id,
@@ -66,6 +79,15 @@ func (s *SrvServer) DiscoverInstances(ctx context.Context, params *servicediscov
 		})
 	}
 	return &servicediscovery.DiscoverInstancesOutput{Instances: summories}, nil
+}
+
+func matchInst(inst *srvtypes.Instance, params *servicediscovery.DiscoverInstancesInput) bool {
+	for k, v := range params.QueryParameters {
+		if act, ok := inst.Attributes[k]; !ok || act != v {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *SrvServer) RegisterInstance(ctx context.Context, params *servicediscovery.RegisterInstanceInput, optFns ...func(*servicediscovery.Options)) (*servicediscovery.RegisterInstanceOutput, error) {
@@ -83,22 +105,20 @@ func (s *SrvServer) RegisterInstance(ctx context.Context, params *servicediscove
 }
 
 func (s *SrvServer) DeregisterInstance(ctx context.Context, params *servicediscovery.DeregisterInstanceInput, optFns ...func(*servicediscovery.Options)) (*servicediscovery.DeregisterInstanceOutput, error) {
-	srv := s.getServiceById(*params.ServiceId)
-	if srv == nil {
+	if srv := s.getServiceById(*params.ServiceId); srv == nil {
 		return nil, xerrors.Errorf("service not found: %s", *params.ServiceId)
-	}
-	insts, ok := s.SrvInsts[*srv.Name]
-	if !ok {
-		return nil, xerrors.Errorf("service not found: %s", *srv.Name)
-	}
-	var newInsts []*srvtypes.Instance
-	for _, inst := range insts {
-		if *inst.Id != *params.InstanceId {
-			newInsts = append(newInsts, inst)
+	} else {
+		insts := s.SrvInsts[*srv.Name]
+		for i, inst := range insts {
+			if *inst.Id == *params.InstanceId {
+				insts = append(insts[:i], insts[i+1:]...)
+				s.SrvInsts[*params.ServiceId] = insts
+				delete(s.SrvInstHelths, *params.InstanceId)
+				return &servicediscovery.DeregisterInstanceOutput{}, nil
+			}
 		}
+		return nil, xerrors.Errorf("instance not found: %s", *params.InstanceId)
 	}
-	s.SrvInsts[*srv.Name] = newInsts
-	return &servicediscovery.DeregisterInstanceOutput{}, nil
 }
 
 func (s *SrvServer) GetService(ctx context.Context, params *servicediscovery.GetServiceInput, optFns ...func(*servicediscovery.Options)) (*servicediscovery.GetServiceOutput, error) {

@@ -51,13 +51,6 @@ func NewMockContext() *MockContext {
 	}
 }
 
-func (ctx *commons) GetTask(id string) (*ecstypes.Task, bool) {
-	ctx.mux.Lock()
-	defer ctx.mux.Unlock()
-	o, ok := ctx.Tasks[id]
-	return o, ok
-}
-
 func (ctx *commons) RunningTaskSize() int {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
