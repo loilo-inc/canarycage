@@ -137,7 +137,7 @@ func (c *cage) StartCanaryTasks(
 	}
 	var results []task.Task
 	for _, lb := range loadBalancers {
-		task := task.NewAlbTask(&task.Input{
+		task := c.TaskFactory.NewAlbTask(&task.Input{
 			Deps:                 c.Deps,
 			NetworkConfiguration: networkConfiguration,
 			TaskDefinition:       nextTaskDefinition,
@@ -150,7 +150,7 @@ func (c *cage) StartCanaryTasks(
 		}
 	}
 	for _, srv := range serviceRegistries {
-		task := task.NewSrvTask(&task.Input{
+		task := c.TaskFactory.NewSrvTask(&task.Input{
 			Deps:                 c.Deps,
 			NetworkConfiguration: networkConfiguration,
 			TaskDefinition:       nextTaskDefinition,
@@ -163,7 +163,7 @@ func (c *cage) StartCanaryTasks(
 		}
 	}
 	if len(results) == 0 {
-		task := task.NewSimpleTask(&task.Input{
+		task := c.TaskFactory.NewSimpleTask(&task.Input{
 			Deps:                 c.Deps,
 			NetworkConfiguration: networkConfiguration,
 			TaskDefinition:       nextTaskDefinition,

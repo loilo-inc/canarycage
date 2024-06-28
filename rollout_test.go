@@ -79,9 +79,9 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		mocker, ecsMock, _, ec2Mock := test.Setup(ctrl, envars, 2, "FARGATE")
 
 		albMock := mock_awsiface.NewMockAlbClient(ctrl)
-		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTarget).Times(1)
-		albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).Times(1)
-		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetGroupAttibutes).Times(1)
+		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTargets).Times(1)
+		albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTargets).Times(1)
+		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetGroupAttributes).Times(1)
 		gomock.InOrder(
 			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 				TargetHealthDescriptions: []elbv2types.TargetHealthDescription{
@@ -115,9 +115,9 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mocker, ecsMock, _, ec2Mock := test.Setup(ctrl, envars, 2, "FARGATE")
 		albMock := mock_awsiface.NewMockAlbClient(ctrl)
-		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTarget).Times(1)
-		albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).Times(1)
-		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetGroupAttibutes).Times(1)
+		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTargets).Times(1)
+		albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTargets).Times(1)
+		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetGroupAttributes).Times(1)
 		gomock.InOrder(
 			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 				TargetHealthDescriptions: []elbv2types.TargetHealthDescription{{
@@ -179,13 +179,13 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			Time: test.NewFakeTime(),
 		})
 		ctx := context.Background()
-		service, _ := mctx.GetService(envars.Service)
+		service, _ := mctx.GetEcsService(envars.Service)
 		assert.Equal(t, "1.4.0", *service.PlatformVersion)
 		assert.NotNil(t, service.NetworkConfiguration)
 		assert.NotNil(t, service.LoadBalancers)
 		_, err := cagecli.RollOut(ctx, &types.RollOutInput{UpdateService: true})
 		assert.NoError(t, err)
-		service, _ = mctx.GetService(envars.Service)
+		service, _ = mctx.GetEcsService(envars.Service)
 		assert.Equal(t, "LATEST", *service.PlatformVersion)
 		assert.Equal(t, *newNetwork, *service.NetworkConfiguration)
 		assert.Equal(t, *service.LoadBalancers[0].ContainerName, *newLb.ContainerName)

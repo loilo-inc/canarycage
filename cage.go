@@ -9,7 +9,8 @@ import (
 
 type cage struct {
 	*types.Deps
-	Timeout timeout.Manager
+	Timeout     timeout.Manager
+	TaskFactory TaskFactory
 }
 
 func NewCage(input *types.Deps) types.Cage {
@@ -30,5 +31,6 @@ func NewCage(input *types.Deps) types.Cage {
 				TaskStoppedWait:     taskStoppedWait,
 				ServiceStableWait:   serviceStableWait,
 			}),
+		TaskFactory: &taskFactory{},
 	}
 }

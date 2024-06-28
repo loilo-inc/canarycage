@@ -39,9 +39,9 @@ func Setup(ctrl *gomock.Controller, envars *env.Envars, currentTaskCount int, la
 	albMock := mock_awsiface.NewMockAlbClient(ctrl)
 	albMock.EXPECT().DescribeTargetGroups(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetGroups).AnyTimes()
 	albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes()
-	albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetGroupAttibutes).AnyTimes()
-	albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTarget).AnyTimes()
-	albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTarget).AnyTimes()
+	albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetGroupAttributes).AnyTimes()
+	albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTargets).AnyTimes()
+	albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTargets).AnyTimes()
 
 	ec2Mock := mock_awsiface.NewMockEc2Client(ctrl)
 	ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeSubnets).AnyTimes()
@@ -54,7 +54,7 @@ func Setup(ctrl *gomock.Controller, envars *env.Envars, currentTaskCount int, la
 		input.LaunchType = launchType
 		svc, _ := mocker.CreateService(context.Background(), &input)
 		if len(svc.Service.LoadBalancers) > 0 {
-			_, _ = mocker.RegisterTarget(context.Background(), &elbv2.RegisterTargetsInput{
+			_, _ = mocker.RegisterTargets(context.Background(), &elbv2.RegisterTargetsInput{
 				TargetGroupArn: svc.Service.LoadBalancers[0].TargetGroupArn,
 			})
 		}

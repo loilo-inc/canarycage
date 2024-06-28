@@ -22,12 +22,6 @@ type CanaryTarget struct {
 	availabilityZone string
 }
 
-type Task interface {
-	Start(ctx context.Context) error
-	Wait(ctx context.Context) error
-	Stop(ctx context.Context) error
-}
-
 type Input struct {
 	*types.Deps
 	TaskDefinition       *ecstypes.TaskDefinition
