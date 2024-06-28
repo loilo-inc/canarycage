@@ -21,15 +21,17 @@ func NewCage(input *types.Deps) types.Cage {
 	taskHealthCheckWait := (time.Duration)(input.Env.CanaryTaskHealthCheckWait) * time.Second
 	taskStoppedWait := (time.Duration)(input.Env.CanaryTaskStoppedWait) * time.Second
 	serviceStableWait := (time.Duration)(input.Env.ServiceStableWait) * time.Second
+	targetHealthCheckWait := (time.Duration)(input.Env.TargetHealthCheckWait) * time.Second
 	return &cage{
 		Deps: input,
 		Timeout: timeout.NewManager(
 			15*time.Minute,
 			&timeout.Input{
-				TaskRunningWait:     taskRunningWait,
-				TaskHealthCheckWait: taskHealthCheckWait,
-				TaskStoppedWait:     taskStoppedWait,
-				ServiceStableWait:   serviceStableWait,
+				TaskRunningWait:       taskRunningWait,
+				TaskHealthCheckWait:   taskHealthCheckWait,
+				TaskStoppedWait:       taskStoppedWait,
+				ServiceStableWait:     serviceStableWait,
+				TargetHealthCheckWait: targetHealthCheckWait,
 			}),
 		TaskFactory: &taskFactory{},
 	}

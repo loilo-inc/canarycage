@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"regexp"
 	"time"
 
 	"github.com/apex/log"
@@ -18,7 +17,8 @@ type srvTask struct {
 	registry *ecstypes.ServiceRegistry
 	target   *CanaryTarget
 	srv      *srvtypes.Service
-	inst     *srvtypes.HttpInstanceSummary
+	instId   *string
+	ns       *srvtypes.Namespace
 }
 
 func NewSrvTask(input *Input, registry *ecstypes.ServiceRegistry) Task {
@@ -35,7 +35,7 @@ func (c *srvTask) Wait(ctx context.Context) error {
 	if err := c.registerToSrvDiscovery(ctx); err != nil {
 		return err
 	}
-	log.Infof("canary task '%s' is registered to service discovery instance '%s'", *c.taskArn, *c.inst.InstanceId)
+	log.Infof("canary task '%s' is registered to service discovery instance '%s'", *c.taskArn, *c.instId)
 	log.Infof("😷 ensuring canary service instance to become healthy...")
 	if err := c.waitUntilSrvInstHelthy(ctx); err != nil {
 		return err
@@ -50,25 +50,33 @@ func (c *srvTask) Stop(ctx context.Context) error {
 }
 
 func (c *srvTask) registerToSrvDiscovery(ctx context.Context) error {
-	target, err := c.describeTaskTarget(ctx, *c.registry.Port)
+	var targetPort int32
+	if c.registry.Port != nil {
+		targetPort = *c.registry.Port
+	} else {
+		targetPort = 80
+	}
+	target, err := c.describeTaskTarget(ctx, targetPort)
 	if err != nil {
 		return err
 	}
-	c.target = target
-	// get the service id from service registry arn
-	pat := regexp.MustCompile("arn://.+/(srv-.+)$")
-	matches := pat.FindStringSubmatch(*c.registry.RegistryArn)
-	if len(matches) != 2 {
-		return xerrors.Errorf("service name '%s' doesn't match the pattern", c.Env.Service)
-	}
-	srvId := matches[1]
+	c.target = target // get the service id from service registry arn
+	srvId := ArnToId(*c.registry.RegistryArn)
 	var svc *srvtypes.Service
+	var ns *srvtypes.Namespace
 	if o, err := c.Srv.GetService(ctx, &servicediscovery.GetServiceInput{
 		Id: &srvId,
 	}); err != nil {
 		return xerrors.Errorf("failed to get the service: %w", err)
 	} else {
 		svc = o.Service
+	}
+	if o, err := c.Srv.GetNamespace(ctx, &servicediscovery.GetNamespaceInput{
+		Id: svc.NamespaceId,
+	}); err != nil {
+		return xerrors.Errorf("failed to get the namespace: %w", err)
+	} else {
+		ns = o.Namespace
 	}
 	attrs := map[string]string{
 		"AWS_INSTANCE_IPV4":          target.targetIpv4,
@@ -80,14 +88,17 @@ func (c *srvTask) registerToSrvDiscovery(ctx context.Context) error {
 		"REGION":                     c.Env.Region,
 		"CAGE_CANARY_TASK":           "1",
 	}
+	taskId := ArnToId(*c.taskArn)
 	if _, err := c.Srv.RegisterInstance(ctx, &servicediscovery.RegisterInstanceInput{
 		ServiceId:  &srvId,
-		InstanceId: c.taskArn,
+		InstanceId: &taskId,
 		Attributes: attrs,
 	}); err != nil {
 		return xerrors.Errorf("failed to register the canary task to service discovery: %w", err)
 	}
 	c.srv = svc
+	c.instId = &taskId
+	c.ns = ns
 	return nil
 }
 
@@ -105,11 +116,12 @@ func (c *srvTask) waitUntilSrvInstHelthy(
 			return ctx.Err()
 		case <-c.Time.NewTimer(time.Duration(waitPeriod) * time.Second).C:
 			if list, err := c.Srv.DiscoverInstances(ctx, &servicediscovery.DiscoverInstancesInput{
-				NamespaceName: c.inst.NamespaceName,
-				ServiceName:   c.inst.ServiceName,
+				NamespaceName: c.ns.Name,
+				ServiceName:   c.srv.Name,
 				HealthStatus:  srvtypes.HealthStatusFilterHealthy,
 				QueryParameters: map[string]string{
 					"CAGE_CANARY_TASK": "1",
+					"AWS_PRIVATE_IPV4": c.target.targetIpv4,
 				},
 			}); err != nil {
 				return xerrors.Errorf("failed to discover instances: %w", err)
@@ -118,8 +130,7 @@ func (c *srvTask) waitUntilSrvInstHelthy(
 					return xerrors.Errorf("no healthy instances found")
 				}
 				for _, inst := range list.Instances {
-					if ipv4 := inst.Attributes["AWS_INSTANCE_IPV4"]; ipv4 == c.target.targetIpv4 {
-						c.inst = &inst
+					if *inst.InstanceId == *c.instId {
 						return nil
 					}
 				}
@@ -133,12 +144,12 @@ func (c *srvTask) waitUntilSrvInstHelthy(
 func (c *srvTask) deregisterSrvInst(
 	ctx context.Context,
 ) {
-	if c.inst == nil {
+	if c.instId == nil {
 		return
 	}
 	if _, err := c.Srv.DeregisterInstance(ctx, &servicediscovery.DeregisterInstanceInput{
 		ServiceId:  c.srv.Id,
-		InstanceId: c.inst.InstanceId,
+		InstanceId: c.instId,
 	}); err != nil {
 		log.Errorf("failed to deregister the canary task from service discovery: %v", err)
 		log.Errorf("continuing to stop the canary task...")

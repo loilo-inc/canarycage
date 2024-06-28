@@ -92,3 +92,14 @@ func ServiceStableWaitFlag(dest *int) *cli.IntFlag {
 		Value:       900,
 	}
 }
+
+func TargetHealthCheckWaitFlag(dest *int) *cli.IntFlag {
+	return &cli.IntFlag{
+		Name:        "targetHealthCheckTimeout",
+		EnvVars:     []string{env.TargetHealthCheckTimeout},
+		Usage:       "max duration seconds for waiting target health check",
+		Destination: dest,
+		Category:    "ADVANCED",
+		Value:       900,
+	}
+}

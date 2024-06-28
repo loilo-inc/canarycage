@@ -93,37 +93,43 @@ func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 			containerHasHealthChecks[*definition.Name] = struct{}{}
 		}
 	}
-	healthCheckWait := c.Timeout.TaskHealthCheck()
+	rest := c.Timeout.TaskHealthCheck()
 	healthCheckPeriod := 15 * time.Second
-	countPerPeriod := int(healthCheckWait.Seconds() / 15)
-	for count := 0; count < countPerPeriod; count++ {
-		<-c.Time.NewTimer(healthCheckPeriod).C
-		log.Infof("canary task '%s' waits until %d container(s) become healthy", *c.taskArn, len(containerHasHealthChecks))
-		if o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
-			Cluster: &c.Env.Cluster,
-			Tasks:   []string{*c.taskArn},
-		}); err != nil {
-			return err
-		} else {
-			task := o.Tasks[0]
-			if *task.LastStatus != "RUNNING" {
-				return xerrors.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
-			}
-
-			for _, container := range task.Containers {
-				if _, ok := containerHasHealthChecks[*container.Name]; !ok {
-					continue
+	for rest > 0 {
+		if rest < healthCheckPeriod {
+			healthCheckPeriod = rest
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-c.Time.NewTimer(healthCheckPeriod).C:
+			log.Infof("canary task '%s' waits until %d container(s) become healthy", *c.taskArn, len(containerHasHealthChecks))
+			if o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+				Cluster: &c.Env.Cluster,
+				Tasks:   []string{*c.taskArn},
+			}); err != nil {
+				return err
+			} else {
+				task := o.Tasks[0]
+				if *task.LastStatus != "RUNNING" {
+					return xerrors.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
 				}
-				if container.HealthStatus != ecstypes.HealthStatusHealthy {
-					log.Infof("container '%s' is not healthy: %s", *container.Name, container.HealthStatus)
-					continue
+				for _, container := range task.Containers {
+					if _, ok := containerHasHealthChecks[*container.Name]; !ok {
+						continue
+					}
+					if container.HealthStatus != ecstypes.HealthStatusHealthy {
+						log.Infof("container '%s' is not healthy: %s", *container.Name, container.HealthStatus)
+						continue
+					}
+					delete(containerHasHealthChecks, *container.Name)
 				}
-				delete(containerHasHealthChecks, *container.Name)
-			}
-			if len(containerHasHealthChecks) == 0 {
-				return nil
+				if len(containerHasHealthChecks) == 0 {
+					return nil
+				}
 			}
 		}
+		rest -= healthCheckPeriod
 	}
 	return xerrors.Errorf("😨 canary task hasn't become to be healthy")
 }

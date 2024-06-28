@@ -2,7 +2,9 @@ package test
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
 	srvtypes "github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
 	"golang.org/x/xerrors"
@@ -10,15 +12,10 @@ import (
 
 type SrvServer struct {
 	*commons
-	services []*srvtypes.Service
-	// service.Name -> []*instance
-	insts map[string][]*srvtypes.Instance
-	// instance.Id -> HealthStatus
-	instHelths map[string]srvtypes.HealthStatus
 }
 
 func (s *SrvServer) getServiceById(id string) *srvtypes.Service {
-	for _, svc := range s.services {
+	for _, svc := range s.SrvServices {
 		if *svc.Id == id {
 			return svc
 		}
@@ -26,18 +23,40 @@ func (s *SrvServer) getServiceById(id string) *srvtypes.Service {
 	return nil
 }
 
-func (s *SrvServer) putInstHealth(id string, health srvtypes.HealthStatus) {
-	s.instHelths[id] = health
+func (s *commons) CreateSrvService(
+	namepsaceName string,
+	serviceName string) *srvtypes.Service {
+	nsId := fmt.Sprintf("ns-%s", namepsaceName)
+	ns := &srvtypes.Namespace{
+		Id:   &nsId,
+		Name: &namepsaceName,
+		Arn:  aws.String(fmt.Sprintf("arn:aws:servicediscovery:ap-northeast-1:123456789012:namespace/%s", nsId)),
+	}
+	svId := fmt.Sprintf("srv-%s", serviceName)
+	svc := &srvtypes.Service{
+		NamespaceId:   ns.Id,
+		Id:            &svId,
+		Name:          &serviceName,
+		Arn:           aws.String(fmt.Sprintf("arn:aws:servicediscovery:ap-northeast-1:123456789012:service/%s", svId)),
+		InstanceCount: aws.Int32(0),
+	}
+	s.SrvNamespaces = append(s.SrvNamespaces, ns)
+	s.SrvServices = append(s.SrvServices, svc)
+	return svc
+}
+
+func (s *commons) PutSrvInstHealth(id string, health srvtypes.HealthStatus) {
+	s.SrvInstHelths[id] = health
 }
 
 func (s *SrvServer) DiscoverInstances(ctx context.Context, params *servicediscovery.DiscoverInstancesInput, optFns ...func(*servicediscovery.Options)) (*servicediscovery.DiscoverInstancesOutput, error) {
-	insts, ok := s.insts[*params.ServiceName]
+	insts, ok := s.SrvInsts[*params.ServiceName]
 	if !ok {
 		return nil, xerrors.Errorf("service not found: %s", *params.ServiceName)
 	}
 	var summories []srvtypes.HttpInstanceSummary
 	for _, inst := range insts {
-		health := s.instHelths[*inst.Id]
+		health := s.SrvInstHelths[*inst.Id]
 		summories = append(summories, srvtypes.HttpInstanceSummary{
 			Attributes:    inst.Attributes,
 			InstanceId:    inst.Id,
@@ -57,8 +76,8 @@ func (s *SrvServer) RegisterInstance(ctx context.Context, params *servicediscove
 			Id:         params.InstanceId,
 			Attributes: params.Attributes,
 		}
-		s.insts[*srv.Name] = append(s.insts[*params.ServiceId], inst)
-		s.instHelths[*params.InstanceId] = srvtypes.HealthStatusUnhealthy
+		s.SrvInsts[*srv.Name] = append(s.SrvInsts[*params.ServiceId], inst)
+		s.SrvInstHelths[*params.InstanceId] = srvtypes.HealthStatusUnhealthy
 		return &servicediscovery.RegisterInstanceOutput{}, nil
 	}
 }
@@ -68,7 +87,7 @@ func (s *SrvServer) DeregisterInstance(ctx context.Context, params *servicedisco
 	if srv == nil {
 		return nil, xerrors.Errorf("service not found: %s", *params.ServiceId)
 	}
-	insts, ok := s.insts[*srv.Name]
+	insts, ok := s.SrvInsts[*srv.Name]
 	if !ok {
 		return nil, xerrors.Errorf("service not found: %s", *srv.Name)
 	}
@@ -78,7 +97,7 @@ func (s *SrvServer) DeregisterInstance(ctx context.Context, params *servicedisco
 			newInsts = append(newInsts, inst)
 		}
 	}
-	s.insts[*srv.Name] = newInsts
+	s.SrvInsts[*srv.Name] = newInsts
 	return &servicediscovery.DeregisterInstanceOutput{}, nil
 }
 
@@ -88,4 +107,13 @@ func (s *SrvServer) GetService(ctx context.Context, params *servicediscovery.Get
 		return nil, xerrors.Errorf("service not found: %s", *params.Id)
 	}
 	return &servicediscovery.GetServiceOutput{Service: svc}, nil
+}
+
+func (s *SrvServer) GetNamespace(ctx context.Context, params *servicediscovery.GetNamespaceInput, optFns ...func(*servicediscovery.Options)) (*servicediscovery.GetNamespaceOutput, error) {
+	for _, ns := range s.SrvNamespaces {
+		if *ns.Id == *params.Id {
+			return &servicediscovery.GetNamespaceOutput{Namespace: ns}, nil
+		}
+	}
+	return nil, xerrors.Errorf("namespace not found: %s", *params.Id)
 }

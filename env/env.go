@@ -27,6 +27,7 @@ type Envars struct {
 	CanaryTaskHealthCheckWait int // sec
 	CanaryTaskStoppedWait     int // sec
 	ServiceStableWait         int // sec
+	TargetHealthCheckWait     int // sec
 }
 
 // required
@@ -45,6 +46,7 @@ const TaskRunningTimeout = "CAGE_TASK_RUNNING_TIMEOUT"
 const TaskHealthCheckTimeout = "CAGE_TASK_HEALTH_CHECK_TIMEOUT"
 const TaskStoppedTimeout = "CAGE_TASK_STOPPED_TIMEOUT"
 const ServiceStableTimeout = "CAGE_SERVICE_STABLE_TIMEOUT"
+const TargetHealthCheckTimeout = "CAGE_TARGET_HEALTH_CHECK_TIMEOUT"
 
 func EnsureEnvars(
 	dest *Envars,

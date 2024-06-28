@@ -79,9 +79,9 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		mocker, ecsMock, _, ec2Mock := test.Setup(ctrl, envars, 2, "FARGATE")
 
 		albMock := mock_awsiface.NewMockAlbClient(ctrl)
-		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTargets).Times(1)
-		albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTargets).Times(1)
-		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetGroupAttributes).Times(1)
+		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Alb.RegisterTargets).Times(1)
+		albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Alb.DeregisterTargets).Times(1)
+		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Alb.DescribeTargetGroupAttributes).Times(1)
 		gomock.InOrder(
 			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 				TargetHealthDescriptions: []elbv2types.TargetHealthDescription{
@@ -96,7 +96,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 						},
 					}},
 			}, nil).Times(2),
-			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
+			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Alb.DescribeTargetHealth).AnyTimes(),
 		)
 		cagecli := cage.NewCage(&types.Deps{
 			Env:  envars,
@@ -115,9 +115,9 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mocker, ecsMock, _, ec2Mock := test.Setup(ctrl, envars, 2, "FARGATE")
 		albMock := mock_awsiface.NewMockAlbClient(ctrl)
-		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTargets).Times(1)
-		albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeregisterTargets).Times(1)
-		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetGroupAttributes).Times(1)
+		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Alb.RegisterTargets).Times(1)
+		albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Alb.DeregisterTargets).Times(1)
+		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Alb.DescribeTargetGroupAttributes).Times(1)
 		gomock.InOrder(
 			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
 				TargetHealthDescriptions: []elbv2types.TargetHealthDescription{{
@@ -140,7 +140,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 					},
 				}},
 			}, nil),
-			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTargetHealth).AnyTimes(),
+			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Alb.DescribeTargetHealth).AnyTimes(),
 		)
 		cagecli := cage.NewCage(&types.Deps{
 			Env:  envars,
@@ -275,19 +275,18 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		mocker, _, albMock, ec2Mock := test.Setup(ctrl, envars, 2, "FARGATE")
 
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
-		ecsMock.EXPECT().CreateService(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.CreateService).AnyTimes()
-		ecsMock.EXPECT().UpdateService(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.UpdateService).AnyTimes()
-		ecsMock.EXPECT().DeleteService(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DeleteService).AnyTimes()
-		ecsMock.EXPECT().StartTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.StartTask).AnyTimes()
-		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTaskDefinition).AnyTimes()
-		ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeServices).AnyTimes()
+		ecsMock.EXPECT().CreateService(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.CreateService).AnyTimes()
+		ecsMock.EXPECT().UpdateService(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.UpdateService).AnyTimes()
+		ecsMock.EXPECT().DeleteService(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.DeleteService).AnyTimes()
+		ecsMock.EXPECT().StartTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.StartTask).AnyTimes()
+		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RegisterTaskDefinition).AnyTimes()
+		ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.DescribeServices).AnyTimes()
 		ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx context.Context, input *ecs.DescribeTasksInput, opts ...func(options *ecs.Options)) (*ecs.DescribeTasksOutput, error) {
-				out, err := mocker.DescribeTasks(ctx, input, opts...)
+				out, err := mocker.Ecs.DescribeTasks(ctx, input, opts...)
 				if err != nil {
 					return out, err
 				}
-
 				task := mocker.Tasks[input.Tasks[0]]
 				if strings.Contains(*task.Group, "canary-task") {
 					for i := range out.Tasks {
@@ -299,11 +298,10 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 				return out, err
 			},
 		).AnyTimes()
-		ecsMock.EXPECT().ListTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.ListTasks).AnyTimes()
-		ecsMock.EXPECT().DescribeContainerInstances(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeContainerInstances).AnyTimes()
-		ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask).AnyTimes()
-		ecsMock.EXPECT().StopTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.StopTask).AnyTimes()
-
+		ecsMock.EXPECT().ListTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.ListTasks).AnyTimes()
+		ecsMock.EXPECT().DescribeContainerInstances(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.DescribeContainerInstances).AnyTimes()
+		ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RunTask).AnyTimes()
+		ecsMock.EXPECT().StopTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.StopTask).AnyTimes()
 		cagecli := cage.NewCage(&types.Deps{
 			Env:  envars,
 			Ecs:  ecsMock,

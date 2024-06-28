@@ -24,7 +24,7 @@ func TestCage_Run(t *testing.T) {
 		mocker := test.NewMockContext()
 		ctrl := gomock.NewController(t)
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
-		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RegisterTaskDefinition).AnyTimes()
+		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RegisterTaskDefinition).AnyTimes()
 		return env, mocker, ecsMock
 	}
 	t.Run("basic", func(t *testing.T) {
@@ -33,11 +33,11 @@ func TestCage_Run(t *testing.T) {
 		ctx := context.Background()
 		env, mocker, ecsMock := setupForBasic(t)
 		gomock.InOrder(
-			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask),
-			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTasks),
+			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RunTask),
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.DescribeTasks),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, input *ecs.DescribeTasksInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTasksOutput, error) {
-				mocker.StopTask(ctx, &ecs.StopTaskInput{Cluster: &env.Cluster, Task: &input.Tasks[0]})
-				return mocker.DescribeTasks(ctx, input)
+				mocker.Ecs.StopTask(ctx, &ecs.StopTaskInput{Cluster: &env.Cluster, Task: &input.Tasks[0]})
+				return mocker.Ecs.DescribeTasks(ctx, input)
 			}),
 		)
 		cagecli := cage.NewCage(&types.Deps{
@@ -59,10 +59,10 @@ func TestCage_Run(t *testing.T) {
 		env, mocker, ecsMock := setupForBasic(t)
 		env.CanaryTaskRunningWait = 1
 		gomock.InOrder(
-			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask),
+			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RunTask),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 				func(ctx context.Context, input *ecs.DescribeTasksInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTasksOutput, error) {
-					res, err := mocker.DescribeTasks(ctx, input)
+					res, err := mocker.Ecs.DescribeTasks(ctx, input)
 					for i := range res.Tasks {
 						res.Tasks[i].LastStatus = aws.String("PROVISIONING")
 					}
@@ -89,8 +89,8 @@ func TestCage_Run(t *testing.T) {
 		env, mocker, ecsMock := setupForBasic(t)
 		env.CanaryTaskStoppedWait = 1
 		gomock.InOrder(
-			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask),
-			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTasks).Times(2),
+			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RunTask),
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.DescribeTasks).Times(2),
 		)
 		cagecli := cage.NewCage(&types.Deps{
 			Env:  env,
@@ -110,14 +110,14 @@ func TestCage_Run(t *testing.T) {
 		ctx := context.Background()
 		env, mocker, ecsMock := setupForBasic(t)
 		gomock.InOrder(
-			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask),
-			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTasks),
+			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RunTask),
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.DescribeTasks),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, input *ecs.DescribeTasksInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTasksOutput, error) {
-				stop, _ := mocker.StopTask(ctx, &ecs.StopTaskInput{Cluster: &env.Cluster, Task: &input.Tasks[0]})
+				stop, _ := mocker.Ecs.StopTask(ctx, &ecs.StopTaskInput{Cluster: &env.Cluster, Task: &input.Tasks[0]})
 				for i := range stop.Task.Containers {
 					stop.Task.Containers[i].ExitCode = aws.Int32(1)
 				}
-				return mocker.DescribeTasks(ctx, input)
+				return mocker.Ecs.DescribeTasks(ctx, input)
 			}),
 		)
 		cagecli := cage.NewCage(&types.Deps{
@@ -138,14 +138,14 @@ func TestCage_Run(t *testing.T) {
 		ctx := context.Background()
 		env, mocker, ecsMock := setupForBasic(t)
 		gomock.InOrder(
-			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.RunTask),
-			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.DescribeTasks),
+			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RunTask),
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.DescribeTasks),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, input *ecs.DescribeTasksInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTasksOutput, error) {
-				stop, _ := mocker.StopTask(ctx, &ecs.StopTaskInput{Cluster: &env.Cluster, Task: &input.Tasks[0]})
+				stop, _ := mocker.Ecs.StopTask(ctx, &ecs.StopTaskInput{Cluster: &env.Cluster, Task: &input.Tasks[0]})
 				for i := range stop.Task.Containers {
 					stop.Task.Containers[i].ExitCode = nil
 				}
-				return mocker.DescribeTasks(ctx, input)
+				return mocker.Ecs.DescribeTasks(ctx, input)
 			}),
 		)
 		cagecli := cage.NewCage(&types.Deps{

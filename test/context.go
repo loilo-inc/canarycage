@@ -3,45 +3,55 @@ package test
 import (
 	"sync"
 
-	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	srvtypes "github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
 	"github.com/loilo-inc/canarycage/awsiface"
 )
 
 type commons struct {
-	Services        map[string]*types.Service
-	Tasks           map[string]*types.Task
+	Services        map[string]*ecstypes.Service
+	Tasks           map[string]*ecstypes.Task
 	TaskDefinitions *TaskDefinitionRepository
 	TargetGroups    map[string]struct{}
-	mux             sync.Mutex
+	SrvNamespaces   []*srvtypes.Namespace
+	SrvServices     []*srvtypes.Service
+	// service.Name -> []*instance
+	SrvInsts map[string][]*srvtypes.Instance
+	// instance.Id -> HealthStatus
+	SrvInstHelths map[string]srvtypes.HealthStatus
+	mux           sync.Mutex
 }
 
 type MockContext struct {
 	*commons
-	awsiface.EcsClient
-	awsiface.AlbClient
-	awsiface.Ec2Client
-	awsiface.SrvClient
+	Ecs awsiface.EcsClient
+	Alb awsiface.AlbClient
+	Ec2 awsiface.Ec2Client
+	Srv awsiface.SrvClient
 }
 
 func NewMockContext() *MockContext {
 	cm := &commons{
-		Services: make(map[string]*types.Service),
-		Tasks:    make(map[string]*types.Task),
+		Services: make(map[string]*ecstypes.Service),
+		Tasks:    make(map[string]*ecstypes.Task),
 		TaskDefinitions: &TaskDefinitionRepository{
 			families: make(map[string]*TaskDefinitionFamily),
 		},
-		TargetGroups: make(map[string]struct{}),
+		TargetGroups:  make(map[string]struct{}),
+		SrvServices:   make([]*srvtypes.Service, 0),
+		SrvInsts:      make(map[string][]*srvtypes.Instance),
+		SrvInstHelths: make(map[string]srvtypes.HealthStatus),
 	}
 	return &MockContext{
-		commons:   cm,
-		EcsClient: &EcsServer{commons: cm},
-		Ec2Client: &Ec2Server{commons: cm},
-		SrvClient: &SrvServer{commons: cm},
-		AlbClient: &AlbServer{commons: cm},
+		commons: cm,
+		Ecs:     &EcsServer{commons: cm},
+		Ec2:     &Ec2Server{commons: cm},
+		Srv:     &SrvServer{commons: cm},
+		Alb:     &AlbServer{commons: cm},
 	}
 }
 
-func (ctx *commons) GetTask(id string) (*types.Task, bool) {
+func (ctx *commons) GetTask(id string) (*ecstypes.Task, bool) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	o, ok := ctx.Tasks[id]
@@ -62,7 +72,7 @@ func (ctx *commons) RunningTaskSize() int {
 	return count
 }
 
-func (ctx *commons) GetEcsService(id string) (*types.Service, bool) {
+func (ctx *commons) GetEcsService(id string) (*ecstypes.Service, bool) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
 	o, ok := ctx.Services[id]
