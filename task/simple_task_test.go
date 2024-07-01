@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/loilo-inc/canarycage/timeout"
@@ -12,14 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAlbTask(t *testing.T) {
+func TestSimpleTask(t *testing.T) {
+	ctx := context.TODO()
 	mocker := test.NewMockContext()
 	env := test.DefaultEnvars()
-	ctx := context.TODO()
 	td, _ := mocker.Ecs.RegisterTaskDefinition(ctx, env.TaskDefinitionInput)
 	env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinition.TaskDefinitionArn
 	ecsSvc, _ := mocker.Ecs.CreateService(ctx, env.ServiceDefinitionInput)
-	stask := task.NewAlbTask(&task.Input{
+	stask := task.NewSimpleTask(&task.Input{
 		Deps: &types.Deps{
 			Env:  env,
 			Ecs:  mocker.Ecs,
@@ -31,9 +30,6 @@ func TestAlbTask(t *testing.T) {
 		TaskDefinition:       td.TaskDefinition,
 		NetworkConfiguration: ecsSvc.Service.NetworkConfiguration,
 		Timeout:              timeout.NewManager(1, &timeout.Input{}),
-	}, &ecsSvc.Service.LoadBalancers[0])
-	mocker.Alb.RegisterTargets(ctx, &elbv2.RegisterTargetsInput{
-		TargetGroupArn: ecsSvc.Service.LoadBalancers[0].TargetGroupArn,
 	})
 	err := stask.Start(ctx)
 	assert.NoError(t, err)
