@@ -62,6 +62,20 @@ func (mr *MockTaskMockRecorder) Stop(ctx interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockTask)(nil).Stop), ctx)
 }
 
+// TaskArn mocks base method.
+func (m *MockTask) TaskArn() *string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TaskArn")
+	ret0, _ := ret[0].(*string)
+	return ret0
+}
+
+// TaskArn indicates an expected call of TaskArn.
+func (mr *MockTaskMockRecorder) TaskArn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaskArn", reflect.TypeOf((*MockTask)(nil).TaskArn))
+}
+
 // Wait mocks base method.
 func (m *MockTask) Wait(ctx context.Context) error {
 	m.ctrl.T.Helper()

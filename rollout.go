@@ -7,8 +7,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/task"
+	"github.com/loilo-inc/canarycage/taskset"
 	"github.com/loilo-inc/canarycage/types"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 )
 
@@ -49,28 +49,20 @@ func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.R
 	// ensure canary task stopped after rolling out either success or failure
 	defer func() {
 		_ = recover()
-		eg := errgroup.Group{}
-		for _, canaryTask := range canaryTasks {
-			eg.Go(func() error {
-				return canaryTask.Stop(ctx)
-			})
-		}
-		if err := eg.Wait(); err != nil {
-			log.Errorf("failed to stop canary tasks due to: %s", err)
+		if canaryTasks == nil {
+			return
+		} else if err := canaryTasks.Cleanup(ctx); err != nil {
+			log.Errorf("failed to cleanup canary tasks due to: %s", err)
 		}
 	}()
 	if startCanaryTaskErr != nil {
 		return result, xerrors.Errorf("failed to start canary task due to: %w", startCanaryTaskErr)
 	}
-	eg := errgroup.Group{}
-	for _, canaryTask := range canaryTasks {
-		eg.Go(func() error {
-			return canaryTask.Wait(ctx)
-		})
+	log.Infof("executing canary tasks...")
+	if err := canaryTasks.Exec(ctx); err != nil {
+		return result, xerrors.Errorf("failed to exec canary task due to: %w", err)
 	}
-	if err := eg.Wait(); err != nil {
-		return result, xerrors.Errorf("failed to wait for canary task due to: %w", err)
-	}
+	log.Infof("canary tasks have been executed successfully!")
 	log.Infof(
 		"updating the task definition of '%s' into '%s:%d'...",
 		c.Env.Service, *nextTaskDefinition.Family, nextTaskDefinition.Revision,
@@ -111,7 +103,7 @@ func (c *cage) StartCanaryTasks(
 	ctx context.Context,
 	nextTaskDefinition *ecstypes.TaskDefinition,
 	input *types.RollOutInput,
-) ([]task.Task, error) {
+) (taskset.Set, error) {
 	var networkConfiguration *ecstypes.NetworkConfiguration
 	var platformVersion *string
 	var loadBalancers []ecstypes.LoadBalancer
@@ -135,45 +127,16 @@ func (c *cage) StartCanaryTasks(
 			serviceRegistries = service.ServiceRegistries
 		}
 	}
-	var results []task.Task
-	for _, lb := range loadBalancers {
-		task := c.TaskFactory.NewAlbTask(&task.Input{
-			Deps:                 c.Deps,
-			NetworkConfiguration: networkConfiguration,
-			TaskDefinition:       nextTaskDefinition,
-			PlatformVersion:      platformVersion,
-			Timeout:              c.Timeout,
-		}, &lb)
-		results = append(results, task)
-		if err := task.Start(ctx); err != nil {
-			return results, err
-		}
-	}
-	for _, srv := range serviceRegistries {
-		task := c.TaskFactory.NewSrvTask(&task.Input{
-			Deps:                 c.Deps,
-			NetworkConfiguration: networkConfiguration,
-			TaskDefinition:       nextTaskDefinition,
-			PlatformVersion:      platformVersion,
-			Timeout:              c.Timeout,
-		}, &srv)
-		results = append(results, task)
-		if err := task.Start(ctx); err != nil {
-			return results, err
-		}
-	}
-	if len(results) == 0 {
-		task := c.TaskFactory.NewSimpleTask(&task.Input{
-			Deps:                 c.Deps,
-			NetworkConfiguration: networkConfiguration,
-			TaskDefinition:       nextTaskDefinition,
-			PlatformVersion:      platformVersion,
-			Timeout:              c.Timeout,
-		})
-		results = append(results, task)
-		if err := task.Start(ctx); err != nil {
-			return results, err
-		}
-	}
-	return results, nil
+	return taskset.NewSet(
+		c.TaskFactory,
+		&taskset.Input{
+			Input: &task.Input{
+				NetworkConfiguration: networkConfiguration,
+				TaskDefinition:       nextTaskDefinition,
+				PlatformVersion:      platformVersion,
+			},
+			LoadBalancers:     loadBalancers,
+			ServiceRegistries: serviceRegistries,
+		},
+	), nil
 }

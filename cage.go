@@ -3,6 +3,7 @@ package cage
 import (
 	"time"
 
+	"github.com/loilo-inc/canarycage/taskset"
 	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
 )
@@ -10,7 +11,7 @@ import (
 type cage struct {
 	*types.Deps
 	Timeout     timeout.Manager
-	TaskFactory TaskFactory
+	TaskFactory taskset.Factory
 }
 
 func NewCage(input *types.Deps) types.Cage {
@@ -33,6 +34,6 @@ func NewCage(input *types.Deps) types.Cage {
 				ServiceStableWait:     serviceStableWait,
 				TargetHealthCheckWait: targetHealthCheckWait,
 			}),
-		TaskFactory: &taskFactory{},
+		TaskFactory: taskset.NewFactory(),
 	}
 }
