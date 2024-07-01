@@ -46,5 +46,5 @@ func TestSrvTask(t *testing.T) {
 	err = stask.Stop(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, mocker.RunningTaskSize())
-	assert.Equal(t, 0, len(mocker.SrvInsts))
+	assert.Equal(t, 0, len(mocker.SrvInsts[srvSvcName]))
 }

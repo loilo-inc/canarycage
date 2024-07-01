@@ -99,7 +99,7 @@ func (s *SrvServer) RegisterInstance(ctx context.Context, params *servicediscove
 			Attributes: params.Attributes,
 		}
 		s.SrvInsts[*srv.Name] = append(s.SrvInsts[*params.ServiceId], inst)
-		s.SrvInstHelths[*params.InstanceId] = srvtypes.HealthStatusUnhealthy
+		s.SrvInstHelths[*params.InstanceId] = srvtypes.HealthStatusHealthy
 		return &servicediscovery.RegisterInstanceOutput{}, nil
 	}
 }
@@ -112,7 +112,7 @@ func (s *SrvServer) DeregisterInstance(ctx context.Context, params *servicedisco
 		for i, inst := range insts {
 			if *inst.Id == *params.InstanceId {
 				insts = append(insts[:i], insts[i+1:]...)
-				s.SrvInsts[*params.ServiceId] = insts
+				s.SrvInsts[*srv.Name] = insts
 				delete(s.SrvInstHelths, *params.InstanceId)
 				return &servicediscovery.DeregisterInstanceOutput{}, nil
 			}

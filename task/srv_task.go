@@ -87,7 +87,7 @@ func (c *srvTask) registerToSrvDiscovery(ctx context.Context) error {
 		"ECS_SERVICE_NAME":           c.Env.Service,
 		"ECS_TASK_DEFINITION_FAMILY": *c.TaskDefinition.Family,
 		"REGION":                     c.Env.Region,
-		"CAGE_CANARY_TASK":           "1",
+		"CAGE_TASK_ID":               ArnToId(*c.taskArn),
 	}
 	taskId := ArnToId(*c.taskArn)
 	if _, err := c.Srv.RegisterInstance(ctx, &servicediscovery.RegisterInstanceInput{
@@ -121,8 +121,7 @@ func (c *srvTask) waitUntilSrvInstHelthy(
 				ServiceName:   c.srv.Name,
 				HealthStatus:  srvtypes.HealthStatusFilterHealthy,
 				QueryParameters: map[string]string{
-					"CAGE_CANARY_TASK": "1",
-					"AWS_PRIVATE_IPV4": c.target.targetIpv4,
+					"CAGE_TASK_ID": ArnToId(*c.taskArn),
 				},
 			}); err != nil {
 				return xerrors.Errorf("failed to discover instances: %w", err)
