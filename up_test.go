@@ -6,8 +6,10 @@ import (
 
 	"github.com/golang/mock/gomock"
 	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/test"
-	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/canarycage/timeout"
+	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,10 +19,11 @@ func TestCage_Up(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		ctx, ecsMock, _, _ := test.Setup(ctrl, env, 1, "FARGATE")
 		delete(ctx.Services, env.Service)
-		cagecli := cage.NewCage(&types.Deps{
-			Env: env,
-			Ecs: ecsMock,
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, env)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
+		}))
 		result, err := cagecli.Up(context.Background())
 		assert.Nil(t, err)
 		assert.NotNil(t, result.Service)
@@ -30,10 +33,11 @@ func TestCage_Up(t *testing.T) {
 		env := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
 		_, ecsMock, _, _ := test.Setup(ctrl, env, 1, "FARGATE")
-		cagecli := cage.NewCage(&types.Deps{
-			Env: env,
-			Ecs: ecsMock,
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, env)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
+		}))
 		result, err := cagecli.Up(context.Background())
 		assert.Nil(t, result)
 		assert.EqualError(t, err, "service 'service' already exists. Use 'cage rollout' instead")

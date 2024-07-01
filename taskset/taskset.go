@@ -23,14 +23,14 @@ type Input struct {
 	ServiceRegistries []ecstypes.ServiceRegistry
 }
 
-func NewSet(factory Factory, input *Input) Set {
+func NewSet(
+	factory task.Factory,
+	input *Input) Set {
 	var results []task.Task
 	taskInput := &task.Input{
-		Deps:                 input.Deps,
 		NetworkConfiguration: input.NetworkConfiguration,
 		TaskDefinition:       input.TaskDefinition,
 		PlatformVersion:      input.PlatformVersion,
-		Timeout:              input.Timeout,
 	}
 	for _, lb := range input.LoadBalancers {
 		task := factory.NewAlbTask(taskInput, &lb)

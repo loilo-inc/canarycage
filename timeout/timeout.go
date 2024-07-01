@@ -1,14 +1,10 @@
 package timeout
 
-import "time"
+import (
+	"time"
 
-type Input struct {
-	TaskStoppedWait       time.Duration
-	TaskRunningWait       time.Duration
-	TaskHealthCheckWait   time.Duration
-	TargetHealthCheckWait time.Duration
-	ServiceStableWait     time.Duration
-}
+	"github.com/loilo-inc/canarycage/env"
+)
 
 type Manager interface {
 	TaskRunning() time.Duration
@@ -19,51 +15,56 @@ type Manager interface {
 }
 
 type manager struct {
-	*Input
+	env            *env.Envars
 	DefaultTimeout time.Duration
 }
 
 func NewManager(
+	env *env.Envars,
 	defaultTimeout time.Duration,
-	input *Input,
 ) Manager {
 	return &manager{
-		Input:          input,
+		env:            env,
 		DefaultTimeout: defaultTimeout,
 	}
 }
 
 func (t *manager) TaskRunning() time.Duration {
-	if t.TaskRunningWait > 0 {
-		return t.TaskRunningWait
+	wait := t.env.CanaryTaskRunningWait
+	if wait > 0 {
+		return time.Duration(wait) * time.Second
 	}
 	return t.DefaultTimeout
 }
 
 func (t *manager) TaskHealthCheck() time.Duration {
-	if t.TaskHealthCheckWait > 0 {
-		return t.TaskHealthCheckWait
+	wait := t.env.CanaryTaskHealthCheckWait
+	if wait > 0 {
+		return time.Duration(wait) * time.Second
 	}
 	return t.DefaultTimeout
 }
 
 func (t *manager) TaskStopped() time.Duration {
-	if t.TaskStoppedWait > 0 {
-		return t.TaskStoppedWait
+	wait := t.env.CanaryTaskStoppedWait
+	if wait > 0 {
+		return time.Duration(wait) * time.Second
 	}
 	return t.DefaultTimeout
 }
 
 func (t *manager) ServiceStable() time.Duration {
-	if t.ServiceStableWait > 0 {
-		return t.ServiceStableWait
+	wait := t.env.ServiceStableWait
+	if wait > 0 {
+		return time.Duration(wait) * time.Second
 	}
 	return t.DefaultTimeout
 }
 
 func (t *manager) TargetHealthCheck() time.Duration {
-	if t.TargetHealthCheckWait > 0 {
-		return t.TargetHealthCheckWait
+	wait := t.env.TargetHealthCheckWait
+	if wait > 0 {
+		return time.Duration(wait) * time.Second
 	}
 	return t.DefaultTimeout
 }

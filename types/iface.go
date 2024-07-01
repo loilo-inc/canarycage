@@ -5,8 +5,6 @@ import (
 	"time"
 
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/loilo-inc/canarycage/awsiface"
-	"github.com/loilo-inc/canarycage/env"
 )
 
 type Cage interface {
@@ -18,15 +16,6 @@ type Cage interface {
 type Time interface {
 	Now() time.Time
 	NewTimer(time.Duration) *time.Timer
-}
-
-type Deps struct {
-	Env  *env.Envars
-	Ecs  awsiface.EcsClient
-	Alb  awsiface.AlbClient
-	Ec2  awsiface.Ec2Client
-	Srv  awsiface.SrvClient
-	Time Time
 }
 
 type RunInput struct {

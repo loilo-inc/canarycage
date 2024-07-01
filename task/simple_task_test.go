@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/loilo-inc/canarycage/timeout"
-	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,18 +19,18 @@ func TestSimpleTask(t *testing.T) {
 	td, _ := mocker.Ecs.RegisterTaskDefinition(ctx, env.TaskDefinitionInput)
 	env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinition.TaskDefinitionArn
 	ecsSvc, _ := mocker.Ecs.CreateService(ctx, env.ServiceDefinitionInput)
-	stask := task.NewSimpleTask(&task.Input{
-		Deps: &types.Deps{
-			Env:  env,
-			Ecs:  mocker.Ecs,
-			Ec2:  mocker.Ec2,
-			Alb:  mocker.Alb,
-			Srv:  mocker.Srv,
-			Time: test.NewFakeTime(),
-		},
+	d := di.NewDomain(func(b *di.B) {
+		b.Set(key.Env, env)
+		b.Set(key.EcsCli, mocker.Ecs)
+		b.Set(key.Ec2Cli, mocker.Ec2)
+		b.Set(key.AlbCli, mocker.Alb)
+		b.Set(key.SrvCli, mocker.Srv)
+		b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
+		b.Set(key.Time, test.NewFakeTime())
+	})
+	stask := task.NewSimpleTask(d, &task.Input{
 		TaskDefinition:       td.TaskDefinition,
 		NetworkConfiguration: ecsSvc.Service.NetworkConfiguration,
-		Timeout:              timeout.NewManager(1, &timeout.Input{}),
 	})
 	err := stask.Start(ctx)
 	assert.NoError(t, err)

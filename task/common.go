@@ -10,8 +10,12 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/loilo-inc/canarycage/awsiface"
+	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
 )
 
@@ -23,28 +27,29 @@ type CanaryTarget struct {
 }
 
 type Input struct {
-	*types.Deps
 	TaskDefinition       *ecstypes.TaskDefinition
 	NetworkConfiguration *ecstypes.NetworkConfiguration
 	PlatformVersion      *string
-	Timeout              timeout.Manager
 }
 
 type common struct {
 	*Input
+	di      *di.D
 	taskArn *string
 }
 
 func (c *common) Start(ctx context.Context) error {
-	group := fmt.Sprintf("cage:canary-task:%s", c.Env.Service)
-	if c.Env.CanaryInstanceArn != "" {
+	env := c.di.Get(key.Env).(*env.Envars)
+	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	group := fmt.Sprintf("cage:canary-task:%s", env.Service)
+	if env.CanaryInstanceArn != "" {
 		// ec2
-		if o, err := c.Ecs.StartTask(ctx, &ecs.StartTaskInput{
-			Cluster:              &c.Env.Cluster,
+		if o, err := ecsCli.StartTask(ctx, &ecs.StartTaskInput{
+			Cluster:              &env.Cluster,
 			Group:                &group,
 			NetworkConfiguration: c.NetworkConfiguration,
 			TaskDefinition:       c.TaskDefinition.TaskDefinitionArn,
-			ContainerInstances:   []string{c.Env.CanaryInstanceArn},
+			ContainerInstances:   []string{env.CanaryInstanceArn},
 		}); err != nil {
 			return err
 		} else {
@@ -52,8 +57,8 @@ func (c *common) Start(ctx context.Context) error {
 		}
 	} else {
 		// fargate
-		if o, err := c.Ecs.RunTask(ctx, &ecs.RunTaskInput{
-			Cluster:              &c.Env.Cluster,
+		if o, err := ecsCli.RunTask(ctx, &ecs.RunTaskInput{
+			Cluster:              &env.Cluster,
 			Group:                &group,
 			NetworkConfiguration: c.NetworkConfiguration,
 			TaskDefinition:       c.TaskDefinition.TaskDefinitionArn,
@@ -73,11 +78,14 @@ func (c *common) TaskArn() *string {
 }
 
 func (c *common) waitForTask(ctx context.Context) error {
+	env := c.di.Get(key.Env).(*env.Envars)
+	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	timeoutManager := c.di.Get(key.TimeoutManager).(timeout.Manager)
 	log.Infof("🥚 waiting for canary task '%s' is running...", *c.taskArn)
-	if err := ecs.NewTasksRunningWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{
-		Cluster: &c.Env.Cluster,
+	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
+		Cluster: &env.Cluster,
 		Tasks:   []string{*c.taskArn},
-	}, c.Timeout.TaskRunning()); err != nil {
+	}, timeoutManager.TaskRunning()); err != nil {
 		return err
 	}
 	log.Infof("🐣 canary task '%s' is running!", *c.taskArn)
@@ -91,13 +99,17 @@ func (c *common) waitForTask(ctx context.Context) error {
 
 func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 	log.Infof("😷 ensuring canary task container(s) to become healthy...")
+	env := c.di.Get(key.Env).(*env.Envars)
+	timer := c.di.Get(key.Time).(types.Time)
+	timeoutManager := c.di.Get(key.TimeoutManager).(timeout.Manager)
+	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
 	containerHasHealthChecks := map[string]struct{}{}
 	for _, definition := range c.TaskDefinition.ContainerDefinitions {
 		if definition.HealthCheck != nil {
 			containerHasHealthChecks[*definition.Name] = struct{}{}
 		}
 	}
-	rest := c.Timeout.TaskHealthCheck()
+	rest := timeoutManager.TaskHealthCheck()
 	healthCheckPeriod := 15 * time.Second
 	for rest > 0 {
 		if rest < healthCheckPeriod {
@@ -106,10 +118,10 @@ func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-c.Time.NewTimer(healthCheckPeriod).C:
+		case <-timer.NewTimer(healthCheckPeriod).C:
 			log.Infof("canary task '%s' waits until %d container(s) become healthy", *c.taskArn, len(containerHasHealthChecks))
-			if o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
-				Cluster: &c.Env.Cluster,
+			if o, err := ecsCli.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+				Cluster: &env.Cluster,
 				Tasks:   []string{*c.taskArn},
 			}); err != nil {
 				return err
@@ -142,8 +154,9 @@ func (c *common) describeTaskTarget(
 	ctx context.Context,
 	targetPort int32,
 ) (*CanaryTarget, error) {
+	env := c.di.Get(key.Env).(*env.Envars)
 	target := CanaryTarget{targetPort: targetPort}
-	if c.Env.CanaryInstanceArn == "" { // Fargate
+	if env.CanaryInstanceArn == "" { // Fargate
 		if err := c.getFargateTarget(ctx, &target); err != nil {
 			return nil, err
 		}
@@ -159,8 +172,11 @@ func (c *common) describeTaskTarget(
 
 func (c *common) getFargateTarget(ctx context.Context, dest *CanaryTarget) error {
 	var task ecstypes.Task
-	if o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
-		Cluster: &c.Env.Cluster,
+	env := c.di.Get(key.Env).(*env.Envars)
+	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	ec2Cli := c.di.Get(key.Ec2Cli).(awsiface.Ec2Client)
+	if o, err := ecsCli.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+		Cluster: &env.Cluster,
 		Tasks:   []string{*c.taskArn},
 	}); err != nil {
 		return err
@@ -180,7 +196,7 @@ func (c *common) getFargateTarget(ctx context.Context, dest *CanaryTarget) error
 	if subnetId == nil || privateIp == nil {
 		return xerrors.Errorf("couldn't find subnetId or privateIPv4Address in task details")
 	}
-	if o, err := c.Ec2.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
+	if o, err := ec2Cli.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
 		SubnetIds: []string{*subnetId},
 	}); err != nil {
 		return err
@@ -194,23 +210,26 @@ func (c *common) getFargateTarget(ctx context.Context, dest *CanaryTarget) error
 
 func (c *common) getEc2Target(ctx context.Context, dest *CanaryTarget) error {
 	var containerInstance ecstypes.ContainerInstance
-	if outputs, err := c.Ecs.DescribeContainerInstances(ctx, &ecs.DescribeContainerInstancesInput{
-		Cluster:            &c.Env.Cluster,
-		ContainerInstances: []string{c.Env.CanaryInstanceArn},
+	env := c.di.Get(key.Env).(*env.Envars)
+	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	ec2Cli := c.di.Get(key.Ec2Cli).(awsiface.Ec2Client)
+	if outputs, err := ecsCli.DescribeContainerInstances(ctx, &ecs.DescribeContainerInstancesInput{
+		Cluster:            &env.Cluster,
+		ContainerInstances: []string{env.CanaryInstanceArn},
 	}); err != nil {
 		return err
 	} else {
 		containerInstance = outputs.ContainerInstances[0]
 	}
 	var ec2Instance ec2types.Instance
-	if o, err := c.Ec2.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
+	if o, err := ec2Cli.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
 		InstanceIds: []string{*containerInstance.Ec2InstanceId},
 	}); err != nil {
 		return err
 	} else {
 		ec2Instance = o.Reservations[0].Instances[0]
 	}
-	if sn, err := c.Ec2.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
+	if sn, err := ec2Cli.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
 		SubnetIds: []string{*ec2Instance.SubnetId},
 	}); err != nil {
 		return err
@@ -226,17 +245,20 @@ func (c *common) stopTask(ctx context.Context) error {
 	if c.taskArn == nil {
 		return nil
 	}
+	env := c.di.Get(key.Env).(*env.Envars)
+	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	timeoutManager := c.di.Get(key.TimeoutManager).(timeout.Manager)
 	log.Infof("stopping the canary task '%s'...", *c.taskArn)
-	if _, err := c.Ecs.StopTask(ctx, &ecs.StopTaskInput{
-		Cluster: &c.Env.Cluster,
+	if _, err := ecsCli.StopTask(ctx, &ecs.StopTaskInput{
+		Cluster: &env.Cluster,
 		Task:    c.taskArn,
 	}); err != nil {
 		return xerrors.Errorf("failed to stop canary task: %w", err)
 	}
-	if err := ecs.NewTasksStoppedWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{
-		Cluster: &c.Env.Cluster,
+	if err := ecs.NewTasksStoppedWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
+		Cluster: &env.Cluster,
 		Tasks:   []string{*c.taskArn},
-	}, c.Timeout.TaskStopped()); err != nil {
+	}, timeoutManager.TaskStopped()); err != nil {
 		return xerrors.Errorf("failed to wait for canary task to be stopped: %w", err)
 	}
 	log.Infof("canary task '%s' has successfully been stopped", *c.taskArn)

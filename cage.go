@@ -1,39 +1,14 @@
 package cage
 
 import (
-	"time"
-
-	"github.com/loilo-inc/canarycage/taskset"
-	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/logos/di"
 )
 
 type cage struct {
-	*types.Deps
-	Timeout     timeout.Manager
-	TaskFactory taskset.Factory
+	di *di.D
 }
 
-func NewCage(input *types.Deps) types.Cage {
-	if input.Time == nil {
-		input.Time = &timeImpl{}
-	}
-	taskRunningWait := (time.Duration)(input.Env.CanaryTaskRunningWait) * time.Second
-	taskHealthCheckWait := (time.Duration)(input.Env.CanaryTaskHealthCheckWait) * time.Second
-	taskStoppedWait := (time.Duration)(input.Env.CanaryTaskStoppedWait) * time.Second
-	serviceStableWait := (time.Duration)(input.Env.ServiceStableWait) * time.Second
-	targetHealthCheckWait := (time.Duration)(input.Env.TargetHealthCheckWait) * time.Second
-	return &cage{
-		Deps: input,
-		Timeout: timeout.NewManager(
-			15*time.Minute,
-			&timeout.Input{
-				TaskRunningWait:       taskRunningWait,
-				TaskHealthCheckWait:   taskHealthCheckWait,
-				TaskStoppedWait:       taskStoppedWait,
-				ServiceStableWait:     serviceStableWait,
-				TargetHealthCheckWait: targetHealthCheckWait,
-			}),
-		TaskFactory: taskset.NewFactory(),
-	}
+func NewCage(di *di.D) types.Cage {
+	return &cage{di}
 }

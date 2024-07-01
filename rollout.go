@@ -6,8 +6,12 @@ import (
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/loilo-inc/canarycage/awsiface"
+	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/taskset"
+	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/xerrors"
 )
@@ -16,21 +20,21 @@ func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.R
 	result := &types.RollOutResult{
 		ServiceIntact: true,
 	}
-	if out, err := c.Ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
-		Cluster: &c.Env.Cluster,
-		Services: []string{
-			c.Env.Service,
-		},
+	env := c.di.Get(key.Env).(*env.Envars)
+	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	if out, err := ecsCli.DescribeServices(ctx, &ecs.DescribeServicesInput{
+		Cluster:  &env.Cluster,
+		Services: []string{env.Service},
 	}); err != nil {
 		return result, xerrors.Errorf("failed to describe current service due to: %w", err)
 	} else if len(out.Services) == 0 {
-		return result, xerrors.Errorf("service '%s' doesn't exist. Run 'cage up' or create service before rolling out", c.Env.Service)
+		return result, xerrors.Errorf("service '%s' doesn't exist. Run 'cage up' or create service before rolling out", env.Service)
 	} else {
 		service := out.Services[0]
 		if *service.Status != "ACTIVE" {
-			return result, xerrors.Errorf("😵 '%s' status is '%s'. Stop rolling out", c.Env.Service, *service.Status)
+			return result, xerrors.Errorf("😵 '%s' status is '%s'. Stop rolling out", env.Service, *service.Status)
 		}
-		if service.LaunchType == ecstypes.LaunchTypeEc2 && c.Env.CanaryInstanceArn == "" {
+		if service.LaunchType == ecstypes.LaunchTypeEc2 && env.CanaryInstanceArn == "" {
 			return result, xerrors.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'")
 		}
 	}
@@ -64,36 +68,37 @@ func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.R
 	log.Infof("canary tasks have been executed successfully!")
 	log.Infof(
 		"updating the task definition of '%s' into '%s:%d'...",
-		c.Env.Service, *nextTaskDefinition.Family, nextTaskDefinition.Revision,
+		env.Service, *nextTaskDefinition.Family, nextTaskDefinition.Revision,
 	)
 	updateInput := &ecs.UpdateServiceInput{
-		Cluster:        &c.Env.Cluster,
-		Service:        &c.Env.Service,
+		Cluster:        &env.Cluster,
+		Service:        &env.Service,
 		TaskDefinition: nextTaskDefinition.TaskDefinitionArn,
 	}
 	if input.UpdateService {
-		updateInput.LoadBalancers = c.Env.ServiceDefinitionInput.LoadBalancers
-		updateInput.NetworkConfiguration = c.Env.ServiceDefinitionInput.NetworkConfiguration
-		updateInput.ServiceConnectConfiguration = c.Env.ServiceDefinitionInput.ServiceConnectConfiguration
-		updateInput.ServiceRegistries = c.Env.ServiceDefinitionInput.ServiceRegistries
-		updateInput.PlatformVersion = c.Env.ServiceDefinitionInput.PlatformVersion
-		updateInput.VolumeConfigurations = c.Env.ServiceDefinitionInput.VolumeConfigurations
+		updateInput.LoadBalancers = env.ServiceDefinitionInput.LoadBalancers
+		updateInput.NetworkConfiguration = env.ServiceDefinitionInput.NetworkConfiguration
+		updateInput.ServiceConnectConfiguration = env.ServiceDefinitionInput.ServiceConnectConfiguration
+		updateInput.ServiceRegistries = env.ServiceDefinitionInput.ServiceRegistries
+		updateInput.PlatformVersion = env.ServiceDefinitionInput.PlatformVersion
+		updateInput.VolumeConfigurations = env.ServiceDefinitionInput.VolumeConfigurations
 	}
-	if _, err := c.Ecs.UpdateService(ctx, updateInput); err != nil {
+	if _, err := ecsCli.UpdateService(ctx, updateInput); err != nil {
 		return result, err
 	}
 	result.ServiceIntact = false
-	log.Infof("waiting for service '%s' to be stable...", c.Env.Service)
-	if err := ecs.NewServicesStableWaiter(c.Ecs).Wait(ctx, &ecs.DescribeServicesInput{
-		Cluster:  &c.Env.Cluster,
-		Services: []string{c.Env.Service},
-	}, c.Timeout.ServiceStable()); err != nil {
+	log.Infof("waiting for service '%s' to be stable...", env.Service)
+	timeouManager := c.di.Get(key.TimeoutManager).(timeout.Manager)
+	if err := ecs.NewServicesStableWaiter(ecsCli).Wait(ctx, &ecs.DescribeServicesInput{
+		Cluster:  &env.Cluster,
+		Services: []string{env.Service},
+	}, timeouManager.ServiceStable()); err != nil {
 		return result, err
 	}
-	log.Infof("🥴 service '%s' has become to be stable!", c.Env.Service)
+	log.Infof("🥴 service '%s' has become to be stable!", env.Service)
 	log.Infof(
 		"🐥 service '%s' successfully rolled out to '%s:%d'!",
-		c.Env.Service, *nextTaskDefinition.Family, nextTaskDefinition.Revision,
+		env.Service, *nextTaskDefinition.Family, nextTaskDefinition.Revision,
 	)
 	return result, nil
 }
@@ -107,15 +112,17 @@ func (c *cage) StartCanaryTasks(
 	var platformVersion *string
 	var loadBalancers []ecstypes.LoadBalancer
 	var serviceRegistries []ecstypes.ServiceRegistry
+	env := c.di.Get(key.Env).(*env.Envars)
 	if input.UpdateService {
-		networkConfiguration = c.Env.ServiceDefinitionInput.NetworkConfiguration
-		platformVersion = c.Env.ServiceDefinitionInput.PlatformVersion
-		loadBalancers = c.Env.ServiceDefinitionInput.LoadBalancers
-		serviceRegistries = c.Env.ServiceDefinitionInput.ServiceRegistries
+		networkConfiguration = env.ServiceDefinitionInput.NetworkConfiguration
+		platformVersion = env.ServiceDefinitionInput.PlatformVersion
+		loadBalancers = env.ServiceDefinitionInput.LoadBalancers
+		serviceRegistries = env.ServiceDefinitionInput.ServiceRegistries
 	} else {
-		if o, err := c.Ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
-			Cluster:  &c.Env.Cluster,
-			Services: []string{c.Env.Service},
+		ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+		if o, err := ecsCli.DescribeServices(ctx, &ecs.DescribeServicesInput{
+			Cluster:  &env.Cluster,
+			Services: []string{env.Service},
 		}); err != nil {
 			return nil, err
 		} else {
@@ -126,15 +133,14 @@ func (c *cage) StartCanaryTasks(
 			serviceRegistries = service.ServiceRegistries
 		}
 	}
+	factory := c.di.Get(key.TaskFactory).(task.Factory)
 	return taskset.NewSet(
-		c.TaskFactory,
+		factory,
 		&taskset.Input{
 			Input: &task.Input{
-				Deps:                 c.Deps,
 				NetworkConfiguration: networkConfiguration,
 				TaskDefinition:       nextTaskDefinition,
 				PlatformVersion:      platformVersion,
-				Timeout:              c.Timeout,
 			},
 			LoadBalancers:     loadBalancers,
 			ServiceRegistries: serviceRegistries,

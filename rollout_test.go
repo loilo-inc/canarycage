@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -13,9 +14,13 @@ import (
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	"github.com/golang/mock/gomock"
 	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
+	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/test"
+	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,14 +40,15 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			if taskCnt := mctx.RunningTaskSize(); taskCnt != v {
 				t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
 			}
-
-			cagecli := cage.NewCage(&types.Deps{
-				Env:  envars,
-				Ecs:  ecsMock,
-				Alb:  albMock,
-				Ec2:  ec2Mock,
-				Time: test.NewFakeTime(),
-			})
+			cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+				b.Set(key.Env, envars)
+				b.Set(key.EcsCli, ecsMock)
+				b.Set(key.AlbCli, albMock)
+				b.Set(key.Ec2Cli, ec2Mock)
+				b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+				b.Set(key.Time, test.NewFakeTime())
+				b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+			}))
 			ctx := context.Background()
 			result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 			assert.NoError(t, err)
@@ -59,13 +65,15 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		ctrl := gomock.NewController(t)
 
 		mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 1, "FARGATE")
-		cagecli := cage.NewCage(&types.Deps{
-			Env:  envars,
-			Ecs:  ecsMock,
-			Alb:  albMock,
-			Ec2:  ec2Mock,
-			Time: test.NewFakeTime(),
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, envars)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.AlbCli, albMock)
+			b.Set(key.Ec2Cli, ec2Mock)
+			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+			b.Set(key.Time, test.NewFakeTime())
+			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+		}))
 		ctx := context.Background()
 		result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		assert.NoError(t, err)
@@ -98,13 +106,15 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			}, nil).Times(2),
 			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Alb.DescribeTargetHealth).AnyTimes(),
 		)
-		cagecli := cage.NewCage(&types.Deps{
-			Env:  envars,
-			Ecs:  ecsMock,
-			Alb:  albMock,
-			Ec2:  ec2Mock,
-			Time: test.NewFakeTime(),
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, envars)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.AlbCli, albMock)
+			b.Set(key.Ec2Cli, ec2Mock)
+			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+			b.Set(key.Time, test.NewFakeTime())
+			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1*time.Minute))
+		}))
 		ctx := context.Background()
 		result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		assert.NoError(t, err)
@@ -142,13 +152,15 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			}, nil),
 			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Alb.DescribeTargetHealth).AnyTimes(),
 		)
-		cagecli := cage.NewCage(&types.Deps{
-			Env:  envars,
-			Ecs:  ecsMock,
-			Ec2:  ec2Mock,
-			Alb:  albMock,
-			Time: test.NewFakeTime(),
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, envars)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.AlbCli, albMock)
+			b.Set(key.Ec2Cli, ec2Mock)
+			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+			b.Set(key.Time, test.NewFakeTime())
+			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+		}))
 		ctx := context.Background()
 		_, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		assert.NotNil(t, err)
@@ -171,13 +183,15 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		envars.ServiceDefinitionInput.LoadBalancers = []ecstypes.LoadBalancer{newLb}
 		envars.ServiceDefinitionInput.NetworkConfiguration = newNetwork
 		envars.ServiceDefinitionInput.PlatformVersion = aws.String("LATEST")
-		cagecli := cage.NewCage(&types.Deps{
-			Env:  envars,
-			Ecs:  ecsMock,
-			Alb:  albMock,
-			Ec2:  ec2Mock,
-			Time: test.NewFakeTime(),
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, envars)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.AlbCli, albMock)
+			b.Set(key.Ec2Cli, ec2Mock)
+			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+			b.Set(key.Time, test.NewFakeTime())
+			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+		}))
 		ctx := context.Background()
 		service, _ := mctx.GetEcsService(envars.Service)
 		assert.Equal(t, "1.4.0", *service.PlatformVersion)
@@ -194,13 +208,15 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		envars := test.DefaultEnvars()
 		ctrl := gomock.NewController(t)
 		mctx, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 1, "FARGATE")
-		cagecli := cage.NewCage(&types.Deps{
-			Env:  envars,
-			Ecs:  ecsMock,
-			Alb:  albMock,
-			Ec2:  ec2Mock,
-			Time: test.NewFakeTime(),
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, envars)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.AlbCli, albMock)
+			b.Set(key.Ec2Cli, ec2Mock)
+			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+			b.Set(key.Time, test.NewFakeTime())
+			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+		}))
 		ctx := context.Background()
 		envars.ServiceDefinitionInput.LoadBalancers = []ecstypes.LoadBalancer{
 			{
@@ -219,12 +235,15 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mocker, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 2, "FARGATE")
 		delete(mocker.Services, envars.Service)
-		cagecli := cage.NewCage(&types.Deps{
-			Env: envars,
-			Ecs: ecsMock,
-			Ec2: ec2Mock,
-			Alb: albMock,
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, envars)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.AlbCli, albMock)
+			b.Set(key.Ec2Cli, ec2Mock)
+			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+			b.Set(key.Time, test.NewFakeTime())
+			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+		}))
 		ctx := context.Background()
 		_, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		assert.EqualError(t, err, "service 'service' doesn't exist. Run 'cage up' or create service before rolling out")
@@ -235,13 +254,15 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		envars.CanaryTaskIdleDuration = 1
 		ctrl := gomock.NewController(t)
 		_, ecsMock, albMock, ec2Mock := test.Setup(ctrl, envars, 2, "FARGATE")
-		cagecli := cage.NewCage(&types.Deps{
-			Env:  envars,
-			Ecs:  ecsMock,
-			Alb:  albMock,
-			Ec2:  ec2Mock,
-			Time: test.NewFakeTime(),
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, envars)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.AlbCli, albMock)
+			b.Set(key.Ec2Cli, ec2Mock)
+			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+			b.Set(key.Time, test.NewFakeTime())
+			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+		}))
 		ctx := context.Background()
 		if res, err := cagecli.RollOut(ctx, &types.RollOutInput{}); err != nil {
 			t.Fatalf(err.Error())
@@ -261,11 +282,13 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 				},
 			}, nil,
 		)
-		cagecli := cage.NewCage(&types.Deps{
-			Env:  envars,
-			Ecs:  ecsMock,
-			Time: test.NewFakeTime(),
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, envars)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+			b.Set(key.Time, test.NewFakeTime())
+			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+		}))
 		_, err := cagecli.RollOut(context.Background(), &types.RollOutInput{})
 		assert.EqualError(t, err, "😵 'service' status is 'INACTIVE'. Stop rolling out")
 	})
@@ -302,13 +325,15 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 		ecsMock.EXPECT().DescribeContainerInstances(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.DescribeContainerInstances).AnyTimes()
 		ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RunTask).AnyTimes()
 		ecsMock.EXPECT().StopTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.StopTask).AnyTimes()
-		cagecli := cage.NewCage(&types.Deps{
-			Env:  envars,
-			Ecs:  ecsMock,
-			Ec2:  ec2Mock,
-			Alb:  albMock,
-			Time: test.NewFakeTime(),
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, envars)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.AlbCli, albMock)
+			b.Set(key.Ec2Cli, ec2Mock)
+			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+			b.Set(key.Time, test.NewFakeTime())
+			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+		}))
 		ctx := context.Background()
 		res, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		assert.NotNil(t, res)
@@ -348,13 +373,15 @@ func TestCage_RollOut_EC2(t *testing.T) {
 		if taskCnt := mctx.RunningTaskSize(); taskCnt != v {
 			t.Fatalf("current tasks not setup: %d/%d", v, taskCnt)
 		}
-		cagecli := cage.NewCage(&types.Deps{
-			Env:  envars,
-			Ecs:  ecsMock,
-			Ec2:  ec2Mock,
-			Alb:  albMock,
-			Time: test.NewFakeTime(),
-		})
+		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, envars)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.AlbCli, albMock)
+			b.Set(key.Ec2Cli, ec2Mock)
+			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+			b.Set(key.Time, test.NewFakeTime())
+			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+		}))
 		ctx := context.Background()
 		result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 		if err != nil {
@@ -378,13 +405,15 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 	if taskCnt := mctx.RunningTaskSize(); taskCnt != 1 {
 		t.Fatalf("current tasks not setup: %d/%d", 1, taskCnt)
 	}
-	cagecli := cage.NewCage(&types.Deps{
-		Env:  envars,
-		Ecs:  ecsMock,
-		Ec2:  ec2Mock,
-		Alb:  albMock,
-		Time: test.NewFakeTime(),
-	})
+	cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+		b.Set(key.Env, envars)
+		b.Set(key.EcsCli, ecsMock)
+		b.Set(key.AlbCli, albMock)
+		b.Set(key.Ec2Cli, ec2Mock)
+		b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+		b.Set(key.Time, test.NewFakeTime())
+		b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+	}))
 	ctx := context.Background()
 	result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 	assert.ErrorContains(t, err, "canaryInstanceArn is required")
@@ -409,13 +438,15 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 		Attributes: []ecstypes.Attribute{},
 	}, nil).AnyTimes()
 	ecsMock.EXPECT().PutAttributes(gomock.Any(), gomock.Any()).Return(&ecs.PutAttributesOutput{}, nil).AnyTimes()
-	cagecli := cage.NewCage(&types.Deps{
-		Env:  envars,
-		Ecs:  ecsMock,
-		Ec2:  ec2Mock,
-		Alb:  albMock,
-		Time: test.NewFakeTime(),
-	})
+	cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+		b.Set(key.Env, envars)
+		b.Set(key.EcsCli, ecsMock)
+		b.Set(key.AlbCli, albMock)
+		b.Set(key.Ec2Cli, ec2Mock)
+		b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+		b.Set(key.Time, test.NewFakeTime())
+		b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
+	}))
 	ctx := context.Background()
 	result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
 	assert.NoError(t, err)

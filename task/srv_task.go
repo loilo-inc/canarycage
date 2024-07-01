@@ -8,6 +8,12 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
 	srvtypes "github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
+	"github.com/loilo-inc/canarycage/awsiface"
+	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/timeout"
+	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
 )
 
@@ -21,9 +27,9 @@ type srvTask struct {
 	ns       *srvtypes.Namespace
 }
 
-func NewSrvTask(input *Input, registry *ecstypes.ServiceRegistry) Task {
+func NewSrvTask(di *di.D, input *Input, registry *ecstypes.ServiceRegistry) Task {
 	return &srvTask{
-		common:   &common{Input: input},
+		common:   &common{Input: input, di: di},
 		registry: registry,
 	}
 }
@@ -63,16 +69,18 @@ func (c *srvTask) registerToSrvDiscovery(ctx context.Context) error {
 	}
 	c.target = target // get the service id from service registry arn
 	srvId := ArnToId(*c.registry.RegistryArn)
+	srvCli := c.di.Get(key.SrvCli).(awsiface.SrvClient)
+	env := c.di.Get(key.Env).(*env.Envars)
 	var svc *srvtypes.Service
 	var ns *srvtypes.Namespace
-	if o, err := c.Srv.GetService(ctx, &servicediscovery.GetServiceInput{
+	if o, err := srvCli.GetService(ctx, &servicediscovery.GetServiceInput{
 		Id: &srvId,
 	}); err != nil {
 		return xerrors.Errorf("failed to get the service: %w", err)
 	} else {
 		svc = o.Service
 	}
-	if o, err := c.Srv.GetNamespace(ctx, &servicediscovery.GetNamespaceInput{
+	if o, err := srvCli.GetNamespace(ctx, &servicediscovery.GetNamespaceInput{
 		Id: svc.NamespaceId,
 	}); err != nil {
 		return xerrors.Errorf("failed to get the namespace: %w", err)
@@ -83,14 +91,14 @@ func (c *srvTask) registerToSrvDiscovery(ctx context.Context) error {
 		"AWS_INSTANCE_IPV4":          target.targetIpv4,
 		"AVAILABILITY_ZONE":          target.availabilityZone,
 		"AWS_INIT_HEALTH_STATUS":     "UNHEALTHY",
-		"ECS_CLUSTER_NAME":           c.Env.Cluster,
-		"ECS_SERVICE_NAME":           c.Env.Service,
+		"ECS_CLUSTER_NAME":           env.Cluster,
+		"ECS_SERVICE_NAME":           env.Service,
 		"ECS_TASK_DEFINITION_FAMILY": *c.TaskDefinition.Family,
-		"REGION":                     c.Env.Region,
+		"REGION":                     env.Region,
 		"CAGE_TASK_ID":               ArnToId(*c.taskArn),
 	}
 	taskId := ArnToId(*c.taskArn)
-	if _, err := c.Srv.RegisterInstance(ctx, &servicediscovery.RegisterInstanceInput{
+	if _, err := srvCli.RegisterInstance(ctx, &servicediscovery.RegisterInstanceInput{
 		ServiceId:  &srvId,
 		InstanceId: &taskId,
 		Attributes: attrs,
@@ -106,7 +114,10 @@ func (c *srvTask) registerToSrvDiscovery(ctx context.Context) error {
 func (c *srvTask) waitUntilSrvInstHelthy(
 	ctx context.Context,
 ) error {
-	var rest = c.Timeout.TargetHealthCheck()
+	timer := c.di.Get(key.Time).(types.Time)
+	srvCli := c.di.Get(key.SrvCli).(awsiface.SrvClient)
+	timeoutManager := c.di.Get(key.TimeoutManager).(timeout.Manager)
+	var rest = timeoutManager.TargetHealthCheck()
 	var waitPeriod = 15 * time.Second
 	for rest > 0 {
 		if rest < waitPeriod {
@@ -115,8 +126,8 @@ func (c *srvTask) waitUntilSrvInstHelthy(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-c.Time.NewTimer(time.Duration(waitPeriod) * time.Second).C:
-			if list, err := c.Srv.DiscoverInstances(ctx, &servicediscovery.DiscoverInstancesInput{
+		case <-timer.NewTimer(time.Duration(waitPeriod) * time.Second).C:
+			if list, err := srvCli.DiscoverInstances(ctx, &servicediscovery.DiscoverInstancesInput{
 				NamespaceName: c.ns.Name,
 				ServiceName:   c.srv.Name,
 				HealthStatus:  srvtypes.HealthStatusFilterHealthy,
@@ -145,7 +156,8 @@ func (c *srvTask) deregisterSrvInst(
 		return
 	}
 	log.Info("deregistering the canary task from service discovery...")
-	if _, err := c.Srv.DeregisterInstance(ctx, &servicediscovery.DeregisterInstanceInput{
+	srvCli := c.di.Get(key.SrvCli).(awsiface.SrvClient)
+	if _, err := srvCli.DeregisterInstance(ctx, &servicediscovery.DeregisterInstanceInput{
 		ServiceId:  c.srv.Id,
 		InstanceId: c.instId,
 	}); err != nil {

@@ -9,6 +9,11 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	"github.com/loilo-inc/canarycage/awsiface"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/timeout"
+	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
 )
 
@@ -19,11 +24,13 @@ type albTask struct {
 	target *CanaryTarget
 }
 
-func NewAlbTask(input *Input,
+func NewAlbTask(
+	di *di.D,
+	input *Input,
 	lb *ecstypes.LoadBalancer,
 ) Task {
 	return &albTask{
-		common: &common{Input: input},
+		common: &common{Input: input, di: di},
 		lb:     lb,
 	}
 }
@@ -67,7 +74,8 @@ func (c *albTask) registerToTargetGroup(ctx context.Context) error {
 	} else {
 		c.target = target
 	}
-	if _, err := c.Alb.RegisterTargets(ctx, &elbv2.RegisterTargetsInput{
+	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
+	if _, err := albCli.RegisterTargets(ctx, &elbv2.RegisterTargetsInput{
 		TargetGroupArn: c.lb.TargetGroupArn,
 		Targets: []elbv2types.TargetDescription{{
 			AvailabilityZone: &c.target.availabilityZone,
@@ -83,10 +91,13 @@ func (c *albTask) registerToTargetGroup(ctx context.Context) error {
 func (c *albTask) waitUntilTargetHealthy(
 	ctx context.Context,
 ) error {
+	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
+	timeoutManager := c.di.Get(key.TimeoutManager).(timeout.Manager)
+	timer := c.di.Get(key.Time).(types.Time)
 	log.Infof("checking the health state of canary task...")
 	var unusedCount = 0
 	var recentState *elbv2types.TargetHealthStateEnum
-	rest := c.Timeout.TargetHealthCheck()
+	rest := timeoutManager.TargetHealthCheck()
 	waitPeriod := 15 * time.Second
 	for rest > 0 && unusedCount < 5 {
 		if rest < waitPeriod {
@@ -95,8 +106,8 @@ func (c *albTask) waitUntilTargetHealthy(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-c.Time.NewTimer(waitPeriod).C:
-			if o, err := c.Alb.DescribeTargetHealth(ctx, &elbv2.DescribeTargetHealthInput{
+		case <-timer.NewTimer(waitPeriod).C:
+			if o, err := albCli.DescribeTargetHealth(ctx, &elbv2.DescribeTargetHealthInput{
 				TargetGroupArn: c.lb.TargetGroupArn,
 				Targets: []elbv2types.TargetDescription{{
 					Id:               &c.target.targetId,
@@ -135,7 +146,8 @@ func (c *albTask) waitUntilTargetHealthy(
 
 func (c *albTask) targetDeregistrationDelay(ctx context.Context) (time.Duration, error) {
 	deregistrationDelay := 300 * time.Second
-	if o, err := c.Alb.DescribeTargetGroupAttributes(ctx, &elbv2.DescribeTargetGroupAttributesInput{
+	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
+	if o, err := albCli.DescribeTargetGroupAttributes(ctx, &elbv2.DescribeTargetGroupAttributesInput{
 		TargetGroupArn: c.lb.TargetGroupArn,
 	}); err != nil {
 		return deregistrationDelay, err
@@ -158,13 +170,14 @@ func (c *albTask) deregisterTarget(ctx context.Context) {
 	if c.target == nil {
 		return
 	}
+	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
 	deregistrationDelay, err := c.targetDeregistrationDelay(ctx)
 	if err != nil {
 		log.Errorf("failed to get deregistration delay: %v", err)
 		log.Errorf("deregistration delay is set to %d seconds", deregistrationDelay)
 	}
 	log.Infof("deregistering the canary task from target group '%s'...", c.target.targetId)
-	if _, err := c.Alb.DeregisterTargets(ctx, &elbv2.DeregisterTargetsInput{
+	if _, err := albCli.DeregisterTargets(ctx, &elbv2.DeregisterTargetsInput{
 		TargetGroupArn: c.lb.TargetGroupArn,
 		Targets: []elbv2types.TargetDescription{{
 			AvailabilityZone: &c.target.availabilityZone,
@@ -177,7 +190,7 @@ func (c *albTask) deregisterTarget(ctx context.Context) {
 	} else {
 		log.Infof("deregister operation accepted. waiting for the canary task to be deregistered...")
 		deregisterWait := deregistrationDelay + time.Minute // add 1 minute for safety
-		if err := elbv2.NewTargetDeregisteredWaiter(c.Alb).Wait(ctx, &elbv2.DescribeTargetHealthInput{
+		if err := elbv2.NewTargetDeregisteredWaiter(albCli).Wait(ctx, &elbv2.DescribeTargetHealthInput{
 			TargetGroupArn: c.lb.TargetGroupArn,
 			Targets: []elbv2types.TargetDescription{{
 				AvailabilityZone: &c.target.availabilityZone,

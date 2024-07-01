@@ -6,6 +6,11 @@ import (
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	"github.com/loilo-inc/canarycage/awsiface"
+	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
 )
 
@@ -14,8 +19,8 @@ type simpleTask struct {
 	*common
 }
 
-func NewSimpleTask(input *Input) Task {
-	return &simpleTask{common: &common{Input: input}}
+func NewSimpleTask(di *di.D, input *Input) Task {
+	return &simpleTask{common: &common{Input: input, di: di}}
 }
 
 func (c *simpleTask) Wait(ctx context.Context) error {
@@ -30,8 +35,10 @@ func (c *simpleTask) Stop(ctx context.Context) error {
 }
 
 func (c *simpleTask) waitForIdleDuration(ctx context.Context) error {
-	log.Infof("wait %d seconds for canary task to be stable...", c.Env.CanaryTaskIdleDuration)
-	rest := time.Duration(c.Env.CanaryTaskIdleDuration) * time.Second
+	env := c.di.Get(key.Env).(*env.Envars)
+	timer := c.di.Get(key.Time).(types.Time)
+	log.Infof("wait %d seconds for canary task to be stable...", env.CanaryTaskIdleDuration)
+	rest := time.Duration(env.CanaryTaskIdleDuration) * time.Second
 	waitPeriod := 15 * time.Second
 	for rest > 0 {
 		if rest < waitPeriod {
@@ -40,13 +47,14 @@ func (c *simpleTask) waitForIdleDuration(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-c.Time.NewTimer(waitPeriod).C:
+		case <-timer.NewTimer(waitPeriod).C:
 			rest -= waitPeriod
 		}
 		log.Infof("still waiting...; %d seconds left", rest)
 	}
-	o, err := c.Ecs.DescribeTasks(ctx, &ecs.DescribeTasksInput{
-		Cluster: &c.Env.Cluster,
+	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	o, err := ecsCli.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+		Cluster: &env.Cluster,
 		Tasks:   []string{*c.taskArn},
 	})
 	if err != nil {
