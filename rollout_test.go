@@ -210,7 +210,7 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			},
 		}
 		result, err := cagecli.RollOut(ctx, &types.RollOutInput{UpdateService: true})
-		assert.EqualError(t, err, "failed to wait for canary task due to: couldn't find host port in container definition")
+		assert.EqualError(t, err, "failed to exec canary task due to: couldn't find host port in container definition")
 		assert.Equal(t, result.ServiceIntact, true)
 		assert.Equal(t, 1, mctx.RunningTaskSize())
 	})

@@ -44,7 +44,6 @@ func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.R
 	if input.UpdateService {
 		log.Info("--updateService flag is set. use provided service configurations for canary test instead of current service")
 	}
-	log.Infof("starting canary task...")
 	canaryTasks, startCanaryTaskErr := c.StartCanaryTasks(ctx, nextTaskDefinition, input)
 	// ensure canary task stopped after rolling out either success or failure
 	defer func() {
@@ -131,9 +130,11 @@ func (c *cage) StartCanaryTasks(
 		c.TaskFactory,
 		&taskset.Input{
 			Input: &task.Input{
+				Deps:                 c.Deps,
 				NetworkConfiguration: networkConfiguration,
 				TaskDefinition:       nextTaskDefinition,
 				PlatformVersion:      platformVersion,
+				Timeout:              c.Timeout,
 			},
 			LoadBalancers:     loadBalancers,
 			ServiceRegistries: serviceRegistries,
