@@ -2,3 +2,4 @@ ignore:
   - "test"
   - "mocks"
   - "cli/cage/main.go"
+  - "timeout/time.go"
