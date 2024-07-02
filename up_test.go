@@ -8,7 +8,6 @@ import (
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/test"
-	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,7 +21,6 @@ func TestCage_Up(t *testing.T) {
 		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
-			b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
 		}))
 		result, err := cagecli.Up(context.Background())
 		assert.Nil(t, err)
@@ -36,7 +34,6 @@ func TestCage_Up(t *testing.T) {
 		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
-			b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
 		}))
 		result, err := cagecli.Up(context.Background())
 		assert.Nil(t, result)

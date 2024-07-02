@@ -7,7 +7,6 @@ import (
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/test"
-	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
 )
@@ -25,7 +24,6 @@ func TestSimpleTask(t *testing.T) {
 		b.Set(key.Ec2Cli, mocker.Ec2)
 		b.Set(key.AlbCli, mocker.Alb)
 		b.Set(key.SrvCli, mocker.Srv)
-		b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
 		b.Set(key.Time, test.NewFakeTime())
 	})
 	stask := task.NewSimpleTask(d, &task.Input{

@@ -10,7 +10,6 @@ import (
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/xerrors"
 )
@@ -34,7 +33,6 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 		return nil, err
 	}
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
-	timeoutManager := c.di.Get(key.TimeoutManager).(timeout.Manager)
 	o, err := ecsCli.RunTask(ctx, &ecs.RunTaskInput{
 		Cluster:              &env.Cluster,
 		TaskDefinition:       td.TaskDefinitionArn,
@@ -52,7 +50,7 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
-	}, timeoutManager.TaskRunning()); err != nil {
+	}, env.TaskRunning()); err != nil {
 		return nil, xerrors.Errorf("task failed to start: %w", err)
 	}
 	log.Infof("task '%s' is running", *taskArn)
@@ -60,7 +58,7 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 	if result, err := ecs.NewTasksStoppedWaiter(ecsCli).WaitForOutput(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
-	}, timeoutManager.TaskStopped()); err != nil {
+	}, env.TaskStopped()); err != nil {
 		return nil, xerrors.Errorf("task failed to stop: %w", err)
 	} else {
 		task := result.Tasks[0]

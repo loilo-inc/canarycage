@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"io"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -52,7 +51,6 @@ func DefalutCageCliProvider(envars *env.Envars) (types.Cage, error) {
 		b.Set(key.Ec2Cli, ec2.NewFromConfig(conf))
 		b.Set(key.AlbCli, elasticloadbalancingv2.NewFromConfig(conf))
 		b.Set(key.SrvCli, servicediscovery.NewFromConfig(conf))
-		b.Set(key.TimeoutManager, timeout.NewManager(envars, 15*time.Minute))
 		b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 		b.Set(key.Time, &timeout.Time{})
 	})

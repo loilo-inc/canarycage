@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -18,7 +17,6 @@ import (
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/test"
-	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
@@ -47,7 +45,6 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 				b.Set(key.Ec2Cli, ec2Mock)
 				b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 				b.Set(key.Time, test.NewFakeTime())
-				b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 			}))
 			ctx := context.Background()
 			result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
@@ -72,7 +69,6 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			b.Set(key.Ec2Cli, ec2Mock)
 			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 		}))
 		ctx := context.Background()
 		result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
@@ -113,7 +109,6 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			b.Set(key.Ec2Cli, ec2Mock)
 			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1*time.Minute))
 		}))
 		ctx := context.Background()
 		result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
@@ -159,7 +154,6 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			b.Set(key.Ec2Cli, ec2Mock)
 			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 		}))
 		ctx := context.Background()
 		_, err := cagecli.RollOut(ctx, &types.RollOutInput{})
@@ -190,7 +184,6 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			b.Set(key.Ec2Cli, ec2Mock)
 			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 		}))
 		ctx := context.Background()
 		service, _ := mctx.GetEcsService(envars.Service)
@@ -215,7 +208,6 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			b.Set(key.Ec2Cli, ec2Mock)
 			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 		}))
 		ctx := context.Background()
 		envars.ServiceDefinitionInput.LoadBalancers = []ecstypes.LoadBalancer{
@@ -242,7 +234,6 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			b.Set(key.Ec2Cli, ec2Mock)
 			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 		}))
 		ctx := context.Background()
 		_, err := cagecli.RollOut(ctx, &types.RollOutInput{})
@@ -261,7 +252,6 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			b.Set(key.Ec2Cli, ec2Mock)
 			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 		}))
 		ctx := context.Background()
 		if res, err := cagecli.RollOut(ctx, &types.RollOutInput{}); err != nil {
@@ -287,7 +277,6 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			b.Set(key.EcsCli, ecsMock)
 			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 		}))
 		_, err := cagecli.RollOut(context.Background(), &types.RollOutInput{})
 		assert.EqualError(t, err, "😵 'service' status is 'INACTIVE'. Stop rolling out")
@@ -332,7 +321,6 @@ func TestCage_RollOut_FARGATE(t *testing.T) {
 			b.Set(key.Ec2Cli, ec2Mock)
 			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 		}))
 		ctx := context.Background()
 		res, err := cagecli.RollOut(ctx, &types.RollOutInput{})
@@ -380,7 +368,6 @@ func TestCage_RollOut_EC2(t *testing.T) {
 			b.Set(key.Ec2Cli, ec2Mock)
 			b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 		}))
 		ctx := context.Background()
 		result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
@@ -412,7 +399,6 @@ func TestCage_RollOut_EC2_without_ContainerInstanceArn(t *testing.T) {
 		b.Set(key.Ec2Cli, ec2Mock)
 		b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 		b.Set(key.Time, test.NewFakeTime())
-		b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 	}))
 	ctx := context.Background()
 	result, err := cagecli.RollOut(ctx, &types.RollOutInput{})
@@ -445,7 +431,6 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 		b.Set(key.Ec2Cli, ec2Mock)
 		b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 		b.Set(key.Time, test.NewFakeTime())
-		b.Set(key.TimeoutManager, timeout.NewManager(envars, 1))
 	}))
 	ctx := context.Background()
 	result, err := cagecli.RollOut(ctx, &types.RollOutInput{})

@@ -13,7 +13,6 @@ import (
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 	"github.com/loilo-inc/canarycage/test"
-	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
@@ -47,7 +46,6 @@ func TestCage_Run(t *testing.T) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: &container,
@@ -78,7 +76,6 @@ func TestCage_Run(t *testing.T) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: &container,
@@ -101,7 +98,6 @@ func TestCage_Run(t *testing.T) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: &container,
@@ -130,7 +126,6 @@ func TestCage_Run(t *testing.T) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: &container,
@@ -159,7 +154,6 @@ func TestCage_Run(t *testing.T) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: &container,
@@ -176,7 +170,6 @@ func TestCage_Run(t *testing.T) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
 			b.Set(key.Time, test.NewFakeTime())
-			b.Set(key.TimeoutManager, timeout.NewManager(env, 1))
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{
 			Container: aws.String("foo"),

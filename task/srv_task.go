@@ -11,7 +11,6 @@ import (
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
@@ -114,10 +113,10 @@ func (c *srvTask) registerToSrvDiscovery(ctx context.Context) error {
 func (c *srvTask) waitUntilSrvInstHelthy(
 	ctx context.Context,
 ) error {
+	env := c.di.Get(key.Env).(*env.Envars)
 	timer := c.di.Get(key.Time).(types.Time)
 	srvCli := c.di.Get(key.SrvCli).(awsiface.SrvClient)
-	timeoutManager := c.di.Get(key.TimeoutManager).(timeout.Manager)
-	var rest = timeoutManager.TargetHealthCheck()
+	var rest = env.TargetHealthCheck()
 	var waitPeriod = 15 * time.Second
 	for rest > 0 {
 		if rest < waitPeriod {

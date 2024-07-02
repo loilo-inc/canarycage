@@ -9,7 +9,6 @@ import (
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/xerrors"
 )
@@ -49,12 +48,11 @@ func (c *cage) createService(ctx context.Context, serviceDefinitionInput *ecs.Cr
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create service '%s': %w", *serviceDefinitionInput.ServiceName, err)
 	}
-	timeoutManager := c.di.Get(key.TimeoutManager).(timeout.Manager)
 	log.Infof("waiting for service '%s' to be STABLE", *serviceDefinitionInput.ServiceName)
 	if err := ecs.NewServicesStableWaiter(ecsCli).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &env.Cluster,
 		Services: []string{*serviceDefinitionInput.ServiceName},
-	}, timeoutManager.ServiceStable()); err != nil {
+	}, env.ServiceStable()); err != nil {
 		return nil, xerrors.Errorf("failed to wait for service '%s' to be STABLE: %w", *serviceDefinitionInput.ServiceName, err)
 	}
 	return o.Service, nil

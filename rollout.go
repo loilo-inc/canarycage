@@ -11,7 +11,6 @@ import (
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/taskset"
-	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/xerrors"
 )
@@ -88,11 +87,10 @@ func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.R
 	}
 	result.ServiceIntact = false
 	log.Infof("waiting for service '%s' to be stable...", env.Service)
-	timeouManager := c.di.Get(key.TimeoutManager).(timeout.Manager)
 	if err := ecs.NewServicesStableWaiter(ecsCli).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &env.Cluster,
 		Services: []string{env.Service},
-	}, timeouManager.ServiceStable()); err != nil {
+	}, env.ServiceStable()); err != nil {
 		return result, err
 	}
 	log.Infof("🥴 service '%s' has become to be stable!", env.Service)
