@@ -10,7 +10,6 @@ import (
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	"github.com/loilo-inc/canarycage/awsiface"
-	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
@@ -91,18 +90,13 @@ func (c *albTask) registerToTargetGroup(ctx context.Context) error {
 func (c *albTask) waitUntilTargetHealthy(
 	ctx context.Context,
 ) error {
-	env := c.di.Get(key.Env).(*env.Envars)
 	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
 	timer := c.di.Get(key.Time).(types.Time)
 	log.Infof("checking the health state of canary task...")
-	var unusedCount = 0
+	var notHealthyCount = 0
 	var recentState *elbv2types.TargetHealthStateEnum
-	rest := env.TargetHealthCheck()
 	waitPeriod := 15 * time.Second
-	for rest > 0 && unusedCount < 5 {
-		if rest < waitPeriod {
-			waitPeriod = rest
-		}
+	for notHealthyCount < 5 {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -127,14 +121,13 @@ func (c *albTask) waitUntilTargetHealthy(
 				}
 				log.Infof("canary task '%s' (%s:%d) state is: %s", *c.taskArn, c.target.targetId, c.target.targetPort, *recentState)
 				switch *recentState {
-				case "healthy":
+				case elbv2types.TargetHealthStateEnumHealthy:
 					return nil
-				case "unused":
-					unusedCount++
+				default:
+					notHealthyCount++
 				}
 			}
 		}
-		rest -= waitPeriod
 	}
 	// unhealthy, draining, unused
 	log.Errorf("😨 canary task '%s' is unhealthy", *c.taskArn)

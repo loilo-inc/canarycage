@@ -11,7 +11,6 @@ import (
 	ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	ecs "github.com/aws/aws-sdk-go-v2/service/ecs"
 	elasticloadbalancingv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	servicediscovery "github.com/aws/aws-sdk-go-v2/service/servicediscovery"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -502,107 +501,4 @@ func (mr *MockEc2ClientMockRecorder) DescribeSubnets(ctx, params interface{}, op
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, params}, optFns...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeSubnets", reflect.TypeOf((*MockEc2Client)(nil).DescribeSubnets), varargs...)
-}
-
-// MockSrvClient is a mock of SrvClient interface.
-type MockSrvClient struct {
-	ctrl     *gomock.Controller
-	recorder *MockSrvClientMockRecorder
-}
-
-// MockSrvClientMockRecorder is the mock recorder for MockSrvClient.
-type MockSrvClientMockRecorder struct {
-	mock *MockSrvClient
-}
-
-// NewMockSrvClient creates a new mock instance.
-func NewMockSrvClient(ctrl *gomock.Controller) *MockSrvClient {
-	mock := &MockSrvClient{ctrl: ctrl}
-	mock.recorder = &MockSrvClientMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockSrvClient) EXPECT() *MockSrvClientMockRecorder {
-	return m.recorder
-}
-
-// DeregisterInstance mocks base method.
-func (m *MockSrvClient) DeregisterInstance(ctx context.Context, params *servicediscovery.DeregisterInstanceInput, optFns ...func(*servicediscovery.Options)) (*servicediscovery.DeregisterInstanceOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, params}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "DeregisterInstance", varargs...)
-	ret0, _ := ret[0].(*servicediscovery.DeregisterInstanceOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DeregisterInstance indicates an expected call of DeregisterInstance.
-func (mr *MockSrvClientMockRecorder) DeregisterInstance(ctx, params interface{}, optFns ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, params}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeregisterInstance", reflect.TypeOf((*MockSrvClient)(nil).DeregisterInstance), varargs...)
-}
-
-// DiscoverInstances mocks base method.
-func (m *MockSrvClient) DiscoverInstances(ctx context.Context, params *servicediscovery.DiscoverInstancesInput, optFns ...func(*servicediscovery.Options)) (*servicediscovery.DiscoverInstancesOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, params}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "DiscoverInstances", varargs...)
-	ret0, _ := ret[0].(*servicediscovery.DiscoverInstancesOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DiscoverInstances indicates an expected call of DiscoverInstances.
-func (mr *MockSrvClientMockRecorder) DiscoverInstances(ctx, params interface{}, optFns ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, params}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscoverInstances", reflect.TypeOf((*MockSrvClient)(nil).DiscoverInstances), varargs...)
-}
-
-// GetService mocks base method.
-func (m *MockSrvClient) GetService(ctx context.Context, params *servicediscovery.GetServiceInput, optFns ...func(*servicediscovery.Options)) (*servicediscovery.GetServiceOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, params}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "GetService", varargs...)
-	ret0, _ := ret[0].(*servicediscovery.GetServiceOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetService indicates an expected call of GetService.
-func (mr *MockSrvClientMockRecorder) GetService(ctx, params interface{}, optFns ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, params}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetService", reflect.TypeOf((*MockSrvClient)(nil).GetService), varargs...)
-}
-
-// RegisterInstance mocks base method.
-func (m *MockSrvClient) RegisterInstance(ctx context.Context, params *servicediscovery.RegisterInstanceInput, optFns ...func(*servicediscovery.Options)) (*servicediscovery.RegisterInstanceOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, params}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "RegisterInstance", varargs...)
-	ret0, _ := ret[0].(*servicediscovery.RegisterInstanceOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// RegisterInstance indicates an expected call of RegisterInstance.
-func (mr *MockSrvClientMockRecorder) RegisterInstance(ctx, params interface{}, optFns ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, params}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterInstance", reflect.TypeOf((*MockSrvClient)(nil).RegisterInstance), varargs...)
 }

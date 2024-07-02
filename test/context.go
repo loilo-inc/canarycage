@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	srvtypes "github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
 	"github.com/loilo-inc/canarycage/awsiface"
 )
 
@@ -13,13 +12,7 @@ type commons struct {
 	Tasks           map[string]*ecstypes.Task
 	TaskDefinitions *TaskDefinitionRepository
 	TargetGroups    map[string]struct{}
-	SrvNamespaces   []*srvtypes.Namespace
-	SrvServices     []*srvtypes.Service
-	// service.Name -> []*instance
-	SrvInsts map[string][]*srvtypes.Instance
-	// instance.Id -> HealthStatus
-	SrvInstHelths map[string]srvtypes.HealthStatus
-	mux           sync.Mutex
+	mux             sync.Mutex
 }
 
 type MockContext struct {
@@ -27,7 +20,6 @@ type MockContext struct {
 	Ecs awsiface.EcsClient
 	Alb awsiface.AlbClient
 	Ec2 awsiface.Ec2Client
-	Srv awsiface.SrvClient
 }
 
 func NewMockContext() *MockContext {
@@ -37,16 +29,12 @@ func NewMockContext() *MockContext {
 		TaskDefinitions: &TaskDefinitionRepository{
 			families: make(map[string]*TaskDefinitionFamily),
 		},
-		TargetGroups:  make(map[string]struct{}),
-		SrvServices:   make([]*srvtypes.Service, 0),
-		SrvInsts:      make(map[string][]*srvtypes.Instance),
-		SrvInstHelths: make(map[string]srvtypes.HealthStatus),
+		TargetGroups: make(map[string]struct{}),
 	}
 	return &MockContext{
 		commons: cm,
 		Ecs:     &EcsServer{commons: cm},
 		Ec2:     &Ec2Server{commons: cm},
-		Srv:     &SrvServer{commons: cm},
 		Alb:     &AlbServer{commons: cm},
 	}
 }

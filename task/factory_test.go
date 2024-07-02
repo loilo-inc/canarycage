@@ -18,13 +18,6 @@ func TestFactory(t *testing.T) {
 		task := f.NewAlbTask(input, lb)
 		assert.NotNil(t, task)
 	})
-	t.Run("NewSrvTask", func(t *testing.T) {
-		f := task.NewFactory(d)
-		input := &task.Input{}
-		srv := &ecstypes.ServiceRegistry{}
-		task := f.NewSrvTask(input, srv)
-		assert.NotNil(t, task)
-	})
 	t.Run("NewSimpleTask", func(t *testing.T) {
 		f := task.NewFactory(d)
 		input := &task.Input{}

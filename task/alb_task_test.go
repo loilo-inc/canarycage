@@ -24,7 +24,6 @@ func TestAlbTask(t *testing.T) {
 		b.Set(key.EcsCli, mocker.Ecs)
 		b.Set(key.Ec2Cli, mocker.Ec2)
 		b.Set(key.AlbCli, mocker.Alb)
-		b.Set(key.SrvCli, mocker.Srv)
 		b.Set(key.Time, test.NewFakeTime())
 	})
 	stask := task.NewAlbTask(d, &task.Input{

@@ -27,7 +27,6 @@ type Envars struct {
 	CanaryTaskHealthCheckWait int // sec
 	CanaryTaskStoppedWait     int // sec
 	ServiceStableWait         int // sec
-	TargetHealthCheckWait     int // sec
 }
 
 // required

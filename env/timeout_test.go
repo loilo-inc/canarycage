@@ -15,7 +15,6 @@ func TestManager(t *testing.T) {
 		assert.Equal(t, 15*time.Minute, man.TaskStopped())
 		assert.Equal(t, 15*time.Minute, man.TaskHealthCheck())
 		assert.Equal(t, 15*time.Minute, man.ServiceStable())
-		assert.Equal(t, 15*time.Minute, man.TargetHealthCheck())
 	})
 	t.Run("with config", func(t *testing.T) {
 		man := &env.Envars{
@@ -23,12 +22,10 @@ func TestManager(t *testing.T) {
 			CanaryTaskStoppedWait:     2,
 			CanaryTaskHealthCheckWait: 3,
 			ServiceStableWait:         4,
-			TargetHealthCheckWait:     5,
 		}
 		assert.Equal(t, 1*time.Second, man.TaskRunning())
 		assert.Equal(t, 2*time.Second, man.TaskStopped())
 		assert.Equal(t, 3*time.Second, man.TaskHealthCheck())
 		assert.Equal(t, 4*time.Second, man.ServiceStable())
-		assert.Equal(t, 5*time.Second, man.TargetHealthCheck())
 	})
 }

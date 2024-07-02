@@ -62,17 +62,3 @@ func (mr *MockFactoryMockRecorder) NewSimpleTask(input interface{}) *gomock.Call
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSimpleTask", reflect.TypeOf((*MockFactory)(nil).NewSimpleTask), input)
 }
-
-// NewSrvTask mocks base method.
-func (m *MockFactory) NewSrvTask(input *task.Input, srv *types.ServiceRegistry) task.Task {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewSrvTask", input, srv)
-	ret0, _ := ret[0].(task.Task)
-	return ret0
-}
-
-// NewSrvTask indicates an expected call of NewSrvTask.
-func (mr *MockFactoryMockRecorder) NewSrvTask(input, srv interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSrvTask", reflect.TypeOf((*MockFactory)(nil).NewSrvTask), input, srv)
-}

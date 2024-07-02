@@ -7,7 +7,6 @@ import (
 
 type Factory interface {
 	NewAlbTask(input *Input, lb *ecstypes.LoadBalancer) Task
-	NewSrvTask(input *Input, srv *ecstypes.ServiceRegistry) Task
 	NewSimpleTask(input *Input) Task
 }
 
@@ -21,10 +20,6 @@ func NewFactory(di *di.D) Factory {
 
 func (f *factory) NewAlbTask(input *Input, lb *ecstypes.LoadBalancer) Task {
 	return NewAlbTask(f.di, input, lb)
-}
-
-func (f *factory) NewSrvTask(input *Input, srv *ecstypes.ServiceRegistry) Task {
-	return NewSrvTask(f.di, input, srv)
 }
 
 func (f *factory) NewSimpleTask(input *Input) Task {

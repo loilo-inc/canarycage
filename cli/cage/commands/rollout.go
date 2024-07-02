@@ -41,7 +41,6 @@ func (c *CageCommands) RollOut(
 			TaskHealthCheckWaitFlag(&envars.CanaryTaskHealthCheckWait),
 			TaskStoppedWaitFlag(&envars.CanaryTaskStoppedWait),
 			ServiceStableWaitFlag(&envars.ServiceStableWait),
-			TargetHealthCheckWaitFlag(&envars.TargetHealthCheckWait),
 		},
 		Action: func(ctx *cli.Context) error {
 			dir, _, err := c.requireArgs(ctx, 1, 1)

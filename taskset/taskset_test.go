@@ -18,25 +18,16 @@ func TestSet(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		factory := mock_task.NewMockFactory(ctrl)
 		albTask := mock_task.NewMockTask(ctrl)
-		srvTask := mock_task.NewMockTask(ctrl)
 		lb := ecstypes.LoadBalancer{}
-		srg := ecstypes.ServiceRegistry{}
 		gomock.InOrder(
 			factory.EXPECT().NewAlbTask(gomock.Any(), &lb).Return(albTask),
-			factory.EXPECT().NewSrvTask(gomock.Any(), &srg).Return(srvTask),
-		)
-		gomock.InOrder(
 			albTask.EXPECT().Start(gomock.Any()).Return(nil),
-			srvTask.EXPECT().Start(gomock.Any()).Return(nil),
 		)
 		albTask.EXPECT().Wait(gomock.Any()).Return(nil)
-		srvTask.EXPECT().Wait(gomock.Any()).Return(nil)
 		albTask.EXPECT().Stop(gomock.Any()).Return(nil)
-		srvTask.EXPECT().Stop(gomock.Any()).Return(nil)
 		input := &taskset.Input{
-			Input:             &task.Input{},
-			LoadBalancers:     []ecstypes.LoadBalancer{lb},
-			ServiceRegistries: []ecstypes.ServiceRegistry{srg},
+			Input:         &task.Input{},
+			LoadBalancers: []ecstypes.LoadBalancer{lb},
 		}
 		set := taskset.NewSet(factory, input)
 		ctx := context.TODO()
@@ -63,23 +54,15 @@ func TestSet(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		factory := mock_task.NewMockFactory(ctrl)
 		albTask := mock_task.NewMockTask(ctrl)
-		srvTask := mock_task.NewMockTask(ctrl)
 		lb := ecstypes.LoadBalancer{}
-		srg := ecstypes.ServiceRegistry{}
 		gomock.InOrder(
 			factory.EXPECT().NewAlbTask(gomock.Any(), &lb).Return(albTask),
-			factory.EXPECT().NewSrvTask(gomock.Any(), &srg).Return(srvTask),
-		)
-		gomock.InOrder(
 			albTask.EXPECT().Start(gomock.Any()).Return(nil),
-			srvTask.EXPECT().Start(gomock.Any()).Return(nil),
+			albTask.EXPECT().Wait(gomock.Any()).Return(fmt.Errorf("error")),
 		)
-		albTask.EXPECT().Wait(gomock.Any()).Return(fmt.Errorf("error"))
-		srvTask.EXPECT().Wait(gomock.Any()).Return(nil)
 		input := &taskset.Input{
-			Input:             &task.Input{},
-			LoadBalancers:     []ecstypes.LoadBalancer{lb},
-			ServiceRegistries: []ecstypes.ServiceRegistry{srg},
+			Input:         &task.Input{},
+			LoadBalancers: []ecstypes.LoadBalancer{lb},
 		}
 		set := taskset.NewSet(factory, input)
 		ctx := context.TODO()

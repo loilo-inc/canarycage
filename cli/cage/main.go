@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/cli/cage/commands"
 	"github.com/loilo-inc/canarycage/cli/cage/upgrade"
@@ -71,7 +70,6 @@ func provideCageCli(envars *env.Envars) (types.Cage, error) {
 		b.Set(key.EcsCli, ecs.NewFromConfig(conf))
 		b.Set(key.Ec2Cli, ec2.NewFromConfig(conf))
 		b.Set(key.AlbCli, elasticloadbalancingv2.NewFromConfig(conf))
-		b.Set(key.SrvCli, servicediscovery.NewFromConfig(conf))
 		b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 		b.Set(key.Time, &timeout.Time{})
 	})

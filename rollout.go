@@ -109,13 +109,11 @@ func (c *cage) StartCanaryTasks(
 	var networkConfiguration *ecstypes.NetworkConfiguration
 	var platformVersion *string
 	var loadBalancers []ecstypes.LoadBalancer
-	var serviceRegistries []ecstypes.ServiceRegistry
 	env := c.di.Get(key.Env).(*env.Envars)
 	if input.UpdateService {
 		networkConfiguration = env.ServiceDefinitionInput.NetworkConfiguration
 		platformVersion = env.ServiceDefinitionInput.PlatformVersion
 		loadBalancers = env.ServiceDefinitionInput.LoadBalancers
-		serviceRegistries = env.ServiceDefinitionInput.ServiceRegistries
 	} else {
 		ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
 		if o, err := ecsCli.DescribeServices(ctx, &ecs.DescribeServicesInput{
@@ -128,7 +126,6 @@ func (c *cage) StartCanaryTasks(
 			networkConfiguration = service.NetworkConfiguration
 			platformVersion = service.PlatformVersion
 			loadBalancers = service.LoadBalancers
-			serviceRegistries = service.ServiceRegistries
 		}
 	}
 	factory := c.di.Get(key.TaskFactory).(task.Factory)
@@ -140,8 +137,7 @@ func (c *cage) StartCanaryTasks(
 				TaskDefinition:       nextTaskDefinition,
 				PlatformVersion:      platformVersion,
 			},
-			LoadBalancers:     loadBalancers,
-			ServiceRegistries: serviceRegistries,
+			LoadBalancers: loadBalancers,
 		},
 	), nil
 }

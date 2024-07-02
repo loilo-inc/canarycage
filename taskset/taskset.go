@@ -19,8 +19,7 @@ type set struct {
 
 type Input struct {
 	*task.Input
-	LoadBalancers     []ecstypes.LoadBalancer
-	ServiceRegistries []ecstypes.ServiceRegistry
+	LoadBalancers []ecstypes.LoadBalancer
 }
 
 func NewSet(
@@ -34,10 +33,6 @@ func NewSet(
 	}
 	for _, lb := range input.LoadBalancers {
 		task := factory.NewAlbTask(taskInput, &lb)
-		results = append(results, task)
-	}
-	for _, srv := range input.ServiceRegistries {
-		task := factory.NewSrvTask(taskInput, &srv)
 		results = append(results, task)
 	}
 	if len(results) == 0 {

@@ -37,11 +37,3 @@ func (t *Envars) ServiceStable() time.Duration {
 	}
 	return defaultTimeout
 }
-
-func (t *Envars) TargetHealthCheck() time.Duration {
-	wait := t.TargetHealthCheckWait
-	if wait > 0 {
-		return time.Duration(wait) * time.Second
-	}
-	return defaultTimeout
-}
