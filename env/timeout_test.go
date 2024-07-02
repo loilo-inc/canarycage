@@ -8,24 +8,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestManager(t *testing.T) {
+func TestEnv_Timeout(t *testing.T) {
 	t.Run("no config", func(t *testing.T) {
-		man := &env.Envars{}
-		assert.Equal(t, 15*time.Minute, man.GetTaskRunningWait())
-		assert.Equal(t, 15*time.Minute, man.GetTaskStoppedWait())
-		assert.Equal(t, 15*time.Minute, man.GetTaskHealthCheckWait())
-		assert.Equal(t, 15*time.Minute, man.GetServiceStableWait())
+		e := &env.Envars{}
+		assert.Equal(t, 15*time.Minute, e.GetTaskRunningWait())
+		assert.Equal(t, 15*time.Minute, e.GetTaskStoppedWait())
+		assert.Equal(t, 15*time.Minute, e.GetTaskHealthCheckWait())
+		assert.Equal(t, 15*time.Minute, e.GetServiceStableWait())
+		assert.Equal(t, time.Duration(0), e.GetCanaryTaskIdleWait())
 	})
 	t.Run("with config", func(t *testing.T) {
-		man := &env.Envars{
+		e := &env.Envars{
 			CanaryTaskRunningWait:     1,
 			CanaryTaskStoppedWait:     2,
 			CanaryTaskHealthCheckWait: 3,
 			ServiceStableWait:         4,
+			CanaryTaskIdleDuration:    5,
 		}
-		assert.Equal(t, 1*time.Second, man.GetTaskRunningWait())
-		assert.Equal(t, 2*time.Second, man.GetTaskStoppedWait())
-		assert.Equal(t, 3*time.Second, man.GetTaskHealthCheckWait())
-		assert.Equal(t, 4*time.Second, man.GetServiceStableWait())
+		assert.Equal(t, 1*time.Second, e.GetTaskRunningWait())
+		assert.Equal(t, 2*time.Second, e.GetTaskStoppedWait())
+		assert.Equal(t, 3*time.Second, e.GetTaskHealthCheckWait())
+		assert.Equal(t, 4*time.Second, e.GetServiceStableWait())
+		assert.Equal(t, 5*time.Second, e.GetCanaryTaskIdleWait())
 	})
 }

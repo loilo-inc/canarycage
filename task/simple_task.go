@@ -38,7 +38,7 @@ func (c *simpleTask) waitForIdleDuration(ctx context.Context) error {
 	env := c.di.Get(key.Env).(*env.Envars)
 	timer := c.di.Get(key.Time).(types.Time)
 	log.Infof("wait %d seconds for canary task to be stable...", env.CanaryTaskIdleDuration)
-	rest := time.Duration(env.CanaryTaskIdleDuration) * time.Second
+	rest := env.GetCanaryTaskIdleWait()
 	waitPeriod := 15 * time.Second
 	for rest > 0 {
 		if rest < waitPeriod {

@@ -17,6 +17,7 @@ func TestSimpleTask(t *testing.T) {
 	env := test.DefaultEnvars()
 	td, _ := mocker.Ecs.RegisterTaskDefinition(ctx, env.TaskDefinitionInput)
 	env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinition.TaskDefinitionArn
+	env.CanaryTaskIdleDuration = 10
 	ecsSvc, _ := mocker.Ecs.CreateService(ctx, env.ServiceDefinitionInput)
 	d := di.NewDomain(func(b *di.B) {
 		b.Set(key.Env, env)

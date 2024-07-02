@@ -6,6 +6,14 @@ import (
 
 const defaultTimeout = 15 * time.Minute
 
+func (t *Envars) GetCanaryTaskIdleWait() time.Duration {
+	wait := t.CanaryTaskIdleDuration
+	if wait > 0 {
+		return time.Duration(wait) * time.Second
+	}
+	return 0
+}
+
 func (t *Envars) GetTaskRunningWait() time.Duration {
 	wait := t.CanaryTaskRunningWait
 	if wait > 0 {
