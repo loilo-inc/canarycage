@@ -50,7 +50,7 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
-	}, env.TaskRunning()); err != nil {
+	}, env.GetTaskRunningWait()); err != nil {
 		return nil, xerrors.Errorf("task failed to start: %w", err)
 	}
 	log.Infof("task '%s' is running", *taskArn)
@@ -58,7 +58,7 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 	if result, err := ecs.NewTasksStoppedWaiter(ecsCli).WaitForOutput(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
-	}, env.TaskStopped()); err != nil {
+	}, env.GetTaskStoppedWait()); err != nil {
 		return nil, xerrors.Errorf("task failed to stop: %w", err)
 	} else {
 		task := result.Tasks[0]

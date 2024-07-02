@@ -6,7 +6,7 @@ import (
 
 const defaultTimeout = 15 * time.Minute
 
-func (t *Envars) TaskRunning() time.Duration {
+func (t *Envars) GetTaskRunningWait() time.Duration {
 	wait := t.CanaryTaskRunningWait
 	if wait > 0 {
 		return time.Duration(wait) * time.Second
@@ -14,7 +14,7 @@ func (t *Envars) TaskRunning() time.Duration {
 	return defaultTimeout
 }
 
-func (t *Envars) TaskHealthCheck() time.Duration {
+func (t *Envars) GetTaskHealthCheckWait() time.Duration {
 	wait := t.CanaryTaskHealthCheckWait
 	if wait > 0 {
 		return time.Duration(wait) * time.Second
@@ -22,7 +22,7 @@ func (t *Envars) TaskHealthCheck() time.Duration {
 	return defaultTimeout
 }
 
-func (t *Envars) TaskStopped() time.Duration {
+func (t *Envars) GetTaskStoppedWait() time.Duration {
 	wait := t.CanaryTaskStoppedWait
 	if wait > 0 {
 		return time.Duration(wait) * time.Second
@@ -30,7 +30,7 @@ func (t *Envars) TaskStopped() time.Duration {
 	return defaultTimeout
 }
 
-func (t *Envars) ServiceStable() time.Duration {
+func (t *Envars) GetServiceStableWait() time.Duration {
 	wait := t.ServiceStableWait
 	if wait > 0 {
 		return time.Duration(wait) * time.Second

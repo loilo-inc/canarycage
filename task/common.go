@@ -86,7 +86,7 @@ func (c *common) waitForTask(ctx context.Context) error {
 	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*c.taskArn},
-	}, env.TaskRunning()); err != nil {
+	}, env.GetTaskRunningWait()); err != nil {
 		return err
 	}
 	log.Infof("🐣 canary task '%s' is running!", *c.taskArn)
@@ -109,7 +109,7 @@ func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 			containerHasHealthChecks[*definition.Name] = struct{}{}
 		}
 	}
-	rest := env.TaskHealthCheck()
+	rest := env.GetTaskHealthCheckWait()
 	healthCheckPeriod := 15 * time.Second
 	for rest > 0 {
 		if rest < healthCheckPeriod {
@@ -257,7 +257,7 @@ func (c *common) stopTask(ctx context.Context) error {
 	if err := ecs.NewTasksStoppedWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*c.taskArn},
-	}, env.TaskStopped()); err != nil {
+	}, env.GetTaskStoppedWait()); err != nil {
 		return xerrors.Errorf("failed to wait for canary task to be stopped: %w", err)
 	}
 	log.Infof("canary task '%s' has successfully been stopped", *c.taskArn)
