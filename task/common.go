@@ -77,6 +77,9 @@ func (c *common) TaskArn() *string {
 }
 
 func (c *common) waitForTask(ctx context.Context) error {
+	if c.taskArn == nil {
+		return xerrors.New("task is not started")
+	}
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
 	log.Infof("🥚 waiting for canary task '%s' is running...", *c.taskArn)

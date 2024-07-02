@@ -14,7 +14,7 @@ mocks: mocks/mock_awsiface/iface.go \
 	mocks/mock_upgrade/upgrade.go \
 	mocks/mock_task/task.go \
 	mocks/mock_taskset/taskset.go \
-	mocks/mock_taskset/factory.go
+	mocks/mock_task/factory.go
 mocks/mock_awsiface/iface.go: awsiface/iface.go
 	$(MOCKGEN) -source=./awsiface/iface.go > mocks/mock_awsiface/iface.go
 mocks/mock_types/iface.go: cage.go
@@ -25,6 +25,6 @@ mocks/mock_task/task.go: task/task.go
 	$(MOCKGEN) -source=./task/task.go > mocks/mock_task/task.go
 mocks/mock_taskset/taskset.go: taskset/taskset.go
 	$(MOCKGEN) -source=./taskset/taskset.go > mocks/mock_taskset/taskset.go
-mocks/mock_taskset/factory.go: taskset/factory.go
-	$(MOCKGEN) -source=./taskset/factory.go > mocks/mock_taskset/factory.go
+mocks/mock_task/factory.go: task/factory.go
+	$(MOCKGEN) -source=./task/factory.go > mocks/mock_task/factory.go
 .PHONY: mocks

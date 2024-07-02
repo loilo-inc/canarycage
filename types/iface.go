@@ -14,7 +14,6 @@ type Cage interface {
 }
 
 type Time interface {
-	Now() time.Time
 	NewTimer(time.Duration) *time.Timer
 }
 

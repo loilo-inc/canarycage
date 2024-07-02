@@ -20,7 +20,6 @@ import (
 type srvTask struct {
 	*common
 	registry *ecstypes.ServiceRegistry
-	target   *CanaryTarget
 	srv      *srvtypes.Service
 	instId   *string
 	ns       *srvtypes.Namespace
@@ -66,7 +65,6 @@ func (c *srvTask) registerToSrvDiscovery(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	c.target = target // get the service id from service registry arn
 	srvId := ArnToId(*c.registry.RegistryArn)
 	srvCli := c.di.Get(key.SrvCli).(awsiface.SrvClient)
 	env := c.di.Get(key.Env).(*env.Envars)

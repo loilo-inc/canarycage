@@ -1,22 +1,12 @@
 package commands
 
 import (
-	"context"
 	"io"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
-	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
 	"github.com/loilo-inc/canarycage/env"
-	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/task"
-	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
-	"github.com/loilo-inc/logos/di"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 )
@@ -37,26 +27,6 @@ func NewCageCommands(
 }
 
 type cageCliProvier = func(envars *env.Envars) (types.Cage, error)
-
-func DefalutCageCliProvider(envars *env.Envars) (types.Cage, error) {
-	conf, err := config.LoadDefaultConfig(
-		context.Background(),
-		config.WithRegion(envars.Region))
-	if err != nil {
-		return nil, xerrors.Errorf("failed to load aws config: %w", err)
-	}
-	d := di.NewDomain(func(b *di.B) {
-		b.Set(key.Env, envars)
-		b.Set(key.EcsCli, ecs.NewFromConfig(conf))
-		b.Set(key.Ec2Cli, ec2.NewFromConfig(conf))
-		b.Set(key.AlbCli, elasticloadbalancingv2.NewFromConfig(conf))
-		b.Set(key.SrvCli, servicediscovery.NewFromConfig(conf))
-		b.Set(key.TaskFactory, task.NewFactory(b.Future()))
-		b.Set(key.Time, &timeout.Time{})
-	})
-	cagecli := cage.NewCage(d)
-	return cagecli, nil
-}
 
 func (c *CageCommands) requireArgs(
 	ctx *cli.Context,

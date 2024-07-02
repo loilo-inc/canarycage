@@ -8,7 +8,6 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/golang/mock/gomock"
 	"github.com/loilo-inc/canarycage/mocks/mock_task"
-	"github.com/loilo-inc/canarycage/mocks/mock_taskset"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/taskset"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ import (
 func TestSet(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		factory := mock_taskset.NewMockFactory(ctrl)
+		factory := mock_task.NewMockFactory(ctrl)
 		albTask := mock_task.NewMockTask(ctrl)
 		srvTask := mock_task.NewMockTask(ctrl)
 		lb := ecstypes.LoadBalancer{}
@@ -46,7 +45,7 @@ func TestSet(t *testing.T) {
 	})
 	t.Run("should add a simple task if no load balancer or service registry is given", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		factory := mock_taskset.NewMockFactory(ctrl)
+		factory := mock_task.NewMockFactory(ctrl)
 		simpleTask := mock_task.NewMockTask(ctrl)
 		input := &taskset.Input{
 			Input: &task.Input{},
@@ -62,7 +61,7 @@ func TestSet(t *testing.T) {
 	})
 	t.Run("should aggregate errors from task.Wait", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		factory := mock_taskset.NewMockFactory(ctrl)
+		factory := mock_task.NewMockFactory(ctrl)
 		albTask := mock_task.NewMockTask(ctrl)
 		srvTask := mock_task.NewMockTask(ctrl)
 		lb := ecstypes.LoadBalancer{}
@@ -90,7 +89,7 @@ func TestSet(t *testing.T) {
 
 	t.Run("should error immediately if task failed to start", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		factory := mock_taskset.NewMockFactory(ctrl)
+		factory := mock_task.NewMockFactory(ctrl)
 		mtask := mock_task.NewMockTask(ctrl)
 		lb := &ecstypes.LoadBalancer{}
 		factory.EXPECT().NewAlbTask(gomock.Any(), lb).Return(mtask)
