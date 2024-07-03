@@ -55,7 +55,7 @@ func (c *simpleTask) WaitForIdleDuration(ctx context.Context) error {
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
 	o, err := ecsCli.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
-		Tasks:   []string{*c.taskArn},
+		Tasks:   []string{*c.TaskArn},
 	})
 	if err != nil {
 		return err
