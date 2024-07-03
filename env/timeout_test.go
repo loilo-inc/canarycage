@@ -15,7 +15,7 @@ func TestEnv_Timeout(t *testing.T) {
 		assert.Equal(t, 15*time.Minute, e.GetTaskStoppedWait())
 		assert.Equal(t, 15*time.Minute, e.GetTaskHealthCheckWait())
 		assert.Equal(t, 15*time.Minute, e.GetServiceStableWait())
-		assert.Equal(t, time.Duration(0), e.GetCanaryTaskIdleWait())
+		assert.Equal(t, 15*time.Second, e.GetCanaryTaskIdleWait())
 	})
 	t.Run("with config", func(t *testing.T) {
 		e := &env.Envars{
