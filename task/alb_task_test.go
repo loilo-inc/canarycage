@@ -228,7 +228,13 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 			ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any()).Return(&ec2.DescribeSubnetsOutput{
 				Subnets: subnets,
 			}, nil)
-			albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).Return(nil, nil)
+			albMock.EXPECT().RegisterTargets(gomock.Any(), &elbv2.RegisterTargetsInput{
+				TargetGroupArn: atask.Lb.TargetGroupArn,
+				Targets: []elbv2types.TargetDescription{{
+					Id:               aws.String("127.0.0.1"),
+					Port:             aws.Int32(80),
+					AvailabilityZone: subnets[0].AvailabilityZone},
+				}}).Return(nil, nil)
 			atask.TaskArn = aws.String("arn://task")
 			err := atask.RegisterToTargetGroup(context.TODO())
 			assert.NoError(t, err)
@@ -278,10 +284,13 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 	t.Run("EC2", func(t *testing.T) {
 		containerInstances := []ecstypes.ContainerInstance{{
 			ContainerInstanceArn: aws.String("arn://container"),
+			Ec2InstanceId:        aws.String("i-123456"),
 		}}
 		reservations := []ec2types.Reservation{{
 			Instances: []ec2types.Instance{{
-				InstanceId: aws.String("i-123456"),
+				InstanceId:       aws.String("i-123456"),
+				SubnetId:         aws.String("subnet-123456"),
+				PrivateIpAddress: aws.String("127.0.0.1"),
 			}},
 		}}
 		subnets := []ec2types.Subnet{{
@@ -290,6 +299,7 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 		setup := func(t *testing.T) (*mock_awsiface.MockEc2Client, *mock_awsiface.MockAlbClient, *mock_awsiface.MockEcsClient, *task.AlbTaskExport) {
 			ctrl := gomock.NewController(t)
 			envars := test.DefaultEnvars()
+			envars.CanaryInstanceArn = "arn://container"
 			mocker := test.NewMockContext()
 			td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), envars.TaskDefinitionInput)
 			ec2Mock := mock_awsiface.NewMockEc2Client(ctrl)
@@ -318,7 +328,13 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 			ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any()).Return(&ec2.DescribeSubnetsOutput{
 				Subnets: subnets,
 			}, nil)
-			albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).Return(nil, nil)
+			albMock.EXPECT().RegisterTargets(gomock.Any(), &elbv2.RegisterTargetsInput{
+				TargetGroupArn: atask.Lb.TargetGroupArn,
+				Targets: []elbv2types.TargetDescription{{
+					Id:               containerInstances[0].Ec2InstanceId,
+					Port:             aws.Int32(80),
+					AvailabilityZone: subnets[0].AvailabilityZone},
+				}}).Return(nil, nil)
 			err := atask.RegisterToTargetGroup(context.TODO())
 			assert.NoError(t, err)
 		})

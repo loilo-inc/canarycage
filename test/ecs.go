@@ -168,6 +168,8 @@ func (ctx *EcsServer) StartTask(_ context.Context, input *ecs.StartTaskInput, _ 
 	}
 	taskArn := fmt.Sprintf("arn:aws:ecs:us-west-2:012345678910:task/%s", uuid.New().String())
 	attachment := types.Attachment{
+		Status: aws.String("ATTACHED"),
+		Type:   aws.String("ElasticNetworkInterface"),
 		Details: []types.KeyValuePair{
 			{
 				Name:  aws.String("privateIPv4Address"),

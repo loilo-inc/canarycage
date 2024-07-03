@@ -144,7 +144,7 @@ func (c *albTask) getEc2TargetNetwork(ctx context.Context) (*string, *string, er
 	} else {
 		ec2Instance = o.Reservations[0].Instances[0]
 	}
-	return ec2Instance.PrivateIpAddress, ec2Instance.SubnetId, nil
+	return ec2Instance.InstanceId, ec2Instance.SubnetId, nil
 }
 
 func (c *albTask) getTargetPort() (*int32, error) {
