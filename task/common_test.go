@@ -142,6 +142,7 @@ func TestCommon_WaitContainerHealthCheck(t *testing.T) {
 	}
 	t.Run("should call DescribeTasks periodically", func(t *testing.T) {
 		env := test.DefaultEnvars()
+		env.CanaryTaskHealthCheckWait = 20
 		ecsMock, timerMock, td, cm := setup(t, env)
 		faketime := test.NewFakeTime()
 		gomock.InOrder(
@@ -156,7 +157,7 @@ func TestCommon_WaitContainerHealthCheck(t *testing.T) {
 					},
 				}},
 			}, nil),
-			timerMock.EXPECT().NewTimer(15*time.Second).DoAndReturn(faketime.NewTimer),
+			timerMock.EXPECT().NewTimer(5*time.Second).DoAndReturn(faketime.NewTimer),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).Return(&ecs.DescribeTasksOutput{
 				Tasks: []ecstypes.Task{{LastStatus: aws.String("RUNNING"),
 					Containers: []ecstypes.Container{

@@ -6,6 +6,10 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	"github.com/golang/mock/gomock"
@@ -156,6 +160,193 @@ func TestAlbTask_WaitUntilTargetHealthy(t *testing.T) {
 			*atask.TaskArn, *target.Id, *target.Port, elbv2types.TargetHealthStateEnumUnhealthy,
 		),
 		)
+	})
+}
+
+func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
+	t.Run("should error if port mapping is not found", func(t *testing.T) {
+		env := test.DefaultEnvars()
+		mocker := test.NewMockContext()
+		td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), env.TaskDefinitionInput)
+		atask := task.NewAlbTaskExport(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, env)
+		}), &task.Input{
+			TaskDefinition:       td.TaskDefinition,
+			NetworkConfiguration: env.ServiceDefinitionInput.NetworkConfiguration,
+		}, &ecstypes.LoadBalancer{
+			TargetGroupArn: aws.String("arn://target-group"),
+			ContainerName:  aws.String("unknown")})
+		atask.TaskArn = aws.String("arn://task")
+		err := atask.RegisterToTargetGroup(context.TODO())
+		assert.EqualError(t, err, "couldn't find host port in container definition")
+	})
+	t.Run("Fargate", func(t *testing.T) {
+		attachments := []ecstypes.Attachment{{
+			Details: []ecstypes.KeyValuePair{{
+				Name:  aws.String("networkInterfaceId"),
+				Value: aws.String("eni-123456"),
+			}, {
+				Name:  aws.String("subnetId"),
+				Value: aws.String("subnet-123456"),
+			}, {
+				Name:  aws.String("privateIPv4Address"),
+				Value: aws.String("127.0.0.1"),
+			},
+			}}}
+		subnets := []ec2types.Subnet{{
+			AvailabilityZone: aws.String("ap-northeast-1a"),
+		}}
+		setup := func(t *testing.T) (*mock_awsiface.MockEc2Client, *mock_awsiface.MockAlbClient, *mock_awsiface.MockEcsClient, *task.AlbTaskExport) {
+			ctrl := gomock.NewController(t)
+			envars := test.DefaultEnvars()
+			mocker := test.NewMockContext()
+			td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), envars.TaskDefinitionInput)
+			ec2Mock := mock_awsiface.NewMockEc2Client(ctrl)
+			albMock := mock_awsiface.NewMockAlbClient(ctrl)
+			ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
+			atask := task.NewAlbTaskExport(di.NewDomain(func(b *di.B) {
+				b.Set(key.Env, envars)
+				b.Set(key.Ec2Cli, ec2Mock)
+				b.Set(key.AlbCli, albMock)
+				b.Set(key.EcsCli, ecsMock)
+			}), &task.Input{
+				TaskDefinition:       td.TaskDefinition,
+				NetworkConfiguration: envars.ServiceDefinitionInput.NetworkConfiguration,
+			}, &envars.ServiceDefinitionInput.LoadBalancers[0])
+			atask.TaskArn = aws.String("arn://task")
+			return ec2Mock, albMock, ecsMock, atask
+		}
+		t.Run("should call RegisterTargets", func(t *testing.T) {
+			ec2Mock, albMock, ecsMock, atask := setup(t)
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).Return(&ecs.DescribeTasksOutput{
+				Tasks: []ecstypes.Task{{
+					LastStatus:  aws.String("RUNNING"),
+					Attachments: attachments},
+				}}, nil)
+			ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any()).Return(&ec2.DescribeSubnetsOutput{
+				Subnets: subnets,
+			}, nil)
+			albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).Return(nil, nil)
+			atask.TaskArn = aws.String("arn://task")
+			err := atask.RegisterToTargetGroup(context.TODO())
+			assert.NoError(t, err)
+		})
+		t.Run("should error if DescribeTasks failed", func(t *testing.T) {
+			_, _, ecsMock, atask := setup(t)
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+			err := atask.RegisterToTargetGroup(context.TODO())
+			assert.EqualError(t, err, assert.AnError.Error())
+		})
+		t.Run("should error if DescribeSubnets failed", func(t *testing.T) {
+			ec2Mock, _, ecsMock, atask := setup(t)
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).Return(&ecs.DescribeTasksOutput{
+				Tasks: []ecstypes.Task{{
+					LastStatus:  aws.String("RUNNING"),
+					Attachments: attachments},
+				}}, nil)
+			ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+			err := atask.RegisterToTargetGroup(context.TODO())
+			assert.EqualError(t, err, assert.AnError.Error())
+		})
+		t.Run("should error if task is not attached to the network interface", func(t *testing.T) {
+			_, _, ecsMock, atask := setup(t)
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).Return(&ecs.DescribeTasksOutput{
+				Tasks: []ecstypes.Task{{
+					LastStatus: aws.String("RUNNING"),
+				}},
+			}, nil)
+			err := atask.RegisterToTargetGroup(context.TODO())
+			assert.EqualError(t, err, "couldn't find subnetId or privateIPv4Address in task details")
+		})
+		t.Run("should error if RegisterTargets failed", func(t *testing.T) {
+			ec2Mock, albMock, ecsMock, atask := setup(t)
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).Return(&ecs.DescribeTasksOutput{
+				Tasks: []ecstypes.Task{{
+					LastStatus:  aws.String("RUNNING"),
+					Attachments: attachments},
+				}}, nil)
+			ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any()).Return(&ec2.DescribeSubnetsOutput{
+				Subnets: subnets,
+			}, nil)
+			albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+			err := atask.RegisterToTargetGroup(context.TODO())
+			assert.EqualError(t, err, assert.AnError.Error())
+		})
+	})
+	t.Run("EC2", func(t *testing.T) {
+		containerInstances := []ecstypes.ContainerInstance{{
+			ContainerInstanceArn: aws.String("arn://container"),
+		}}
+		reservations := []ec2types.Reservation{{
+			Instances: []ec2types.Instance{{
+				InstanceId: aws.String("i-123456"),
+			}},
+		}}
+		subnets := []ec2types.Subnet{{
+			AvailabilityZone: aws.String("ap-northeast-1a"),
+		}}
+		setup := func(t *testing.T) (*mock_awsiface.MockEc2Client, *mock_awsiface.MockAlbClient, *mock_awsiface.MockEcsClient, *task.AlbTaskExport) {
+			ctrl := gomock.NewController(t)
+			envars := test.DefaultEnvars()
+			mocker := test.NewMockContext()
+			td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), envars.TaskDefinitionInput)
+			ec2Mock := mock_awsiface.NewMockEc2Client(ctrl)
+			albMock := mock_awsiface.NewMockAlbClient(ctrl)
+			ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
+			atask := task.NewAlbTaskExport(di.NewDomain(func(b *di.B) {
+				b.Set(key.Env, envars)
+				b.Set(key.Ec2Cli, ec2Mock)
+				b.Set(key.AlbCli, albMock)
+				b.Set(key.EcsCli, ecsMock)
+			}), &task.Input{
+				TaskDefinition:       td.TaskDefinition,
+				NetworkConfiguration: envars.ServiceDefinitionInput.NetworkConfiguration,
+			}, &envars.ServiceDefinitionInput.LoadBalancers[0])
+			atask.TaskArn = aws.String("arn://task")
+			return ec2Mock, albMock, ecsMock, atask
+		}
+		t.Run("should call RegisterTargets", func(t *testing.T) {
+			ec2Mock, albMock, ecsMock, atask := setup(t)
+			ecsMock.EXPECT().DescribeContainerInstances(gomock.Any(), gomock.Any()).Return(&ecs.DescribeContainerInstancesOutput{
+				ContainerInstances: containerInstances,
+			}, nil)
+			ec2Mock.EXPECT().DescribeInstances(gomock.Any(), gomock.Any()).Return(&ec2.DescribeInstancesOutput{
+				Reservations: reservations,
+			}, nil)
+			ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any()).Return(&ec2.DescribeSubnetsOutput{
+				Subnets: subnets,
+			}, nil)
+			albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).Return(nil, nil)
+			err := atask.RegisterToTargetGroup(context.TODO())
+			assert.NoError(t, err)
+		})
+		t.Run("should error if DescribeContainerInstances failed", func(t *testing.T) {
+			_, _, ecsMock, atask := setup(t)
+			ecsMock.EXPECT().DescribeContainerInstances(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+			err := atask.RegisterToTargetGroup(context.TODO())
+			assert.EqualError(t, err, assert.AnError.Error())
+		})
+		t.Run("should error if DescribeInstances failed", func(t *testing.T) {
+			ec2Mock, _, ecsMock, atask := setup(t)
+			ecsMock.EXPECT().DescribeContainerInstances(gomock.Any(), gomock.Any()).Return(&ecs.DescribeContainerInstancesOutput{
+				ContainerInstances: containerInstances,
+			}, nil)
+			ec2Mock.EXPECT().DescribeInstances(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+			err := atask.RegisterToTargetGroup(context.TODO())
+			assert.EqualError(t, err, assert.AnError.Error())
+		})
+		t.Run("should error if DescribeSubnets failed", func(t *testing.T) {
+			ec2Mock, _, ecsMock, atask := setup(t)
+			ecsMock.EXPECT().DescribeContainerInstances(gomock.Any(), gomock.Any()).Return(&ecs.DescribeContainerInstancesOutput{
+				ContainerInstances: containerInstances,
+			}, nil)
+			ec2Mock.EXPECT().DescribeInstances(gomock.Any(), gomock.Any()).Return(&ec2.DescribeInstancesOutput{
+				Reservations: reservations,
+			}, nil)
+			ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+			err := atask.RegisterToTargetGroup(context.TODO())
+			assert.EqualError(t, err, assert.AnError.Error())
+		})
 	})
 }
 

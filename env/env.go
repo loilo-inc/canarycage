@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"golang.org/x/xerrors"
 )
@@ -45,7 +44,6 @@ const TaskRunningTimeout = "CAGE_TASK_RUNNING_TIMEOUT"
 const TaskHealthCheckTimeout = "CAGE_TASK_HEALTH_CHECK_TIMEOUT"
 const TaskStoppedTimeout = "CAGE_TASK_STOPPED_TIMEOUT"
 const ServiceStableTimeout = "CAGE_SERVICE_STABLE_TIMEOUT"
-const TargetHealthCheckTimeout = "CAGE_TARGET_HEALTH_CHECK_TIMEOUT"
 
 func EnsureEnvars(
 	dest *Envars,
@@ -138,7 +136,7 @@ func ReadFileAndApplyEnvars(path string) ([]byte, error) {
 		if envar, ok := os.LookupEnv(m[1]); ok {
 			str = strings.Replace(str, m[0], envar, -1)
 		} else {
-			log.Fatalf("envar literal '%s' found in %s but was not defined", m[0], path)
+			return nil, xerrors.Errorf("envar literal '%s' found in %s but was not defined", m[0], path)
 		}
 	}
 	return []byte(str), nil
