@@ -47,19 +47,26 @@ func TestSimpleTask(t *testing.T) {
 }
 
 func TestSimpleTask_WaitForIdleDuration(t *testing.T) {
-	t.Run("should call DescribeTasks periodically", func(t *testing.T) {
+	setup := func(t *testing.T, idle int) (*mock_awsiface.MockEcsClient, *mock_types.MockTime, *task.SimpleTaskExport) {
 		ctrl := gomock.NewController(t)
 		mocker := test.NewMockContext()
 		envars := test.DefaultEnvars()
-		envars.CanaryTaskIdleDuration = 35 // sec
+		envars.CanaryTaskIdleDuration = idle
 		td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), envars.TaskDefinitionInput)
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
-		fakeTimer := test.NewFakeTime()
 		timerMock := mock_types.NewMockTime(ctrl)
+		cm := task.NewSimpleTaskExport(di.NewDomain(func(b *di.B) {
+			b.Set(key.Env, envars)
+			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Time, timerMock)
+		}), &task.Input{TaskDefinition: td.TaskDefinition})
+		cm.TaskArn = aws.String("task-arn")
+		return ecsMock, timerMock, cm
+	}
+	t.Run("should call DescribeTasks periodically", func(t *testing.T) {
+		ecsMock, timerMock, cm := setup(t, 35)
+		fakeTimer := test.NewFakeTime()
 		gomock.InOrder(
-			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).
-				DoAndReturn(mocker.Ecs.RunTask).
-				Times(1),
 			timerMock.EXPECT().NewTimer(15*time.Second).
 				DoAndReturn(fakeTimer.NewTimer).
 				Times(2),
@@ -67,64 +74,55 @@ func TestSimpleTask_WaitForIdleDuration(t *testing.T) {
 				DoAndReturn(fakeTimer.NewTimer).
 				Times(1),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).
-				DoAndReturn(mocker.Ecs.DescribeTasks).
+				Return(&ecs.DescribeTasksOutput{
+					Tasks: []ecstypes.Task{{LastStatus: aws.String("RUNNING")}},
+				}, nil).
 				Times(1),
 		)
-		cm := task.NewSimpleTaskExport(di.NewDomain(func(b *di.B) {
-			b.Set(key.Env, envars)
-			b.Set(key.EcsCli, ecsMock)
-			b.Set(key.Time, timerMock)
-		}), &task.Input{TaskDefinition: td.TaskDefinition})
-		err := cm.Start(context.TODO())
-		assert.NoError(t, err)
-		err = cm.WaitForIdleDuration(context.TODO())
+		err := cm.WaitForIdleDuration(context.TODO())
 		assert.NoError(t, err)
 	})
 	t.Run("should error if DescribeTasks failed", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mocker := test.NewMockContext()
-		envars := test.DefaultEnvars()
-		td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), envars.TaskDefinitionInput)
-		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
+		ecsMock, timerMock, cm := setup(t, 15)
+		fakeTimer := test.NewFakeTime()
 		gomock.InOrder(
-			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).
-				DoAndReturn(mocker.Ecs.RunTask).
+			timerMock.EXPECT().NewTimer(15*time.Second).
+				DoAndReturn(fakeTimer.NewTimer).
 				Times(1),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).
 				Return(nil, assert.AnError).
 				Times(1),
 		)
-		cm := task.NewSimpleTaskExport(di.NewDomain(func(b *di.B) {
-			b.Set(key.Env, envars)
-			b.Set(key.EcsCli, ecsMock)
-			b.Set(key.Time, test.NewFakeTime())
-		}), &task.Input{TaskDefinition: td.TaskDefinition})
-		cm.Start(context.TODO())
 		err := cm.WaitForIdleDuration(context.TODO())
 		assert.EqualError(t, err, assert.AnError.Error())
 	})
+	t.Run("sholud error if ctx is canceled", func(t *testing.T) {
+		_, timerMock, cm := setup(t, 15)
+		gomock.InOrder(
+			timerMock.EXPECT().NewTimer(15 * time.Second).
+				DoAndReturn(time.NewTimer).
+				Times(1),
+		)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err := cm.WaitForIdleDuration(ctx)
+		assert.EqualError(t, err, "context canceled")
+	})
 	t.Run("should error if task is not started", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mocker := test.NewMockContext()
-		envars := test.DefaultEnvars()
-		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
-		td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), envars.TaskDefinitionInput)
-		ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).
-			DoAndReturn(mocker.Ecs.RunTask).
-			Times(1)
-		ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).
-			Return(&ecs.DescribeTasksOutput{
-				Tasks: []ecstypes.Task{{
-					LastStatus:    aws.String("STOPPED"),
-					StoppedReason: aws.String("reason"),
-				}},
-			}, nil)
-		cm := task.NewSimpleTaskExport(di.NewDomain(func(b *di.B) {
-			b.Set(key.Env, envars)
-			b.Set(key.EcsCli, ecsMock)
-			b.Set(key.Time, test.NewFakeTime())
-		}), &task.Input{TaskDefinition: td.TaskDefinition})
-		cm.Start(context.TODO())
+		ecsMock, timerMock, cm := setup(t, 15)
+		fakeTimer := test.NewFakeTime()
+		gomock.InOrder(
+			timerMock.EXPECT().NewTimer(15*time.Second).
+				DoAndReturn(fakeTimer.NewTimer).
+				Times(1),
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).
+				Return(&ecs.DescribeTasksOutput{
+					Tasks: []ecstypes.Task{{
+						LastStatus:    aws.String("STOPPED"),
+						StoppedReason: aws.String("reason"),
+					}},
+				}, nil),
+		)
 		err := cm.WaitForIdleDuration(context.TODO())
 		assert.EqualError(t, err, "😫 canary task has stopped: reason")
 	})

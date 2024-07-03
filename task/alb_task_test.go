@@ -120,6 +120,13 @@ func TestAlbTask_WaitUntilTargetHealthy(t *testing.T) {
 		err := atask.WaitUntilTargetHealthy(context.TODO())
 		assert.EqualError(t, err, assert.AnError.Error())
 	})
+	t.Run("should error if context is canceled", func(t *testing.T) {
+		_, atask := setup(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err := atask.WaitUntilTargetHealthy(ctx)
+		assert.EqualError(t, err, "context canceled")
+	})
 	t.Run("should error if target is not registered", func(t *testing.T) {
 		albMock, atask := setup(t)
 		gomock.InOrder(
