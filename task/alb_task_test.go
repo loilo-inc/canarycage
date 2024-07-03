@@ -158,3 +158,77 @@ func TestAlbTask_WaitUntilTargetHealthy(t *testing.T) {
 		)
 	})
 }
+
+func TestAlbTask_DeregisterTarget(t *testing.T) {
+	target := &elbv2types.TargetDescription{
+		Id:               aws.String("127.0.0.1"),
+		Port:             aws.Int32(80),
+		AvailabilityZone: aws.String("ap-northeast-1a"),
+	}
+	setup := func(t *testing.T, env *env.Envars) (*mock_awsiface.MockAlbClient, *task.AlbTaskExport) {
+		ctrl := gomock.NewController(t)
+		mocker := test.NewMockContext()
+		albMock := mock_awsiface.NewMockAlbClient(ctrl)
+		td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), env.TaskDefinitionInput)
+		atask := task.NewAlbTaskExport(di.NewDomain(func(b *di.B) {
+			b.Set(key.AlbCli, albMock)
+		}), &task.Input{
+			TaskDefinition:       td.TaskDefinition,
+			NetworkConfiguration: env.ServiceDefinitionInput.NetworkConfiguration,
+		}, &env.ServiceDefinitionInput.LoadBalancers[0])
+		atask.TaskArn = aws.String("arn://task")
+		atask.Target = target
+		return albMock, atask
+	}
+	t.Run("should do nothing if target is nil", func(t *testing.T) {
+		atask := task.NewAlbTaskExport(di.EmptyDomain(), &task.Input{}, nil)
+		atask.DeregisterTarget(context.TODO())
+	})
+	t.Run("should call DeregisterTargets and wait", func(t *testing.T) {
+		env := test.DefaultEnvars()
+		albMock, atask := setup(t, env)
+		gomock.InOrder(
+			albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetGroupAttributesOutput{
+				Attributes: []elbv2types.TargetGroupAttribute{
+					{Key: aws.String("deregistration_delay.timeout_seconds"), Value: aws.String("300")},
+				},
+			}, nil).Times(1),
+			albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1),
+			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
+				TargetHealthDescriptions: []elbv2types.TargetHealthDescription{
+					{TargetHealth: &elbv2types.TargetHealth{State: elbv2types.TargetHealthStateEnumUnused},
+						Target: target,
+					},
+				},
+			}, nil).Times(1),
+		)
+		atask.DeregisterTarget(context.TODO())
+	})
+	t.Run("should return even if DeregisterTargets failed", func(t *testing.T) {
+		env := test.DefaultEnvars()
+		albMock, atask := setup(t, env)
+		gomock.InOrder(
+			albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetGroupAttributesOutput{
+				Attributes: []elbv2types.TargetGroupAttribute{
+					{Key: aws.String("deregistration_delay.timeout_seconds"), Value: aws.String("300")},
+				},
+			}, nil).Times(1),
+			albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1),
+		)
+		atask.DeregisterTarget(context.TODO())
+	})
+	t.Run("should return even if deregistration wait counts exceed the limit", func(t *testing.T) {
+		env := test.DefaultEnvars()
+		albMock, atask := setup(t, env)
+		gomock.InOrder(
+			albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetGroupAttributesOutput{
+				Attributes: []elbv2types.TargetGroupAttribute{
+					{Key: aws.String("deregistration_delay.timeout_seconds"), Value: aws.String("1")},
+				},
+			}, nil).Times(1),
+			albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1),
+			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1),
+		)
+		atask.DeregisterTarget(context.TODO())
+	})
+}

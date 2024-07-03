@@ -24,14 +24,17 @@ func NewSimpleTask(di *di.D, input *Input) Task {
 }
 
 func (c *simpleTask) Wait(ctx context.Context) error {
-	if err := c.waitForTask(ctx); err != nil {
+	if err := c.WaitForTaskRunning(ctx); err != nil {
+		return err
+	}
+	if err := c.WaitContainerHealthCheck(ctx); err != nil {
 		return err
 	}
 	return c.WaitForIdleDuration(ctx)
 }
 
 func (c *simpleTask) Stop(ctx context.Context) error {
-	return c.stopTask(ctx)
+	return c.StopTask(ctx)
 }
 
 func (c *simpleTask) WaitForIdleDuration(ctx context.Context) error {

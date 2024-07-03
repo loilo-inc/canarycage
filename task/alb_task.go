@@ -39,10 +39,13 @@ func NewAlbTask(
 }
 
 func (c *albTask) Wait(ctx context.Context) error {
-	if err := c.waitForTask(ctx); err != nil {
+	if err := c.WaitForTaskRunning(ctx); err != nil {
 		return err
 	}
-	if err := c.registerToTargetGroup(ctx); err != nil {
+	if err := c.WaitContainerHealthCheck(ctx); err != nil {
+		return err
+	}
+	if err := c.RegisterToTargetGroup(ctx); err != nil {
 		return err
 	}
 	log.Infof("canary task '%s' is registered to target group '%s'", *c.Target.Id, *c.Lb.TargetGroupArn)
@@ -55,8 +58,8 @@ func (c *albTask) Wait(ctx context.Context) error {
 }
 
 func (c *albTask) Stop(ctx context.Context) error {
-	c.deregisterTarget(ctx)
-	return c.stopTask(ctx)
+	c.DeregisterTarget(ctx)
+	return c.StopTask(ctx)
 }
 
 func (c *albTask) describeTaskTarget(
@@ -150,7 +153,7 @@ func (c *albTask) getTargetPort() (*int32, error) {
 	return nil, xerrors.Errorf("couldn't find host port in container definition")
 }
 
-func (c *albTask) registerToTargetGroup(ctx context.Context) error {
+func (c *albTask) RegisterToTargetGroup(ctx context.Context) error {
 	log.Infof("registering the canary task to target group '%s'...", *c.Lb.TargetGroupArn)
 	if target, err := c.describeTaskTarget(ctx); err != nil {
 		return err
@@ -235,7 +238,7 @@ func (c *albTask) targetDeregistrationDelay(ctx context.Context) (time.Duration,
 	return deregistrationDelay, nil
 }
 
-func (c *albTask) deregisterTarget(ctx context.Context) {
+func (c *albTask) DeregisterTarget(ctx context.Context) {
 	if c.Target == nil {
 		return
 	}
@@ -252,20 +255,20 @@ func (c *albTask) deregisterTarget(ctx context.Context) {
 	}); err != nil {
 		log.Errorf("failed to deregister the canary task from target group: %v", err)
 		log.Errorf("continuing to stop the canary task...")
-	} else {
-		log.Infof("deregister operation accepted. waiting for the canary task to be deregistered...")
-		deregisterWait := deregistrationDelay + time.Minute // add 1 minute for safety
-		if err := elbv2.NewTargetDeregisteredWaiter(albCli).Wait(ctx, &elbv2.DescribeTargetHealthInput{
-			TargetGroupArn: c.Lb.TargetGroupArn,
-			Targets:        []elbv2types.TargetDescription{*c.Target},
-		}, deregisterWait); err != nil {
-			log.Errorf("failed to wait for the canary task deregistered from target group: %v", err)
-			log.Errorf("continuing to stop the canary task...")
-		} else {
-			log.Infof(
-				"canary task '%s' has successfully been deregistered from target group '%s'",
-				*c.TaskArn, *c.Target.Id,
-			)
-		}
+		return
 	}
+	log.Infof("deregister operation accepted. waiting for the canary task to be deregistered...")
+	deregisterWait := deregistrationDelay + time.Minute // add 1 minute for safety
+	if err := elbv2.NewTargetDeregisteredWaiter(albCli).Wait(ctx, &elbv2.DescribeTargetHealthInput{
+		TargetGroupArn: c.Lb.TargetGroupArn,
+		Targets:        []elbv2types.TargetDescription{*c.Target},
+	}, deregisterWait); err != nil {
+		log.Errorf("failed to wait for the canary task deregistered from target group: %v", err)
+		log.Errorf("continuing to stop the canary task...")
+		return
+	}
+	log.Infof(
+		"canary task '%s' has successfully been deregistered from target group '%s'",
+		*c.TaskArn, *c.Target.Id,
+	)
 }
