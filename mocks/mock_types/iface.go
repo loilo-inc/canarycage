@@ -117,17 +117,3 @@ func (mr *MockTimeMockRecorder) NewTimer(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewTimer", reflect.TypeOf((*MockTime)(nil).NewTimer), arg0)
 }
-
-// Now mocks base method.
-func (m *MockTime) Now() time.Time {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Now")
-	ret0, _ := ret[0].(time.Time)
-	return ret0
-}
-
-// Now indicates an expected call of Now.
-func (mr *MockTimeMockRecorder) Now() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Now", reflect.TypeOf((*MockTime)(nil).Now))
-}

@@ -33,7 +33,6 @@ func TestCommon_Start(t *testing.T) {
 			}), &task.Input{TaskDefinition: td})
 			err := cm.Start(context.TODO())
 			assert.NoError(t, err)
-			assert.Equal(t, "task-arn", *cm.TaskArn())
 		})
 		t.Run("should error if task failed to start", func(t *testing.T) {
 			ctrl := gomock.NewController(t)
@@ -47,7 +46,6 @@ func TestCommon_Start(t *testing.T) {
 			}), &task.Input{TaskDefinition: td})
 			err := cm.Start(context.TODO())
 			assert.EqualError(t, err, "error")
-			assert.Nil(t, cm.TaskArn())
 		})
 	})
 	t.Run("EC2", func(t *testing.T) {
@@ -66,7 +64,6 @@ func TestCommon_Start(t *testing.T) {
 			}), &task.Input{TaskDefinition: td})
 			err := cm.Start(context.TODO())
 			assert.NoError(t, err)
-			assert.Equal(t, "task-arn", *cm.TaskArn())
 		})
 		t.Run("should error if task failed to start", func(t *testing.T) {
 			ctrl := gomock.NewController(t)
@@ -81,7 +78,6 @@ func TestCommon_Start(t *testing.T) {
 			}), &task.Input{TaskDefinition: td})
 			err := cm.Start(context.TODO())
 			assert.EqualError(t, err, "error")
-			assert.Nil(t, cm.TaskArn())
 		})
 	})
 }

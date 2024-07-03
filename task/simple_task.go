@@ -27,14 +27,14 @@ func (c *simpleTask) Wait(ctx context.Context) error {
 	if err := c.waitForTask(ctx); err != nil {
 		return err
 	}
-	return c.waitForIdleDuration(ctx)
+	return c.WaitForIdleDuration(ctx)
 }
 
 func (c *simpleTask) Stop(ctx context.Context) error {
 	return c.stopTask(ctx)
 }
 
-func (c *simpleTask) waitForIdleDuration(ctx context.Context) error {
+func (c *simpleTask) WaitForIdleDuration(ctx context.Context) error {
 	env := c.di.Get(key.Env).(*env.Envars)
 	timer := c.di.Get(key.Time).(types.Time)
 	log.Infof("wait %d seconds for canary task to be stable...", env.CanaryTaskIdleDuration)

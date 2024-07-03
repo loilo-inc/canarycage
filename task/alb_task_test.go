@@ -61,5 +61,4 @@ func TestAlbTask(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, mocker.RunningTaskSize())
 	})
-
 }

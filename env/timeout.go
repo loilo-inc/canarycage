@@ -11,7 +11,7 @@ func (t *Envars) GetCanaryTaskIdleWait() time.Duration {
 	if wait > 0 {
 		return time.Duration(wait) * time.Second
 	}
-	return 0
+	return 15 * time.Second
 }
 
 func (t *Envars) GetTaskRunningWait() time.Duration {

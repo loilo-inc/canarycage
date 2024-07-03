@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/awsiface"
@@ -70,10 +68,6 @@ func (c *common) Start(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-func (c *common) TaskArn() *string {
-	return c.taskArn
 }
 
 func (c *common) waitForTask(ctx context.Context) error {
@@ -148,97 +142,6 @@ func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 		rest -= healthCheckPeriod
 	}
 	return xerrors.Errorf("😨 canary task hasn't become to be healthy")
-}
-
-func (c *common) describeTaskTarget(
-	ctx context.Context,
-	targetPort int32,
-) (*CanaryTarget, error) {
-	env := c.di.Get(key.Env).(*env.Envars)
-	target := CanaryTarget{targetPort: targetPort}
-	if env.CanaryInstanceArn == "" { // Fargate
-		if err := c.getFargateTarget(ctx, &target); err != nil {
-			return nil, err
-		}
-		log.Infof("canary task was placed: privateIp = '%s', hostPort = '%d', az = '%s'", target.targetId, target.targetPort, target.availabilityZone)
-	} else {
-		if err := c.getEc2Target(ctx, &target); err != nil {
-			return nil, err
-		}
-		log.Infof("canary task was placed: instanceId = '%s', hostPort = '%d', az = '%s'", target.targetId, target.targetPort, target.availabilityZone)
-	}
-	return &target, nil
-}
-
-func (c *common) getFargateTarget(ctx context.Context, dest *CanaryTarget) error {
-	var task ecstypes.Task
-	env := c.di.Get(key.Env).(*env.Envars)
-	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
-	ec2Cli := c.di.Get(key.Ec2Cli).(awsiface.Ec2Client)
-	if o, err := ecsCli.DescribeTasks(ctx, &ecs.DescribeTasksInput{
-		Cluster: &env.Cluster,
-		Tasks:   []string{*c.taskArn},
-	}); err != nil {
-		return err
-	} else {
-		task = o.Tasks[0]
-	}
-	details := task.Attachments[0].Details
-	var subnetId *string
-	var privateIp *string
-	for _, v := range details {
-		if *v.Name == "subnetId" {
-			subnetId = v.Value
-		} else if *v.Name == "privateIPv4Address" {
-			privateIp = v.Value
-		}
-	}
-	if subnetId == nil || privateIp == nil {
-		return xerrors.Errorf("couldn't find subnetId or privateIPv4Address in task details")
-	}
-	if o, err := ec2Cli.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
-		SubnetIds: []string{*subnetId},
-	}); err != nil {
-		return err
-	} else {
-		dest.targetId = *privateIp
-		dest.targetIpv4 = *privateIp
-		dest.availabilityZone = *o.Subnets[0].AvailabilityZone
-	}
-	return nil
-}
-
-func (c *common) getEc2Target(ctx context.Context, dest *CanaryTarget) error {
-	var containerInstance ecstypes.ContainerInstance
-	env := c.di.Get(key.Env).(*env.Envars)
-	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
-	ec2Cli := c.di.Get(key.Ec2Cli).(awsiface.Ec2Client)
-	if outputs, err := ecsCli.DescribeContainerInstances(ctx, &ecs.DescribeContainerInstancesInput{
-		Cluster:            &env.Cluster,
-		ContainerInstances: []string{env.CanaryInstanceArn},
-	}); err != nil {
-		return err
-	} else {
-		containerInstance = outputs.ContainerInstances[0]
-	}
-	var ec2Instance ec2types.Instance
-	if o, err := ec2Cli.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
-		InstanceIds: []string{*containerInstance.Ec2InstanceId},
-	}); err != nil {
-		return err
-	} else {
-		ec2Instance = o.Reservations[0].Instances[0]
-	}
-	if sn, err := ec2Cli.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
-		SubnetIds: []string{*ec2Instance.SubnetId},
-	}); err != nil {
-		return err
-	} else {
-		dest.targetId = *containerInstance.Ec2InstanceId
-		dest.targetIpv4 = *ec2Instance.PrivateIpAddress
-		dest.availabilityZone = *sn.Subnets[0].AvailabilityZone
-	}
-	return nil
 }
 
 func (c *common) stopTask(ctx context.Context) error {

@@ -17,7 +17,7 @@ mocks: mocks/mock_awsiface/iface.go \
 	mocks/mock_task/factory.go
 mocks/mock_awsiface/iface.go: awsiface/iface.go
 	$(MOCKGEN) -source=./awsiface/iface.go > mocks/mock_awsiface/iface.go
-mocks/mock_types/iface.go: cage.go
+mocks/mock_types/iface.go: types/iface.go
 	$(MOCKGEN) -source=./types/iface.go > mocks/mock_types/iface.go
 mocks/mock_upgrade/upgrade.go: cli/cage/upgrade/upgrade.go
 	$(MOCKGEN) -source=./cli/cage/upgrade/upgrade.go > mocks/mock_upgrade/upgrade.go
