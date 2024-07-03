@@ -182,6 +182,8 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 	})
 	t.Run("Fargate", func(t *testing.T) {
 		attachments := []ecstypes.Attachment{{
+			Status: aws.String("ATTACHED"),
+			Type:   aws.String("ElasticNetworkInterface"),
 			Details: []ecstypes.KeyValuePair{{
 				Name:  aws.String("networkInterfaceId"),
 				Value: aws.String("eni-123456"),
@@ -256,7 +258,7 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 				}},
 			}, nil)
 			err := atask.RegisterToTargetGroup(context.TODO())
-			assert.EqualError(t, err, "couldn't find subnetId or privateIPv4Address in task details")
+			assert.EqualError(t, err, "couldn't find ElasticNetworkInterface attachment in task")
 		})
 		t.Run("should error if RegisterTargets failed", func(t *testing.T) {
 			ec2Mock, albMock, ecsMock, atask := setup(t)

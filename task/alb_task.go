@@ -104,18 +104,21 @@ func (c *albTask) getFargateTargetNetwork(ctx context.Context) (*string, *string
 	} else {
 		task = o.Tasks[0]
 	}
-	details := task.Attachments[0].Details
 	var subnetId *string
 	var privateIp *string
-	for _, v := range details {
-		if *v.Name == "subnetId" {
-			subnetId = v.Value
-		} else if *v.Name == "privateIPv4Address" {
-			privateIp = v.Value
+	for _, attachment := range task.Attachments {
+		if *attachment.Status == "ATTACHED" && *attachment.Type == "ElasticNetworkInterface" {
+			for _, v := range attachment.Details {
+				if *v.Name == "subnetId" {
+					subnetId = v.Value
+				} else if *v.Name == "privateIPv4Address" {
+					privateIp = v.Value
+				}
+			}
 		}
 	}
 	if subnetId == nil || privateIp == nil {
-		return nil, nil, xerrors.Errorf("couldn't find subnetId or privateIPv4Address in task details")
+		return nil, nil, xerrors.Errorf("couldn't find ElasticNetworkInterface attachment in task")
 	}
 	return privateIp, subnetId, nil
 }
