@@ -22,6 +22,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestCage_Rollout(t *testing.T) {
+}
+
 func TestCage_RollOut_FARGATE(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	t.Run("basic", func(t *testing.T) {

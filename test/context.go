@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"sync"
 
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -70,3 +71,5 @@ func (ctx *commons) ActiveServiceSize() (count int) {
 	}
 	return
 }
+
+var Err = fmt.Errorf("error")
