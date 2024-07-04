@@ -19,6 +19,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNewExecutor(t *testing.T) {
+	td := &ecstypes.TaskDefinition{}
+	di := di.EmptyDomain()
+	e := NewExecutor(di, td)
+	v, ok := e.(*executor)
+	assert.True(t, ok)
+	assert.Equal(t, td, v.td)
+	assert.Equal(t, di, v.di)
+}
+
 func TestExecutor_Rollout(t *testing.T) {
 	setup := func(t *testing.T) (
 		*executor,
@@ -79,6 +89,7 @@ func TestExecutor_Rollout(t *testing.T) {
 		}
 		srv, _ := mocker.GetEcsService(envars.Service)
 		assert.Equal(t, *srv.TaskDefinition, *td.TaskDefinitionArn)
+		assert.True(t, e.ServiceUpdated())
 	})
 	t.Run("updateService", func(t *testing.T) {
 		e, envars, mocker, ecsMock, taskMock, td := setup(t)
@@ -107,6 +118,7 @@ func TestExecutor_Rollout(t *testing.T) {
 		}
 		srv, _ := mocker.GetEcsService(envars.Service)
 		assert.Equal(t, *srv.TaskDefinition, *td.TaskDefinitionArn)
+		assert.True(t, e.ServiceUpdated())
 	})
 }
 
@@ -135,6 +147,7 @@ func TestExecutor_Rollout_Failure(t *testing.T) {
 		ecsCli.EXPECT().DescribeServices(gomock.Any(), gomock.Any()).Return(nil, test.Err)
 		err := e.RollOut(context.TODO(), &types.RollOutInput{})
 		assert.EqualError(t, err, "error")
+		assert.False(t, e.ServiceUpdated())
 	})
 	t.Run("should call task.Task.Stop() even if task.Task.Start() failed", func(t *testing.T) {
 		e, _, _, factoryMock, taskMock := setup(t)
@@ -145,6 +158,7 @@ func TestExecutor_Rollout_Failure(t *testing.T) {
 		)
 		err := e.RollOut(context.TODO(), &types.RollOutInput{UpdateService: true})
 		assert.EqualError(t, err, "error")
+		assert.False(t, e.ServiceUpdated())
 	})
 	t.Run("should call task.Task.Stop() even if task.Task.Wait() failed", func(t *testing.T) {
 		e, _, _, factoryMock, taskMock := setup(t)
@@ -156,6 +170,7 @@ func TestExecutor_Rollout_Failure(t *testing.T) {
 		)
 		err := e.RollOut(context.TODO(), &types.RollOutInput{UpdateService: true})
 		assert.EqualError(t, err, "error")
+		assert.False(t, e.ServiceUpdated())
 	})
 	t.Run("should call task.Task.Stop() even if ecs.UpdateService() failed", func(t *testing.T) {
 		e, _, ecsMock, factoryMock, taskMock := setup(t)
@@ -169,6 +184,7 @@ func TestExecutor_Rollout_Failure(t *testing.T) {
 		)
 		err := e.RollOut(context.TODO(), &types.RollOutInput{UpdateService: true})
 		assert.EqualError(t, err, "error")
+		assert.False(t, e.ServiceUpdated())
 	})
 	t.Run("should call task.Task.Stop() even if ecs.DescribeServices() failed", func(t *testing.T) {
 		e, _, ecsMock, factoryMock, taskMock := setup(t)
@@ -186,5 +202,24 @@ func TestExecutor_Rollout_Failure(t *testing.T) {
 		)
 		err := e.RollOut(context.TODO(), &types.RollOutInput{UpdateService: true})
 		assert.EqualError(t, err, "waiter state transitioned to Failure")
+		assert.False(t, e.ServiceUpdated())
+	})
+	t.Run("should log error if task.Task.Stop() failed", func(t *testing.T) {
+		e, _, ecsMock, factoryMock, taskMock := setup(t)
+		gomock.InOrder(
+			factoryMock.EXPECT().NewAlbTask(gomock.Any(), gomock.Any()).Return(taskMock),
+			taskMock.EXPECT().Start(gomock.Any()).Return(nil),
+			taskMock.EXPECT().Wait(gomock.Any()).Return(nil),
+			ecsMock.EXPECT().UpdateService(gomock.Any(), gomock.Any()).
+				Return(&ecs.UpdateServiceOutput{}, nil),
+			ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(&ecs.DescribeServicesOutput{
+					Services: []ecstypes.Service{{Status: aws.String("INACTIVE")}},
+				}, nil),
+			taskMock.EXPECT().Stop(gomock.Any()).Return(test.Err),
+		)
+		err := e.RollOut(context.TODO(), &types.RollOutInput{UpdateService: true})
+		assert.EqualError(t, err, "error")
+		assert.True(t, e.ServiceUpdated())
 	})
 }

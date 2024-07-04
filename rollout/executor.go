@@ -30,7 +30,7 @@ func NewExecutor(di *di.D, td *ecstypes.TaskDefinition) Executor {
 	return &executor{di: di, td: td}
 }
 
-func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) error {
+func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (lastErr error) {
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
 	if input.UpdateService {
@@ -42,8 +42,8 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) error
 		_ = recover()
 		if canaryTasks == nil {
 			return
-		} else if err := canaryTasks.Cleanup(ctx); err != nil {
-			log.Errorf("failed to cleanup canary tasks due to: %s", err)
+		} else if lastErr = canaryTasks.Cleanup(ctx); lastErr != nil {
+			log.Errorf("failed to cleanup canary tasks due to: %s", lastErr)
 		}
 	}()
 	if startCanaryTaskErr != nil {
