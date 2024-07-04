@@ -70,7 +70,7 @@ func LoadServiceDefiniton(dir string) (*ecs.CreateServiceInput, error) {
 	if noSvc != nil {
 		return nil, xerrors.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
 	}
-	if _, err := ReadAndUnmarshalJson(svcPath, &service); err != nil {
+	if err := ReadAndUnmarshalJson(svcPath, &service); err != nil {
 		return nil, xerrors.Errorf("failed to read and unmarshal service.json: %s", err)
 	}
 	return &service, nil
@@ -83,7 +83,7 @@ func LoadTaskDefiniton(dir string) (*ecs.RegisterTaskDefinitionInput, error) {
 	if noTd != nil {
 		return nil, xerrors.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
 	}
-	if _, err := ReadAndUnmarshalJson(tdPath, &td); err != nil {
+	if err := ReadAndUnmarshalJson(tdPath, &td); err != nil {
 		return nil, xerrors.Errorf("failed to read and unmarshal task-definition.json: %s", err)
 	}
 	return &td, nil
@@ -113,15 +113,13 @@ func MergeEnvars(dest *Envars, src *Envars) {
 	}
 }
 
-func ReadAndUnmarshalJson(path string, dest interface{}) ([]byte, error) {
+func ReadAndUnmarshalJson(path string, dest interface{}) error {
 	if d, err := ReadFileAndApplyEnvars(path); err != nil {
-		return d, err
-	} else {
-		if err := json.Unmarshal(d, dest); err != nil {
-			return d, err
-		}
-		return d, nil
+		return err
+	} else if err := json.Unmarshal(d, dest); err != nil {
+		return err
 	}
+	return nil
 }
 
 func ReadFileAndApplyEnvars(path string) ([]byte, error) {
