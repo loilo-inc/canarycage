@@ -186,7 +186,7 @@ func TestExecutor_Rollout_Failure(t *testing.T) {
 		assert.EqualError(t, err, "error")
 		assert.False(t, e.ServiceUpdated())
 	})
-	t.Run("should call task.Task.Stop() even if ecs.DescribeServices() failed", func(t *testing.T) {
+	t.Run("should call task.Task.Stop() even if ecs.NewServicesStableWaiter.Wait() failed", func(t *testing.T) {
 		e, _, ecsMock, factoryMock, taskMock := setup(t)
 		gomock.InOrder(
 			factoryMock.EXPECT().NewAlbTask(gomock.Any(), gomock.Any()).Return(taskMock),
@@ -202,7 +202,7 @@ func TestExecutor_Rollout_Failure(t *testing.T) {
 		)
 		err := e.RollOut(context.TODO(), &types.RollOutInput{UpdateService: true})
 		assert.EqualError(t, err, "waiter state transitioned to Failure")
-		assert.False(t, e.ServiceUpdated())
+		assert.True(t, e.ServiceUpdated())
 	})
 	t.Run("should log error if task.Task.Stop() failed", func(t *testing.T) {
 		e, _, ecsMock, factoryMock, taskMock := setup(t)

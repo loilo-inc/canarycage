@@ -1,4 +1,4 @@
-package task_test
+package task
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 	"github.com/loilo-inc/canarycage/mocks/mock_types"
-	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
@@ -30,10 +29,13 @@ func TestCommon_Start(t *testing.T) {
 				Tasks: []ecstypes.Task{{TaskArn: aws.String("task-arn")}},
 			}, nil)
 			envars := test.DefaultEnvars()
-			cm := task.NewCommonExport(di.NewDomain(func(b *di.B) {
-				b.Set(key.Env, envars)
-				b.Set(key.EcsCli, ecsMock)
-			}), &task.Input{TaskDefinition: td})
+			cm := &common{
+				Input: &Input{TaskDefinition: td},
+				di: di.NewDomain(func(b *di.B) {
+					b.Set(key.Env, envars)
+					b.Set(key.EcsCli, ecsMock)
+				}),
+			}
 			err := cm.Start(context.TODO())
 			assert.NoError(t, err)
 		})
@@ -43,10 +45,13 @@ func TestCommon_Start(t *testing.T) {
 			ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("error"))
 			envars := test.DefaultEnvars()
-			cm := task.NewCommonExport(di.NewDomain(func(b *di.B) {
-				b.Set(key.Env, envars)
-				b.Set(key.EcsCli, ecsMock)
-			}), &task.Input{TaskDefinition: td})
+			cm := &common{
+				Input: &Input{TaskDefinition: td},
+				di: di.NewDomain(func(b *di.B) {
+					b.Set(key.Env, envars)
+					b.Set(key.EcsCli, ecsMock)
+				}),
+			}
 			err := cm.Start(context.TODO())
 			assert.EqualError(t, err, "error")
 		})
@@ -61,10 +66,13 @@ func TestCommon_Start(t *testing.T) {
 			}, nil)
 			envars := test.DefaultEnvars()
 			envars.CanaryInstanceArn = "instance-arn"
-			cm := task.NewCommonExport(di.NewDomain(func(b *di.B) {
-				b.Set(key.Env, envars)
-				b.Set(key.EcsCli, ecsMock)
-			}), &task.Input{TaskDefinition: td})
+			cm := &common{
+				Input: &Input{TaskDefinition: td},
+				di: di.NewDomain(func(b *di.B) {
+					b.Set(key.Env, envars)
+					b.Set(key.EcsCli, ecsMock)
+				}),
+			}
 			err := cm.Start(context.TODO())
 			assert.NoError(t, err)
 		})
@@ -75,10 +83,13 @@ func TestCommon_Start(t *testing.T) {
 			ecsMock.EXPECT().StartTask(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("error"))
 			envars := test.DefaultEnvars()
 			envars.CanaryInstanceArn = "instance-arn"
-			cm := task.NewCommonExport(di.NewDomain(func(b *di.B) {
-				b.Set(key.Env, envars)
-				b.Set(key.EcsCli, ecsMock)
-			}), &task.Input{TaskDefinition: td})
+			cm := &common{
+				Input: &Input{TaskDefinition: td},
+				di: di.NewDomain(func(b *di.B) {
+					b.Set(key.Env, envars)
+					b.Set(key.EcsCli, ecsMock)
+				}),
+			}
 			err := cm.Start(context.TODO())
 			assert.EqualError(t, err, "error")
 		})
@@ -86,15 +97,18 @@ func TestCommon_Start(t *testing.T) {
 }
 
 func TestCommon_WaitForTaskRunning(t *testing.T) {
-	setup := func(t *testing.T, envars *env.Envars) (*mock_awsiface.MockEcsClient, *task.CommonExport) {
+	setup := func(t *testing.T, envars *env.Envars) (*mock_awsiface.MockEcsClient, *common) {
 		ctrl := gomock.NewController(t)
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		td := &ecstypes.TaskDefinition{}
-		cm := task.NewCommonExport(di.NewDomain(func(b *di.B) {
-			b.Set(key.Env, envars)
-			b.Set(key.EcsCli, ecsMock)
-		}), &task.Input{TaskDefinition: td})
-		cm.TaskArn = aws.String("task-arn")
+		cm := &common{
+			Input: &Input{TaskDefinition: td},
+			di: di.NewDomain(func(b *di.B) {
+				b.Set(key.Env, envars)
+				b.Set(key.EcsCli, ecsMock)
+			}),
+		}
+		cm.taskArn = aws.String("task-arn")
 		return ecsMock, cm
 	}
 	t.Run("should call ecs.NewTasksRunningWaiter", func(t *testing.T) {
@@ -106,7 +120,7 @@ func TestCommon_WaitForTaskRunning(t *testing.T) {
 		assert.NoError(t, err)
 	})
 	t.Run("should error if task is not started", func(t *testing.T) {
-		cm := task.NewCommonExport(di.EmptyDomain(), nil)
+		cm := &common{}
 		err := cm.WaitForTaskRunning(context.TODO())
 		assert.EqualError(t, err, "task is not started")
 	})
@@ -126,18 +140,21 @@ func TestCommon_WaitForTaskRunning(t *testing.T) {
 func TestCommon_WaitContainerHealthCheck(t *testing.T) {
 	setup := func(t *testing.T, envars *env.Envars) (*mock_awsiface.MockEcsClient, *mock_types.MockTime,
 		*ecstypes.TaskDefinition,
-		*task.CommonExport) {
+		*common) {
 		ctrl := gomock.NewController(t)
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		mocker := test.NewMockContext()
 		timerMock := mock_types.NewMockTime(ctrl)
 		td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), envars.TaskDefinitionInput)
-		cm := task.NewCommonExport(di.NewDomain(func(b *di.B) {
-			b.Set(key.Env, envars)
-			b.Set(key.EcsCli, ecsMock)
-			b.Set(key.Time, timerMock)
-		}), &task.Input{TaskDefinition: td.TaskDefinition})
-		cm.TaskArn = aws.String("task-arn")
+		cm := &common{
+			Input: &Input{TaskDefinition: td.TaskDefinition},
+			di: di.NewDomain(func(b *di.B) {
+				b.Set(key.Env, envars)
+				b.Set(key.EcsCli, ecsMock)
+				b.Set(key.Time, timerMock)
+			}),
+		}
+		cm.taskArn = aws.String("task-arn")
 		return ecsMock, timerMock, td.TaskDefinition, cm
 	}
 	t.Run("should call DescribeTasks periodically", func(t *testing.T) {
@@ -239,14 +256,16 @@ func TestCommon_WaitContainerHealthCheck(t *testing.T) {
 }
 
 func TestCommon_StopTask(t *testing.T) {
-	setup := func(t *testing.T, env *env.Envars) (*mock_awsiface.MockEcsClient, *task.CommonExport) {
+	setup := func(t *testing.T, env *env.Envars) (*mock_awsiface.MockEcsClient, *common) {
 		ctrl := gomock.NewController(t)
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
-		cm := task.NewCommonExport(di.NewDomain(func(b *di.B) {
-			b.Set(key.EcsCli, ecsMock)
-			b.Set(key.Env, env)
-		}), nil)
-		cm.TaskArn = aws.String("task-arn")
+		cm := &common{
+			di: di.NewDomain(func(b *di.B) {
+				b.Set(key.EcsCli, ecsMock)
+				b.Set(key.Env, env)
+			}),
+		}
+		cm.taskArn = aws.String("task-arn")
 		return ecsMock, cm
 	}
 	t.Run("should call ecscCli.StopTask and wait", func(t *testing.T) {
@@ -261,7 +280,7 @@ func TestCommon_StopTask(t *testing.T) {
 		assert.NoError(t, err)
 	})
 	t.Run("should do nothing if task is not started", func(t *testing.T) {
-		cm := task.NewCommonExport(di.EmptyDomain(), nil)
+		cm := &common{}
 		err := cm.StopTask(context.TODO())
 		assert.NoError(t, err)
 	})

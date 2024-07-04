@@ -23,8 +23,8 @@ import (
 // albTask is a task that is attached to an Application Load Balancer
 type albTask struct {
 	*common
-	Lb     *ecstypes.LoadBalancer
-	Target *elbv2types.TargetDescription
+	lb     *ecstypes.LoadBalancer
+	target *elbv2types.TargetDescription
 }
 
 func NewAlbTask(
@@ -34,7 +34,7 @@ func NewAlbTask(
 ) Task {
 	return &albTask{
 		common: &common{Input: input, di: di},
-		Lb:     lb,
+		lb:     lb,
 	}
 }
 
@@ -48,7 +48,7 @@ func (c *albTask) Wait(ctx context.Context) error {
 	if err := c.RegisterToTargetGroup(ctx); err != nil {
 		return err
 	}
-	log.Infof("canary task '%s' is registered to target group '%s'", *c.Target.Id, *c.Lb.TargetGroupArn)
+	log.Infof("canary task '%s' is registered to target group '%s'", *c.target.Id, *c.lb.TargetGroupArn)
 	log.Infof("😷 waiting canary target to be healthy...")
 	if err := c.WaitUntilTargetHealthy(ctx); err != nil {
 		return err
@@ -98,7 +98,7 @@ func (c *albTask) getFargateTargetNetwork(ctx context.Context) (*string, *string
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
 	if o, err := ecsCli.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
-		Tasks:   []string{*c.TaskArn},
+		Tasks:   []string{*c.taskArn},
 	}); err != nil {
 		return nil, nil, err
 	} else {
@@ -149,7 +149,7 @@ func (c *albTask) getEc2TargetNetwork(ctx context.Context) (*string, *string, er
 
 func (c *albTask) getTargetPort() (*int32, error) {
 	for _, container := range c.TaskDefinition.ContainerDefinitions {
-		if *container.Name == *c.Lb.ContainerName {
+		if *container.Name == *c.lb.ContainerName {
 			return container.PortMappings[0].HostPort, nil
 		}
 	}
@@ -157,16 +157,16 @@ func (c *albTask) getTargetPort() (*int32, error) {
 }
 
 func (c *albTask) RegisterToTargetGroup(ctx context.Context) error {
-	log.Infof("registering the canary task to target group '%s'...", *c.Lb.TargetGroupArn)
+	log.Infof("registering the canary task to target group '%s'...", *c.lb.TargetGroupArn)
 	if target, err := c.describeTaskTarget(ctx); err != nil {
 		return err
 	} else {
-		c.Target = target
+		c.target = target
 	}
 	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
 	if _, err := albCli.RegisterTargets(ctx, &elbv2.RegisterTargetsInput{
-		TargetGroupArn: c.Lb.TargetGroupArn,
-		Targets:        []elbv2types.TargetDescription{*c.Target}},
+		TargetGroupArn: c.lb.TargetGroupArn,
+		Targets:        []elbv2types.TargetDescription{*c.target}},
 	); err != nil {
 		return err
 	}
@@ -188,20 +188,20 @@ func (c *albTask) WaitUntilTargetHealthy(
 			return ctx.Err()
 		case <-timer.NewTimer(waitPeriod).C:
 			if o, err := albCli.DescribeTargetHealth(ctx, &elbv2.DescribeTargetHealthInput{
-				TargetGroupArn: c.Lb.TargetGroupArn,
-				Targets:        []elbv2types.TargetDescription{*c.Target},
+				TargetGroupArn: c.lb.TargetGroupArn,
+				Targets:        []elbv2types.TargetDescription{*c.target},
 			}); err != nil {
 				return err
 			} else {
 				for _, desc := range o.TargetHealthDescriptions {
-					if *desc.Target.Id == *c.Target.Id && *desc.Target.Port == *c.Target.Port {
+					if *desc.Target.Id == *c.target.Id && *desc.Target.Port == *c.target.Port {
 						recentState = &desc.TargetHealth.State
 					}
 				}
 				if recentState == nil {
-					return xerrors.Errorf("'%s' is not registered to the target group '%s'", *c.Target.Id, *c.Lb.TargetGroupArn)
+					return xerrors.Errorf("'%s' is not registered to the target group '%s'", *c.target.Id, *c.lb.TargetGroupArn)
 				}
-				log.Infof("canary task '%s' (%s:%d) state is: %s", *c.TaskArn, *c.Target.Id, *c.Target.Port, *recentState)
+				log.Infof("canary task '%s' (%s:%d) state is: %s", *c.taskArn, *c.target.Id, *c.target.Port, *recentState)
 				switch *recentState {
 				case elbv2types.TargetHealthStateEnumHealthy:
 					return nil
@@ -212,10 +212,10 @@ func (c *albTask) WaitUntilTargetHealthy(
 		}
 	}
 	// unhealthy, draining, unused
-	log.Errorf("😨 canary task '%s' is unhealthy", *c.TaskArn)
+	log.Errorf("😨 canary task '%s' is unhealthy", *c.taskArn)
 	return xerrors.Errorf(
 		"canary task '%s' (%s:%d) hasn't become to be healthy. The most recent state: %s",
-		*c.TaskArn, *c.Target.Id, *c.Target.Port, *recentState,
+		*c.taskArn, *c.target.Id, *c.target.Port, *recentState,
 	)
 }
 
@@ -223,7 +223,7 @@ func (c *albTask) GetTargetDeregistrationDelay(ctx context.Context) (time.Durati
 	deregistrationDelay := 300 * time.Second
 	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
 	if o, err := albCli.DescribeTargetGroupAttributes(ctx, &elbv2.DescribeTargetGroupAttributesInput{
-		TargetGroupArn: c.Lb.TargetGroupArn,
+		TargetGroupArn: c.lb.TargetGroupArn,
 	}); err != nil {
 		return deregistrationDelay, err
 	} else {
@@ -242,7 +242,7 @@ func (c *albTask) GetTargetDeregistrationDelay(ctx context.Context) (time.Durati
 }
 
 func (c *albTask) DeregisterTarget(ctx context.Context) {
-	if c.Target == nil {
+	if c.target == nil {
 		return
 	}
 	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
@@ -251,10 +251,10 @@ func (c *albTask) DeregisterTarget(ctx context.Context) {
 		log.Errorf("failed to get deregistration delay: %v", err)
 		log.Errorf("deregistration delay is set to %d seconds", deregistrationDelay)
 	}
-	log.Infof("deregistering the canary task from target group '%s'...", *c.Target.Id)
+	log.Infof("deregistering the canary task from target group '%s'...", *c.target.Id)
 	if _, err := albCli.DeregisterTargets(ctx, &elbv2.DeregisterTargetsInput{
-		TargetGroupArn: c.Lb.TargetGroupArn,
-		Targets:        []elbv2types.TargetDescription{*c.Target},
+		TargetGroupArn: c.lb.TargetGroupArn,
+		Targets:        []elbv2types.TargetDescription{*c.target},
 	}); err != nil {
 		log.Errorf("failed to deregister the canary task from target group: %v", err)
 		log.Errorf("continuing to stop the canary task...")
@@ -263,8 +263,8 @@ func (c *albTask) DeregisterTarget(ctx context.Context) {
 	log.Infof("deregister operation accepted. waiting for the canary task to be deregistered...")
 	deregisterWait := deregistrationDelay + time.Minute // add 1 minute for safety
 	if err := elbv2.NewTargetDeregisteredWaiter(albCli).Wait(ctx, &elbv2.DescribeTargetHealthInput{
-		TargetGroupArn: c.Lb.TargetGroupArn,
-		Targets:        []elbv2types.TargetDescription{*c.Target},
+		TargetGroupArn: c.lb.TargetGroupArn,
+		Targets:        []elbv2types.TargetDescription{*c.target},
 	}, deregisterWait); err != nil {
 		log.Errorf("failed to wait for the canary task deregistered from target group: %v", err)
 		log.Errorf("continuing to stop the canary task...")
@@ -272,6 +272,6 @@ func (c *albTask) DeregisterTarget(ctx context.Context) {
 	}
 	log.Infof(
 		"canary task '%s' has successfully been deregistered from target group '%s'",
-		*c.TaskArn, *c.Target.Id,
+		*c.taskArn, *c.target.Id,
 	)
 }

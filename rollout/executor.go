@@ -42,8 +42,9 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (last
 		_ = recover()
 		if canaryTasks == nil {
 			return
-		} else if lastErr = canaryTasks.Cleanup(ctx); lastErr != nil {
-			log.Errorf("failed to cleanup canary tasks due to: %s", lastErr)
+		} else if err := canaryTasks.Cleanup(ctx); err != nil {
+			log.Errorf("failed to cleanup canary tasks due to: %s", err)
+			lastErr = err
 		}
 	}()
 	if startCanaryTaskErr != nil {

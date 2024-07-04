@@ -1,4 +1,4 @@
-package task_test
+package task
 
 import (
 	"context"
@@ -12,11 +12,21 @@ import (
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 	"github.com/loilo-inc/canarycage/mocks/mock_types"
-	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestNewSimpleTask(t *testing.T) {
+	d := di.NewDomain(func(b *di.B) {
+		b.Set(key.Env, test.DefaultEnvars())
+	})
+	task := NewSimpleTask(d, &Input{})
+	v, ok := task.(*simpleTask)
+	assert.NotNil(t, task)
+	assert.True(t, ok)
+	assert.Equal(t, d, v.di)
+}
 
 func TestSimpleTask(t *testing.T) {
 	ctx := context.TODO()
@@ -33,10 +43,15 @@ func TestSimpleTask(t *testing.T) {
 		b.Set(key.AlbCli, mocker.Alb)
 		b.Set(key.Time, test.NewFakeTime())
 	})
-	stask := task.NewSimpleTask(d, &task.Input{
-		TaskDefinition:       td.TaskDefinition,
-		NetworkConfiguration: ecsSvc.Service.NetworkConfiguration,
-	})
+	stask := &simpleTask{
+		common: &common{
+			Input: &Input{
+				TaskDefinition:       td.TaskDefinition,
+				NetworkConfiguration: ecsSvc.Service.NetworkConfiguration,
+			},
+			di: d,
+		},
+	}
 	err := stask.Start(ctx)
 	assert.NoError(t, err)
 	err = stask.Wait(ctx)
@@ -47,7 +62,7 @@ func TestSimpleTask(t *testing.T) {
 }
 
 func TestSimpleTask_WaitForIdleDuration(t *testing.T) {
-	setup := func(t *testing.T, idle int) (*mock_awsiface.MockEcsClient, *mock_types.MockTime, *task.SimpleTaskExport) {
+	setup := func(t *testing.T, idle int) (*mock_awsiface.MockEcsClient, *mock_types.MockTime, *simpleTask) {
 		ctrl := gomock.NewController(t)
 		mocker := test.NewMockContext()
 		envars := test.DefaultEnvars()
@@ -55,12 +70,19 @@ func TestSimpleTask_WaitForIdleDuration(t *testing.T) {
 		td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), envars.TaskDefinitionInput)
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		timerMock := mock_types.NewMockTime(ctrl)
-		cm := task.NewSimpleTaskExport(di.NewDomain(func(b *di.B) {
-			b.Set(key.Env, envars)
-			b.Set(key.EcsCli, ecsMock)
-			b.Set(key.Time, timerMock)
-		}), &task.Input{TaskDefinition: td.TaskDefinition})
-		cm.TaskArn = aws.String("task-arn")
+		cm := &simpleTask{
+			common: &common{
+				Input: &Input{
+					TaskDefinition: td.TaskDefinition,
+				},
+				di: di.NewDomain(func(b *di.B) {
+					b.Set(key.Env, envars)
+					b.Set(key.EcsCli, ecsMock)
+					b.Set(key.Time, timerMock)
+				}),
+			},
+		}
+		cm.taskArn = aws.String("task-arn")
 		return ecsMock, timerMock, cm
 	}
 	t.Run("should call DescribeTasks periodically", func(t *testing.T) {
