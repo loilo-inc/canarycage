@@ -24,20 +24,20 @@ func NewSimpleTask(di *di.D, input *Input) Task {
 }
 
 func (c *simpleTask) Wait(ctx context.Context) error {
-	if err := c.WaitForTaskRunning(ctx); err != nil {
+	if err := c.waitForTaskRunning(ctx); err != nil {
 		return err
 	}
-	if err := c.WaitContainerHealthCheck(ctx); err != nil {
+	if err := c.waitContainerHealthCheck(ctx); err != nil {
 		return err
 	}
-	return c.WaitForIdleDuration(ctx)
+	return c.waitForIdleDuration(ctx)
 }
 
 func (c *simpleTask) Stop(ctx context.Context) error {
-	return c.StopTask(ctx)
+	return c.stopTask(ctx)
 }
 
-func (c *simpleTask) WaitForIdleDuration(ctx context.Context) error {
+func (c *simpleTask) waitForIdleDuration(ctx context.Context) error {
 	env := c.di.Get(key.Env).(*env.Envars)
 	timer := c.di.Get(key.Time).(types.Time)
 	log.Infof("wait %d seconds for canary task to be stable...", env.CanaryTaskIdleDuration)

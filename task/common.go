@@ -63,7 +63,7 @@ func (c *common) Start(ctx context.Context) error {
 	return nil
 }
 
-func (c *common) WaitForTaskRunning(ctx context.Context) error {
+func (c *common) waitForTaskRunning(ctx context.Context) error {
 	if c.taskArn == nil {
 		return xerrors.New("task is not started")
 	}
@@ -80,7 +80,7 @@ func (c *common) WaitForTaskRunning(ctx context.Context) error {
 	return nil
 }
 
-func (c *common) WaitContainerHealthCheck(ctx context.Context) error {
+func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 	log.Infof("😷 ensuring canary task container(s) to become healthy...")
 	containerHasHealthChecks := map[string]struct{}{}
 	for _, definition := range c.TaskDefinition.ContainerDefinitions {
@@ -139,7 +139,7 @@ func (c *common) WaitContainerHealthCheck(ctx context.Context) error {
 	return xerrors.Errorf("😨 canary task hasn't become to be healthy")
 }
 
-func (c *common) StopTask(ctx context.Context) error {
+func (c *common) stopTask(ctx context.Context) error {
 	if c.taskArn == nil {
 		return nil
 	}

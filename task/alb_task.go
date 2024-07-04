@@ -39,18 +39,18 @@ func NewAlbTask(
 }
 
 func (c *albTask) Wait(ctx context.Context) error {
-	if err := c.WaitForTaskRunning(ctx); err != nil {
+	if err := c.waitForTaskRunning(ctx); err != nil {
 		return err
 	}
-	if err := c.WaitContainerHealthCheck(ctx); err != nil {
+	if err := c.waitContainerHealthCheck(ctx); err != nil {
 		return err
 	}
-	if err := c.RegisterToTargetGroup(ctx); err != nil {
+	if err := c.registerToTargetGroup(ctx); err != nil {
 		return err
 	}
 	log.Infof("canary task '%s' is registered to target group '%s'", *c.target.Id, *c.lb.TargetGroupArn)
 	log.Infof("😷 waiting canary target to be healthy...")
-	if err := c.WaitUntilTargetHealthy(ctx); err != nil {
+	if err := c.waitUntilTargetHealthy(ctx); err != nil {
 		return err
 	}
 	log.Info("🤩 canary target is healthy!")
@@ -58,8 +58,8 @@ func (c *albTask) Wait(ctx context.Context) error {
 }
 
 func (c *albTask) Stop(ctx context.Context) error {
-	c.DeregisterTarget(ctx)
-	return c.StopTask(ctx)
+	c.deregisterTarget(ctx)
+	return c.stopTask(ctx)
 }
 
 func (c *albTask) describeTaskTarget(
@@ -156,7 +156,7 @@ func (c *albTask) getTargetPort() (*int32, error) {
 	return nil, xerrors.Errorf("couldn't find host port in container definition")
 }
 
-func (c *albTask) RegisterToTargetGroup(ctx context.Context) error {
+func (c *albTask) registerToTargetGroup(ctx context.Context) error {
 	log.Infof("registering the canary task to target group '%s'...", *c.lb.TargetGroupArn)
 	if target, err := c.describeTaskTarget(ctx); err != nil {
 		return err
@@ -173,7 +173,7 @@ func (c *albTask) RegisterToTargetGroup(ctx context.Context) error {
 	return nil
 }
 
-func (c *albTask) WaitUntilTargetHealthy(
+func (c *albTask) waitUntilTargetHealthy(
 	ctx context.Context,
 ) error {
 	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
@@ -219,7 +219,7 @@ func (c *albTask) WaitUntilTargetHealthy(
 	)
 }
 
-func (c *albTask) GetTargetDeregistrationDelay(ctx context.Context) (time.Duration, error) {
+func (c *albTask) getTargetDeregistrationDelay(ctx context.Context) (time.Duration, error) {
 	deregistrationDelay := 300 * time.Second
 	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
 	if o, err := albCli.DescribeTargetGroupAttributes(ctx, &elbv2.DescribeTargetGroupAttributesInput{
@@ -241,12 +241,12 @@ func (c *albTask) GetTargetDeregistrationDelay(ctx context.Context) (time.Durati
 	return deregistrationDelay, nil
 }
 
-func (c *albTask) DeregisterTarget(ctx context.Context) {
+func (c *albTask) deregisterTarget(ctx context.Context) {
 	if c.target == nil {
 		return
 	}
 	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
-	deregistrationDelay, err := c.GetTargetDeregistrationDelay(ctx)
+	deregistrationDelay, err := c.getTargetDeregistrationDelay(ctx)
 	if err != nil {
 		log.Errorf("failed to get deregistration delay: %v", err)
 		log.Errorf("deregistration delay is set to %d seconds", deregistrationDelay)

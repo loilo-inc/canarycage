@@ -116,12 +116,12 @@ func TestCommon_WaitForTaskRunning(t *testing.T) {
 		ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).Return(&ecs.DescribeTasksOutput{
 			Tasks: []ecstypes.Task{{LastStatus: aws.String("RUNNING")}},
 		}, nil)
-		err := cm.WaitForTaskRunning(context.TODO())
+		err := cm.waitForTaskRunning(context.TODO())
 		assert.NoError(t, err)
 	})
 	t.Run("should error if task is not started", func(t *testing.T) {
 		cm := &common{}
-		err := cm.WaitForTaskRunning(context.TODO())
+		err := cm.waitForTaskRunning(context.TODO())
 		assert.EqualError(t, err, "task is not started")
 	})
 	t.Run("should error if ecs.NewTasksRunningWaiter failed", func(t *testing.T) {
@@ -132,7 +132,7 @@ func TestCommon_WaitForTaskRunning(t *testing.T) {
 			&ecs.DescribeTasksOutput{
 				Tasks: []ecstypes.Task{{LastStatus: aws.String("STOPPED"), StoppedReason: aws.String("reason")}},
 			}, nil)
-		err := cm.WaitForTaskRunning(context.TODO())
+		err := cm.waitForTaskRunning(context.TODO())
 		assert.ErrorContains(t, err, "failed to wait for canary task to be running:")
 	})
 }
@@ -186,14 +186,14 @@ func TestCommon_WaitContainerHealthCheck(t *testing.T) {
 				}},
 			}, nil),
 		)
-		err := cm.WaitContainerHealthCheck(context.TODO())
+		err := cm.waitContainerHealthCheck(context.TODO())
 		assert.NoError(t, err)
 	})
 	t.Run("should do nothing if no container has health check", func(t *testing.T) {
 		env := test.DefaultEnvars()
 		env.TaskDefinitionInput.ContainerDefinitions[0].HealthCheck = nil
 		_, _, _, cm := setup(t, env)
-		err := cm.WaitContainerHealthCheck(context.TODO())
+		err := cm.waitContainerHealthCheck(context.TODO())
 		assert.NoError(t, err)
 	})
 	t.Run("should error if DescribeTasks failed", func(t *testing.T) {
@@ -204,7 +204,7 @@ func TestCommon_WaitContainerHealthCheck(t *testing.T) {
 			timerMock.EXPECT().NewTimer(15*time.Second).DoAndReturn(faketime.NewTimer),
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("error")),
 		)
-		err := cm.WaitContainerHealthCheck(context.TODO())
+		err := cm.waitContainerHealthCheck(context.TODO())
 		assert.EqualError(t, err, "error")
 	})
 	t.Run("should error if context is canceled", func(t *testing.T) {
@@ -213,7 +213,7 @@ func TestCommon_WaitContainerHealthCheck(t *testing.T) {
 		timerMock.EXPECT().NewTimer(15 * time.Second).DoAndReturn(time.NewTimer)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		err := cm.WaitContainerHealthCheck(ctx)
+		err := cm.waitContainerHealthCheck(ctx)
 		assert.EqualError(t, err, "context canceled")
 	})
 	t.Run("should error if task is not running", func(t *testing.T) {
@@ -229,7 +229,7 @@ func TestCommon_WaitContainerHealthCheck(t *testing.T) {
 			},
 				nil),
 		)
-		err := cm.WaitContainerHealthCheck(context.TODO())
+		err := cm.waitContainerHealthCheck(context.TODO())
 		assert.EqualError(t, err, "😫 canary task has stopped: reason")
 	})
 	t.Run("shold error if unhealth counts exceed the limit", func(t *testing.T) {
@@ -250,7 +250,7 @@ func TestCommon_WaitContainerHealthCheck(t *testing.T) {
 				}},
 			}, nil),
 		)
-		err := cm.WaitContainerHealthCheck(context.TODO())
+		err := cm.waitContainerHealthCheck(context.TODO())
 		assert.EqualError(t, err, "😨 canary task hasn't become to be healthy")
 	})
 }
@@ -276,18 +276,18 @@ func TestCommon_StopTask(t *testing.T) {
 				Tasks: []ecstypes.Task{{LastStatus: aws.String("STOPPED")}},
 			}, nil),
 		)
-		err := cm.StopTask(context.TODO())
+		err := cm.stopTask(context.TODO())
 		assert.NoError(t, err)
 	})
 	t.Run("should do nothing if task is not started", func(t *testing.T) {
 		cm := &common{}
-		err := cm.StopTask(context.TODO())
+		err := cm.stopTask(context.TODO())
 		assert.NoError(t, err)
 	})
 	t.Run("should error if StopTask failed", func(t *testing.T) {
 		ecsMock, cm := setup(t, test.DefaultEnvars())
 		ecsMock.EXPECT().StopTask(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("error"))
-		err := cm.StopTask(context.TODO())
+		err := cm.stopTask(context.TODO())
 		assert.EqualError(t, err, "failed to stop canary task: error")
 	})
 	t.Run("should error wait time exceeds the limit", func(t *testing.T) {
@@ -300,7 +300,7 @@ func TestCommon_StopTask(t *testing.T) {
 				Tasks: []ecstypes.Task{{LastStatus: aws.String("RUNNING")}},
 			}, nil),
 		)
-		err := cm.StopTask(context.TODO())
+		err := cm.stopTask(context.TODO())
 		assert.ErrorContains(t, err, "failed to wait for canary task to be stopped")
 	})
 }

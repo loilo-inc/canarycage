@@ -90,6 +90,122 @@ func TestAlbTask(t *testing.T) {
 	})
 }
 
+func TestAlbTask_Wait(t *testing.T) {
+	t.Run("should error if task is not running", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
+		cm := &albTask{
+			common: &common{
+				taskArn: aws.String("task-arn"),
+				Input:   &Input{},
+				di: di.NewDomain(func(b *di.B) {
+					b.Set(key.Env, test.DefaultEnvars())
+					b.Set(key.EcsCli, ecsMock)
+				}),
+			},
+		}
+		ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(&ecs.DescribeTasksOutput{
+				Tasks: []ecstypes.Task{{LastStatus: aws.String("STOPPED")}},
+			}, nil)
+		err := cm.Wait(context.TODO())
+		assert.ErrorContains(t, err, "failed to wait for canary task to be running")
+	})
+	t.Run("should error if container is not healthy", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
+		mocker := test.NewMockContext()
+		td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), test.DefaultEnvars().TaskDefinitionInput)
+		env := test.DefaultEnvars()
+		env.CanaryTaskHealthCheckWait = 1
+		cm := &albTask{
+			common: &common{
+				taskArn: aws.String("task-arn"),
+				Input:   &Input{TaskDefinition: td.TaskDefinition},
+				di: di.NewDomain(func(b *di.B) {
+					b.Set(key.Env, env)
+					b.Set(key.EcsCli, ecsMock)
+					b.Set(key.Time, test.NewFakeTime())
+				}),
+			},
+		}
+		ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(&ecs.DescribeTasksOutput{
+				Tasks: []ecstypes.Task{{LastStatus: aws.String("RUNNING"),
+					Containers: []ecstypes.Container{{
+						Name:         env.TaskDefinitionInput.ContainerDefinitions[0].Name,
+						HealthStatus: ecstypes.HealthStatusUnhealthy,
+					}},
+				}},
+			}, nil).Times(2)
+		err := cm.Wait(context.TODO())
+		assert.ErrorContains(t, err, "canary task hasn't become to be healthy")
+	})
+	t.Run("should erro if RegisterToTargetGroup failed", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		albMock := mock_awsiface.NewMockAlbClient(ctrl)
+		mocker := test.NewMockContext()
+		td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), test.DefaultEnvars().TaskDefinitionInput)
+		env := test.DefaultEnvars()
+		env.CanaryTaskHealthCheckWait = 1
+		cm := &albTask{
+			common: &common{
+				taskArn: aws.String("task-arn"),
+				Input: &Input{
+					TaskDefinition:       td.TaskDefinition,
+					NetworkConfiguration: env.ServiceDefinitionInput.NetworkConfiguration},
+				di: di.NewDomain(func(b *di.B) {
+					b.Set(key.Env, env)
+					b.Set(key.EcsCli, mocker.Ecs)
+					b.Set(key.AlbCli, albMock)
+					b.Set(key.Ec2Cli, mocker.Ec2)
+					b.Set(key.Time, test.NewFakeTime())
+				}),
+			},
+			lb: &env.ServiceDefinitionInput.LoadBalancers[0],
+		}
+		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+		err := cm.Start(context.TODO())
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = cm.Wait(context.TODO())
+		assert.EqualError(t, err, assert.AnError.Error())
+	})
+	t.Run("should error if waitUntilTargetHealthy failed", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		albMock := mock_awsiface.NewMockAlbClient(ctrl)
+		mocker := test.NewMockContext()
+		td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), test.DefaultEnvars().TaskDefinitionInput)
+		env := test.DefaultEnvars()
+		env.CanaryTaskHealthCheckWait = 1
+		cm := &albTask{
+			common: &common{
+				taskArn: aws.String("task-arn"),
+				Input: &Input{
+					TaskDefinition:       td.TaskDefinition,
+					NetworkConfiguration: env.ServiceDefinitionInput.NetworkConfiguration},
+				di: di.NewDomain(func(b *di.B) {
+					b.Set(key.Env, env)
+					b.Set(key.EcsCli, mocker.Ecs)
+					b.Set(key.AlbCli, albMock)
+					b.Set(key.Ec2Cli, mocker.Ec2)
+					b.Set(key.Time, test.NewFakeTime())
+				}),
+			},
+			lb: &env.ServiceDefinitionInput.LoadBalancers[0],
+		}
+		albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).Return(nil, nil)
+		albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+		err := cm.Start(context.TODO())
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = cm.Wait(context.TODO())
+		assert.EqualError(t, err, assert.AnError.Error())
+	})
+}
+
 func TestAlbTask_WaitUntilTargetHealthy(t *testing.T) {
 	target := &elbv2types.TargetDescription{
 		Id:               aws.String("127.0.0.1"),
@@ -136,7 +252,7 @@ func TestAlbTask_WaitUntilTargetHealthy(t *testing.T) {
 				},
 			}, nil).Times(1),
 		)
-		err := atask.WaitUntilTargetHealthy(context.TODO())
+		err := atask.waitUntilTargetHealthy(context.TODO())
 		assert.NoError(t, err)
 	})
 	t.Run("should error if DescribeTargetHealth failed", func(t *testing.T) {
@@ -144,14 +260,14 @@ func TestAlbTask_WaitUntilTargetHealthy(t *testing.T) {
 		gomock.InOrder(
 			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1),
 		)
-		err := atask.WaitUntilTargetHealthy(context.TODO())
+		err := atask.waitUntilTargetHealthy(context.TODO())
 		assert.EqualError(t, err, assert.AnError.Error())
 	})
 	t.Run("should error if context is canceled", func(t *testing.T) {
 		_, atask := setup(t)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		err := atask.WaitUntilTargetHealthy(ctx)
+		err := atask.waitUntilTargetHealthy(ctx)
 		assert.EqualError(t, err, "context canceled")
 	})
 	t.Run("should error if target is not registered", func(t *testing.T) {
@@ -161,7 +277,7 @@ func TestAlbTask_WaitUntilTargetHealthy(t *testing.T) {
 				TargetHealthDescriptions: []elbv2types.TargetHealthDescription{},
 			}, nil).Times(1),
 		)
-		err := atask.WaitUntilTargetHealthy(context.TODO())
+		err := atask.waitUntilTargetHealthy(context.TODO())
 		assert.EqualError(t, err, fmt.Sprintf(
 			"'%s' is not registered to the target group '%s'", *target.Id, *atask.lb.TargetGroupArn),
 		)
@@ -177,7 +293,7 @@ func TestAlbTask_WaitUntilTargetHealthy(t *testing.T) {
 				},
 			}, nil).Times(5),
 		)
-		err := atask.WaitUntilTargetHealthy(context.TODO())
+		err := atask.waitUntilTargetHealthy(context.TODO())
 		assert.EqualError(t, err, fmt.Sprintf(
 			"canary task '%s' (%s:%d) hasn't become to be healthy. The most recent state: %s",
 			*atask.taskArn, *target.Id, *target.Port, elbv2types.TargetHealthStateEnumUnhealthy,
@@ -206,7 +322,7 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 				ContainerName:  aws.String("unknown")},
 		}
 		atask.taskArn = aws.String("arn://task")
-		err := atask.RegisterToTargetGroup(context.TODO())
+		err := atask.registerToTargetGroup(context.TODO())
 		assert.EqualError(t, err, "couldn't find host port in container definition")
 	})
 	t.Run("Fargate", func(t *testing.T) {
@@ -271,13 +387,13 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 					AvailabilityZone: subnets[0].AvailabilityZone},
 				}}).Return(nil, nil)
 			atask.taskArn = aws.String("arn://task")
-			err := atask.RegisterToTargetGroup(context.TODO())
+			err := atask.registerToTargetGroup(context.TODO())
 			assert.NoError(t, err)
 		})
 		t.Run("should error if DescribeTasks failed", func(t *testing.T) {
 			_, _, ecsMock, atask := setup(t)
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
-			err := atask.RegisterToTargetGroup(context.TODO())
+			err := atask.registerToTargetGroup(context.TODO())
 			assert.EqualError(t, err, assert.AnError.Error())
 		})
 		t.Run("should error if DescribeSubnets failed", func(t *testing.T) {
@@ -288,7 +404,7 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 					Attachments: attachments},
 				}}, nil)
 			ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
-			err := atask.RegisterToTargetGroup(context.TODO())
+			err := atask.registerToTargetGroup(context.TODO())
 			assert.EqualError(t, err, assert.AnError.Error())
 		})
 		t.Run("should error if task is not attached to the network interface", func(t *testing.T) {
@@ -298,7 +414,7 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 					LastStatus: aws.String("RUNNING"),
 				}},
 			}, nil)
-			err := atask.RegisterToTargetGroup(context.TODO())
+			err := atask.registerToTargetGroup(context.TODO())
 			assert.EqualError(t, err, "couldn't find ElasticNetworkInterface attachment in task")
 		})
 		t.Run("should error if RegisterTargets failed", func(t *testing.T) {
@@ -312,7 +428,7 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 				Subnets: subnets,
 			}, nil)
 			albMock.EXPECT().RegisterTargets(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
-			err := atask.RegisterToTargetGroup(context.TODO())
+			err := atask.registerToTargetGroup(context.TODO())
 			assert.EqualError(t, err, assert.AnError.Error())
 		})
 	})
@@ -376,13 +492,13 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 					Port:             aws.Int32(80),
 					AvailabilityZone: subnets[0].AvailabilityZone},
 				}}).Return(nil, nil)
-			err := atask.RegisterToTargetGroup(context.TODO())
+			err := atask.registerToTargetGroup(context.TODO())
 			assert.NoError(t, err)
 		})
 		t.Run("should error if DescribeContainerInstances failed", func(t *testing.T) {
 			_, _, ecsMock, atask := setup(t)
 			ecsMock.EXPECT().DescribeContainerInstances(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
-			err := atask.RegisterToTargetGroup(context.TODO())
+			err := atask.registerToTargetGroup(context.TODO())
 			assert.EqualError(t, err, assert.AnError.Error())
 		})
 		t.Run("should error if DescribeInstances failed", func(t *testing.T) {
@@ -391,7 +507,7 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 				ContainerInstances: containerInstances,
 			}, nil)
 			ec2Mock.EXPECT().DescribeInstances(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
-			err := atask.RegisterToTargetGroup(context.TODO())
+			err := atask.registerToTargetGroup(context.TODO())
 			assert.EqualError(t, err, assert.AnError.Error())
 		})
 		t.Run("should error if DescribeSubnets failed", func(t *testing.T) {
@@ -403,7 +519,7 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 				Reservations: reservations,
 			}, nil)
 			ec2Mock.EXPECT().DescribeSubnets(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
-			err := atask.RegisterToTargetGroup(context.TODO())
+			err := atask.registerToTargetGroup(context.TODO())
 			assert.EqualError(t, err, assert.AnError.Error())
 		})
 	})
@@ -432,7 +548,7 @@ func TestAlbTask_GetTargetDeregistrationDelay(t *testing.T) {
 				{Key: aws.String("deregistration_delay.timeout_seconds"), Value: aws.String("100")},
 			},
 		}, nil)
-		delay, err := atask.GetTargetDeregistrationDelay(context.TODO())
+		delay, err := atask.getTargetDeregistrationDelay(context.TODO())
 		assert.NoError(t, err)
 		assert.Equal(t, 100*time.Second, delay)
 	})
@@ -441,7 +557,7 @@ func TestAlbTask_GetTargetDeregistrationDelay(t *testing.T) {
 		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetGroupAttributesOutput{
 			Attributes: []elbv2types.TargetGroupAttribute{},
 		}, nil)
-		delay, err := atask.GetTargetDeregistrationDelay(context.TODO())
+		delay, err := atask.getTargetDeregistrationDelay(context.TODO())
 		assert.NoError(t, err)
 		assert.Equal(t, 300*time.Second, delay)
 	})
@@ -452,14 +568,14 @@ func TestAlbTask_GetTargetDeregistrationDelay(t *testing.T) {
 				{Key: aws.String("deregistration_delay.timeout_seconds"), Value: aws.String("invalid")},
 			},
 		}, nil)
-		delay, err := atask.GetTargetDeregistrationDelay(context.TODO())
+		delay, err := atask.getTargetDeregistrationDelay(context.TODO())
 		assert.Error(t, err)
 		assert.Equal(t, 300*time.Second, delay)
 	})
 	t.Run("should error if DescribeTargetGroupAttributes failed", func(t *testing.T) {
 		albMock, atask := setup(t)
 		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
-		delay, err := atask.GetTargetDeregistrationDelay(context.TODO())
+		delay, err := atask.getTargetDeregistrationDelay(context.TODO())
 		assert.EqualError(t, err, assert.AnError.Error())
 		assert.Equal(t, 300*time.Second, delay)
 	})
@@ -494,7 +610,7 @@ func TestAlbTask_DeregisterTarget(t *testing.T) {
 	}
 	t.Run("should do nothing if target is nil", func(t *testing.T) {
 		atask := &albTask{}
-		atask.DeregisterTarget(context.TODO())
+		atask.deregisterTarget(context.TODO())
 	})
 	t.Run("should call DeregisterTargets and wait", func(t *testing.T) {
 		env := test.DefaultEnvars()
@@ -514,7 +630,7 @@ func TestAlbTask_DeregisterTarget(t *testing.T) {
 				},
 			}, nil).Times(1),
 		)
-		atask.DeregisterTarget(context.TODO())
+		atask.deregisterTarget(context.TODO())
 	})
 	t.Run("should return even if DeregisterTargets failed", func(t *testing.T) {
 		env := test.DefaultEnvars()
@@ -527,7 +643,7 @@ func TestAlbTask_DeregisterTarget(t *testing.T) {
 			}, nil).Times(1),
 			albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1),
 		)
-		atask.DeregisterTarget(context.TODO())
+		atask.deregisterTarget(context.TODO())
 	})
 	t.Run("should return even if deregistration wait counts exceed the limit", func(t *testing.T) {
 		env := test.DefaultEnvars()
@@ -541,6 +657,6 @@ func TestAlbTask_DeregisterTarget(t *testing.T) {
 			albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1),
 			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1),
 		)
-		atask.DeregisterTarget(context.TODO())
+		atask.deregisterTarget(context.TODO())
 	})
 }
