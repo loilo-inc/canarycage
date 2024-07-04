@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -12,6 +13,10 @@ import (
 
 type AlbServer struct {
 	*commons
+}
+
+type TargetGroup struct {
+	Targets map[string]elbv2types.TargetDescription
 }
 
 func (ctx *AlbServer) DescribeTargetGroups(_ context.Context, input *elbv2.DescribeTargetGroupsInput, _ ...func(options *elbv2.Options)) (*elbv2.DescribeTargetGroupsOutput, error) {
@@ -37,38 +42,29 @@ func (ctx *AlbServer) DescribeTargetGroupAttributes(_ context.Context, input *el
 		},
 	}, nil
 }
-func (ctx *AlbServer) DescribeTargetHealth(_ context.Context, input *elbv2.DescribeTargetHealthInput, _ ...func(options *elbv2.Options)) (*elbv2.DescribeTargetHealthOutput, error) {
-	if _, ok := ctx.TargetGroups[*input.TargetGroupArn]; !ok {
-		return &elbv2.DescribeTargetHealthOutput{
-			TargetHealthDescriptions: []elbv2types.TargetHealthDescription{
-				{
-					Target: &elbv2types.TargetDescription{
-						Id:               input.Targets[0].Id,
-						Port:             input.Targets[0].Port,
-						AvailabilityZone: aws.String("us-west-2"),
-					},
-					TargetHealth: &elbv2types.TargetHealth{
-						State: elbv2types.TargetHealthStateEnumUnused,
-					},
-				},
-			},
-		}, nil
-	}
 
+func (ctx *AlbServer) DescribeTargetHealth(_ context.Context, input *elbv2.DescribeTargetHealthInput, _ ...func(options *elbv2.Options)) (*elbv2.DescribeTargetHealthOutput, error) {
 	var ret []elbv2types.TargetHealthDescription
-	for _, task := range ctx.Tasks {
-		if task.LastStatus != nil && *task.LastStatus == "RUNNING" {
-			ret = append(ret, elbv2types.TargetHealthDescription{
-				Target: &elbv2types.TargetDescription{
-					Id:               input.Targets[0].Id,
-					Port:             input.Targets[0].Port,
-					AvailabilityZone: aws.String("us-west-2"),
-				},
-				TargetHealth: &elbv2types.TargetHealth{
-					State: elbv2types.TargetHealthStateEnumHealthy,
-				},
-			})
+	tg, ok := ctx.TargetGroups[*input.TargetGroupArn]
+	if !ok {
+		return nil, fmt.Errorf("target group not found")
+	}
+	for _, t := range input.Targets {
+		_, ok := tg.Targets[*t.Id]
+		var health elbv2types.TargetHealth
+		if !ok {
+			health = elbv2types.TargetHealth{
+				State: elbv2types.TargetHealthStateEnumUnused,
+			}
+		} else {
+			health = elbv2types.TargetHealth{
+				State: elbv2types.TargetHealthStateEnumHealthy,
+			}
 		}
+		ret = append(ret, elbv2types.TargetHealthDescription{
+			Target:       &t,
+			TargetHealth: &health,
+		})
 	}
 	return &elbv2.DescribeTargetHealthOutput{
 		TargetHealthDescriptions: ret,
@@ -76,12 +72,25 @@ func (ctx *AlbServer) DescribeTargetHealth(_ context.Context, input *elbv2.Descr
 }
 
 func (ctx *AlbServer) RegisterTargets(_ context.Context, input *elbv2.RegisterTargetsInput, _ ...func(options *elbv2.Options)) (*elbv2.RegisterTargetsOutput, error) {
-	ctx.TargetGroups[*input.TargetGroupArn] = struct{}{}
+	tg, ok := ctx.TargetGroups[*input.TargetGroupArn]
+	if !ok {
+		tg = &TargetGroup{Targets: make(map[string]elbv2types.TargetDescription)}
+		ctx.TargetGroups[*input.TargetGroupArn] = tg
+	}
+	for _, t := range input.Targets {
+		tg.Targets[*t.Id] = t
+	}
 	return &elbv2.RegisterTargetsOutput{}, nil
 }
 
 func (ctx *AlbServer) DeregisterTargets(_ context.Context, input *elbv2.DeregisterTargetsInput, _ ...func(options *elbv2.Options)) (*elbv2.DeregisterTargetsOutput, error) {
-	delete(ctx.TargetGroups, *input.TargetGroupArn)
+	tg, ok := ctx.TargetGroups[*input.TargetGroupArn]
+	if !ok {
+		return nil, fmt.Errorf("target group not found")
+	}
+	for _, t := range input.Targets {
+		delete(tg.Targets, *t.Id)
+	}
 	return &elbv2.DeregisterTargetsOutput{}, nil
 }
 

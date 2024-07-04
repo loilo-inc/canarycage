@@ -14,6 +14,7 @@ import (
 
 type EcsServer struct {
 	*commons
+	ipv4 int
 }
 
 func (ctx *EcsServer) CreateService(c context.Context, input *ecs.CreateServiceInput, _ ...func(options *ecs.Options)) (*ecs.CreateServiceOutput, error) {
@@ -52,12 +53,14 @@ func (ctx *EcsServer) CreateService(c context.Context, input *ecs.CreateServiceI
 	ctx.mux.Unlock()
 	log.Debugf("%s: running=%d, desired=%d", *input.ServiceName, ret.RunningCount, *input.DesiredCount)
 	for i := 0; i < int(*input.DesiredCount); i++ {
-		ctx.StartTask(c, &ecs.StartTaskInput{
+		if _, err := ctx.StartTask(c, &ecs.StartTaskInput{
 			Cluster:              input.Cluster,
 			Group:                aws.String(fmt.Sprintf("service:%s", *input.ServiceName)),
 			NetworkConfiguration: input.NetworkConfiguration,
 			TaskDefinition:       input.TaskDefinition,
-		})
+		}); err != nil {
+			log.Fatalf("failed to start task: %v", err)
+		}
 	}
 	ctx.mux.Lock()
 	ctx.Services[*input.ServiceName].RunningCount = *input.DesiredCount
@@ -167,13 +170,14 @@ func (ctx *EcsServer) StartTask(_ context.Context, input *ecs.StartTaskInput, _ 
 		return nil, fmt.Errorf("task definition not found: %s", *input.TaskDefinition)
 	}
 	taskArn := fmt.Sprintf("arn:aws:ecs:us-west-2:012345678910:task/%s", uuid.New().String())
+	ctx.ipv4++
 	attachment := types.Attachment{
 		Status: aws.String("ATTACHED"),
 		Type:   aws.String("ElasticNetworkInterface"),
 		Details: []types.KeyValuePair{
 			{
 				Name:  aws.String("privateIPv4Address"),
-				Value: aws.String("127.0.0.1"),
+				Value: aws.String(fmt.Sprintf("127.0.0.%d", ctx.ipv4)),
 			},
 		},
 	}

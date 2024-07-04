@@ -15,7 +15,7 @@ import (
 )
 
 func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.RollOutResult, error) {
-	result := &types.RollOutResult{ServiceIntact: true}
+	result := &types.RollOutResult{}
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
 	if out, err := ecsCli.DescribeServices(ctx, &ecs.DescribeServicesInput{
@@ -23,12 +23,19 @@ func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.R
 		Services: []string{env.Service},
 	}); err != nil {
 		return result, xerrors.Errorf("failed to describe current service due to: %w", err)
-	} else if len(out.Services) == 0 {
-		return result, xerrors.Errorf("service '%s' doesn't exist. Run 'cage up' or create service before rolling out", env.Service)
 	} else {
-		service := out.Services[0]
+		var service *ecstypes.Service
+		for _, s := range out.Services {
+			if *s.ServiceName == env.Service {
+				service = &s
+				break
+			}
+		}
+		if service == nil {
+			return result, xerrors.Errorf("service '%s' doesn't exist. Run 'cage up' or create service before rolling out", env.Service)
+		}
 		if *service.Status != "ACTIVE" {
-			return result, xerrors.Errorf("😵 '%s' status is '%s'. Stop rolling out", env.Service, *service.Status)
+			return result, xerrors.Errorf("😵 service '%s' status is '%s'. Stop rolling out", env.Service, *service.Status)
 		}
 		if service.LaunchType == ecstypes.LaunchTypeEc2 && env.CanaryInstanceArn == "" {
 			return result, xerrors.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'")
@@ -42,7 +49,7 @@ func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.R
 		nextTaskDefinition = o
 	}
 	executor := rollout.NewExecutor(c.di, nextTaskDefinition)
-	result.ServiceIntact = !executor.ServiceUpdated()
 	err := executor.RollOut(ctx, input)
+	result.ServiceUpdated = executor.ServiceUpdated()
 	return result, err
 }

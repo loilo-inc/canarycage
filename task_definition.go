@@ -9,7 +9,6 @@ import (
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
-	"golang.org/x/xerrors"
 )
 
 func (c *cage) CreateNextTaskDefinition(ctx context.Context) (*ecstypes.TaskDefinition, error) {
@@ -21,13 +20,13 @@ func (c *cage) CreateNextTaskDefinition(ctx context.Context) (*ecstypes.TaskDefi
 			TaskDefinition: &env.TaskDefinitionArn,
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("failed to describe next task definition: %w", err)
+			return nil, err
 		}
 		return o.TaskDefinition, nil
 	} else {
 		log.Infof("creating next task definition...")
 		if out, err := ecsCli.RegisterTaskDefinition(ctx, env.TaskDefinitionInput); err != nil {
-			return nil, xerrors.Errorf("failed to register next task definition: %w", err)
+			return nil, err
 		} else {
 			log.Infof(
 				"task definition '%s:%d' has been registered",

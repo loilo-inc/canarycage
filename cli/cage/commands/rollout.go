@@ -56,7 +56,7 @@ func (c *CageCommands) RollOut(
 			}
 			result, err := cagecli.RollOut(context.Background(), &types.RollOutInput{UpdateService: updateServiceConf})
 			if err != nil {
-				if result.ServiceIntact {
+				if !result.ServiceUpdated {
 					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", envars.Service)
 				} else {
 					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. CHECK ECS CONSOLE NOW!", envars.Service)

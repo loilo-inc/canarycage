@@ -32,7 +32,7 @@ type RollOutInput struct {
 }
 
 type RollOutResult struct {
-	ServiceIntact bool
+	ServiceUpdated bool
 }
 
 type UpResult struct {

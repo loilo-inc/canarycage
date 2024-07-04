@@ -34,6 +34,7 @@ func TestExecutor_Rollout(t *testing.T) {
 		taskMock := mock_task.NewMockTask(ctrl)
 		mocker := test.NewMockContext()
 		td, _ := mocker.Ecs.RegisterTaskDefinition(context.TODO(), envars.TaskDefinitionInput)
+		envars.ServiceDefinitionInput.TaskDefinition = td.TaskDefinition.TaskDefinitionArn
 		srv, _ := mocker.Ecs.CreateService(context.TODO(), envars.ServiceDefinitionInput)
 		ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 		d := di.NewDomain(func(b *di.B) {

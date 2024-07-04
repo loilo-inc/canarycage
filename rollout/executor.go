@@ -77,7 +77,7 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) error
 		log.Errorf("😨 failed to update service: %s", err)
 		return err
 	}
-	c.serviceUpdated = false
+	c.serviceUpdated = true
 	log.Infof("waiting for service '%s' to be stable...", env.Service)
 	if err := ecs.NewServicesStableWaiter(ecsCli).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &env.Cluster,

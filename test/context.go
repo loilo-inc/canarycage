@@ -12,7 +12,7 @@ type commons struct {
 	Services        map[string]*ecstypes.Service
 	Tasks           map[string]*ecstypes.Task
 	TaskDefinitions *TaskDefinitionRepository
-	TargetGroups    map[string]struct{}
+	TargetGroups    map[string]*TargetGroup
 	mux             sync.Mutex
 }
 
@@ -30,7 +30,7 @@ func NewMockContext() *MockContext {
 		TaskDefinitions: &TaskDefinitionRepository{
 			families: make(map[string]*TaskDefinitionFamily),
 		},
-		TargetGroups: make(map[string]struct{}),
+		TargetGroups: make(map[string]*TargetGroup),
 	}
 	return &MockContext{
 		commons: cm,
