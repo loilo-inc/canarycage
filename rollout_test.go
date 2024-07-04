@@ -422,8 +422,8 @@ func TestCage_RollOut_EC2_no_attribute(t *testing.T) {
 	}
 	ecsMock.EXPECT().ListAttributes(gomock.Any(), gomock.Any()).Return(&ecs.ListAttributesOutput{
 		Attributes: []ecstypes.Attribute{},
-	}, nil).AnyTimes()
-	ecsMock.EXPECT().PutAttributes(gomock.Any(), gomock.Any()).Return(&ecs.PutAttributesOutput{}, nil).AnyTimes()
+	}, nil)
+	ecsMock.EXPECT().PutAttributes(gomock.Any(), gomock.Any()).Return(&ecs.PutAttributesOutput{}, nil)
 	cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
 		b.Set(key.Env, envars)
 		b.Set(key.EcsCli, ecsMock)

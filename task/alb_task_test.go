@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -365,6 +366,56 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 			err := atask.RegisterToTargetGroup(context.TODO())
 			assert.EqualError(t, err, assert.AnError.Error())
 		})
+	})
+}
+
+func TestAlbTask_GetTargetDeregistrationDelay(t *testing.T) {
+	setup := func(t *testing.T) (*mock_awsiface.MockAlbClient, *task.AlbTaskExport) {
+		ctrl := gomock.NewController(t)
+		env := test.DefaultEnvars()
+		albMock := mock_awsiface.NewMockAlbClient(ctrl)
+		atask := task.NewAlbTaskExport(di.NewDomain(func(b *di.B) {
+			b.Set(key.AlbCli, albMock)
+		}), &task.Input{}, &env.ServiceDefinitionInput.LoadBalancers[0])
+		return albMock, atask
+	}
+	t.Run("should return deregistration delay", func(t *testing.T) {
+		albMock, atask := setup(t)
+		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetGroupAttributesOutput{
+			Attributes: []elbv2types.TargetGroupAttribute{
+				{Key: aws.String("deregistration_delay.timeout_seconds"), Value: aws.String("100")},
+			},
+		}, nil)
+		delay, err := atask.GetTargetDeregistrationDelay(context.TODO())
+		assert.NoError(t, err)
+		assert.Equal(t, 100*time.Second, delay)
+	})
+	t.Run("should return default delay if deregistration_delay is not found", func(t *testing.T) {
+		albMock, atask := setup(t)
+		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetGroupAttributesOutput{
+			Attributes: []elbv2types.TargetGroupAttribute{},
+		}, nil)
+		delay, err := atask.GetTargetDeregistrationDelay(context.TODO())
+		assert.NoError(t, err)
+		assert.Equal(t, 300*time.Second, delay)
+	})
+	t.Run("should return default delay if deregistration_delay is not a number", func(t *testing.T) {
+		albMock, atask := setup(t)
+		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetGroupAttributesOutput{
+			Attributes: []elbv2types.TargetGroupAttribute{
+				{Key: aws.String("deregistration_delay.timeout_seconds"), Value: aws.String("invalid")},
+			},
+		}, nil)
+		delay, err := atask.GetTargetDeregistrationDelay(context.TODO())
+		assert.Error(t, err)
+		assert.Equal(t, 300*time.Second, delay)
+	})
+	t.Run("should error if DescribeTargetGroupAttributes failed", func(t *testing.T) {
+		albMock, atask := setup(t)
+		albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+		delay, err := atask.GetTargetDeregistrationDelay(context.TODO())
+		assert.EqualError(t, err, assert.AnError.Error())
+		assert.Equal(t, 300*time.Second, delay)
 	})
 }
 

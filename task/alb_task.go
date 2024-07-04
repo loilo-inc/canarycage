@@ -219,7 +219,7 @@ func (c *albTask) WaitUntilTargetHealthy(
 	)
 }
 
-func (c *albTask) targetDeregistrationDelay(ctx context.Context) (time.Duration, error) {
+func (c *albTask) GetTargetDeregistrationDelay(ctx context.Context) (time.Duration, error) {
 	deregistrationDelay := 300 * time.Second
 	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
 	if o, err := albCli.DescribeTargetGroupAttributes(ctx, &elbv2.DescribeTargetGroupAttributesInput{
@@ -246,7 +246,7 @@ func (c *albTask) DeregisterTarget(ctx context.Context) {
 		return
 	}
 	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
-	deregistrationDelay, err := c.targetDeregistrationDelay(ctx)
+	deregistrationDelay, err := c.GetTargetDeregistrationDelay(ctx)
 	if err != nil {
 		log.Errorf("failed to get deregistration delay: %v", err)
 		log.Errorf("deregistration delay is set to %d seconds", deregistrationDelay)
