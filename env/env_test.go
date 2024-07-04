@@ -88,15 +88,15 @@ func TestMergeEnvars(t *testing.T) {
 
 func TestLoadServiceDefinition(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
-		d, err := env.LoadServiceDefiniton("./testdata")
+		d, err := env.LoadServiceDefiniton("../fixtures")
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 		assert.Equal(t, *d.ServiceName, "service")
 	})
 	t.Run("should error if service.json is not found", func(t *testing.T) {
-		_, err := env.LoadServiceDefiniton("../")
-		assert.EqualError(t, err, "roll out context specified at '../' but no 'service.json' or 'task-definition.json'")
+		_, err := env.LoadServiceDefiniton("./testdata")
+		assert.EqualError(t, err, "roll out context specified at './testdata' but no 'service.json' or 'task-definition.json'")
 	})
 	t.Run("should error if service.json is invalid", func(t *testing.T) {
 		_, err := env.LoadServiceDefiniton("./testdata/invalid")
@@ -106,15 +106,15 @@ func TestLoadServiceDefinition(t *testing.T) {
 
 func TestLoadTaskDefinition(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
-		d, err := env.LoadTaskDefiniton("./testdata")
+		d, err := env.LoadTaskDefiniton("../fixtures")
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 		assert.Equal(t, *d.Family, "test-task")
 	})
 	t.Run("should error if task-definition.json is not found", func(t *testing.T) {
-		_, err := env.LoadTaskDefiniton("../")
-		assert.EqualError(t, err, "roll out context specified at '../' but no 'service.json' or 'task-definition.json'")
+		_, err := env.LoadTaskDefiniton("./testdata")
+		assert.EqualError(t, err, "roll out context specified at './testdata' but no 'service.json' or 'task-definition.json'")
 	})
 	t.Run("should error if task-definition.json is invalid", func(t *testing.T) {
 		_, err := env.LoadTaskDefiniton("./testdata/invalid")
