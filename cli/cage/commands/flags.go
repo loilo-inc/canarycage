@@ -45,7 +45,7 @@ func CanaryTaskIdleDurationFlag(dest *int) *cli.IntFlag {
 		EnvVars:     []string{env.CanaryTaskIdleDuration},
 		Usage:       "duration seconds for waiting canary task that isn't attached to target group considered as ready for serving traffic",
 		Destination: dest,
-		Value:       10,
+		Value:       15,
 	}
 }
 

@@ -54,7 +54,8 @@ func EnsureEnvars(
 	}
 	if dest.Cluster == "" {
 		return xerrors.Errorf("--cluster [%s] is required", ClusterKey)
-	} else if dest.Service == "" {
+	}
+	if dest.Service == "" {
 		return xerrors.Errorf("--service [%s] is required", ServiceKey)
 	}
 	if dest.TaskDefinitionArn == "" && dest.TaskDefinitionInput == nil {
