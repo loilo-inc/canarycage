@@ -632,6 +632,22 @@ func TestAlbTask_DeregisterTarget(t *testing.T) {
 		)
 		atask.deregisterTarget(context.TODO())
 	})
+	t.Run("should call DeregisterTargets even if getTargetDeregistrationDelay failed", func(t *testing.T) {
+		env := test.DefaultEnvars()
+		albMock, atask := setup(t, env)
+		gomock.InOrder(
+			albMock.EXPECT().DescribeTargetGroupAttributes(gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1),
+			albMock.EXPECT().DeregisterTargets(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1),
+			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
+				TargetHealthDescriptions: []elbv2types.TargetHealthDescription{
+					{TargetHealth: &elbv2types.TargetHealth{State: elbv2types.TargetHealthStateEnumUnused},
+						Target: target,
+					},
+				},
+			}, nil).Times(1),
+		)
+		atask.deregisterTarget(context.TODO())
+	})
 	t.Run("should return even if DeregisterTargets failed", func(t *testing.T) {
 		env := test.DefaultEnvars()
 		albMock, atask := setup(t, env)
