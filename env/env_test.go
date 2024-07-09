@@ -88,36 +88,36 @@ func TestMergeEnvars(t *testing.T) {
 
 func TestLoadServiceDefinition(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
-		d, err := env.LoadServiceDefiniton("../fixtures")
+		d, err := env.LoadServiceDefinition("../fixtures")
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 		assert.Equal(t, *d.ServiceName, "service")
 	})
 	t.Run("should error if service.json is not found", func(t *testing.T) {
-		_, err := env.LoadServiceDefiniton("./testdata")
+		_, err := env.LoadServiceDefinition("./testdata")
 		assert.EqualError(t, err, "roll out context specified at './testdata' but no 'service.json' or 'task-definition.json'")
 	})
 	t.Run("should error if service.json is invalid", func(t *testing.T) {
-		_, err := env.LoadServiceDefiniton("./testdata/invalid")
+		_, err := env.LoadServiceDefinition("./testdata/invalid")
 		assert.ErrorContains(t, err, "failed to read and unmarshal service.json:")
 	})
 }
 
 func TestLoadTaskDefinition(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
-		d, err := env.LoadTaskDefiniton("../fixtures")
+		d, err := env.LoadTaskDefinition("../fixtures")
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 		assert.Equal(t, *d.Family, "test-task")
 	})
 	t.Run("should error if task-definition.json is not found", func(t *testing.T) {
-		_, err := env.LoadTaskDefiniton("./testdata")
+		_, err := env.LoadTaskDefinition("./testdata")
 		assert.EqualError(t, err, "roll out context specified at './testdata' but no 'service.json' or 'task-definition.json'")
 	})
 	t.Run("should error if task-definition.json is invalid", func(t *testing.T) {
-		_, err := env.LoadTaskDefiniton("./testdata/invalid")
+		_, err := env.LoadTaskDefinition("./testdata/invalid")
 		assert.ErrorContains(t, err, "failed to read and unmarshal task-definition.json:")
 	})
 }

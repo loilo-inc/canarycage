@@ -64,7 +64,7 @@ func EnsureEnvars(
 	return nil
 }
 
-func LoadServiceDefiniton(dir string) (*ecs.CreateServiceInput, error) {
+func LoadServiceDefinition(dir string) (*ecs.CreateServiceInput, error) {
 	svcPath := filepath.Join(dir, "service.json")
 	_, noSvc := os.Stat(svcPath)
 	var service ecs.CreateServiceInput
@@ -77,7 +77,7 @@ func LoadServiceDefiniton(dir string) (*ecs.CreateServiceInput, error) {
 	return &service, nil
 }
 
-func LoadTaskDefiniton(dir string) (*ecs.RegisterTaskDefinitionInput, error) {
+func LoadTaskDefinition(dir string) (*ecs.RegisterTaskDefinitionInput, error) {
 	tdPath := filepath.Join(dir, "task-definition.json")
 	_, noTd := os.Stat(tdPath)
 	var td ecs.RegisterTaskDefinitionInput

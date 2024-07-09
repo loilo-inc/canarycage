@@ -49,13 +49,13 @@ func (c *CageCommands) setupCage(
 ) (types.Cage, error) {
 	var service *ecs.CreateServiceInput
 	var taskDefinition *ecs.RegisterTaskDefinitionInput
-	if srv, err := env.LoadServiceDefiniton(dir); err != nil {
+	if srv, err := env.LoadServiceDefinition(dir); err != nil {
 		return nil, err
 	} else {
 		service = srv
 	}
 	if envars.TaskDefinitionArn == "" {
-		if td, err := env.LoadTaskDefiniton(dir); err != nil {
+		if td, err := env.LoadTaskDefinition(dir); err != nil {
 			return nil, err
 		} else {
 			taskDefinition = td
