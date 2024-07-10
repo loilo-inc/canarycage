@@ -96,11 +96,11 @@ func TestLoadServiceDefinition(t *testing.T) {
 	})
 	t.Run("should error if service.json is not found", func(t *testing.T) {
 		_, err := env.LoadServiceDefinition("./testdata")
-		assert.EqualError(t, err, "roll out context specified at './testdata' but no 'service.json' or 'task-definition.json'")
+		assert.EqualError(t, err, "no 'service.json' found in ./testdata")
 	})
 	t.Run("should error if service.json is invalid", func(t *testing.T) {
 		_, err := env.LoadServiceDefinition("./testdata/invalid")
-		assert.ErrorContains(t, err, "failed to read and unmarshal service.json:")
+		assert.ErrorContains(t, err, "failed to read and unmarshal 'service.json':")
 	})
 }
 
@@ -114,11 +114,11 @@ func TestLoadTaskDefinition(t *testing.T) {
 	})
 	t.Run("should error if task-definition.json is not found", func(t *testing.T) {
 		_, err := env.LoadTaskDefinition("./testdata")
-		assert.EqualError(t, err, "roll out context specified at './testdata' but no 'service.json' or 'task-definition.json'")
+		assert.EqualError(t, err, "no 'task-definition.json' found in ./testdata")
 	})
 	t.Run("should error if task-definition.json is invalid", func(t *testing.T) {
 		_, err := env.LoadTaskDefinition("./testdata/invalid")
-		assert.ErrorContains(t, err, "failed to read and unmarshal task-definition.json:")
+		assert.ErrorContains(t, err, "failed to read and unmarshal 'task-definition.json':")
 	})
 }
 

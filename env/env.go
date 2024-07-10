@@ -69,10 +69,10 @@ func LoadServiceDefinition(dir string) (*ecs.CreateServiceInput, error) {
 	_, noSvc := os.Stat(svcPath)
 	var service ecs.CreateServiceInput
 	if noSvc != nil {
-		return nil, xerrors.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
+		return nil, xerrors.Errorf("no 'service.json' found in %s", dir)
 	}
 	if err := ReadAndUnmarshalJson(svcPath, &service); err != nil {
-		return nil, xerrors.Errorf("failed to read and unmarshal service.json: %s", err)
+		return nil, xerrors.Errorf("failed to read and unmarshal 'service.json': %s", err)
 	}
 	return &service, nil
 }
@@ -82,10 +82,10 @@ func LoadTaskDefinition(dir string) (*ecs.RegisterTaskDefinitionInput, error) {
 	_, noTd := os.Stat(tdPath)
 	var td ecs.RegisterTaskDefinitionInput
 	if noTd != nil {
-		return nil, xerrors.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
+		return nil, xerrors.Errorf("no 'task-definition.json' found in %s", dir)
 	}
 	if err := ReadAndUnmarshalJson(tdPath, &td); err != nil {
-		return nil, xerrors.Errorf("failed to read and unmarshal task-definition.json: %s", err)
+		return nil, xerrors.Errorf("failed to read and unmarshal 'task-definition.json': %s", err)
 	}
 	return &td, nil
 }
