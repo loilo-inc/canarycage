@@ -113,8 +113,6 @@ By default, `cage rollout` will only update the task definition of the service. 
         "ecs:ListTasks",
         "ecs:RunTask",
         "ecs:StopTask",
-        "ecs:ListAttributes",
-        "ecs:PutAttributes",
         "ecs:DescribeTaskDefinition"
       ],
       "Resource": "*"

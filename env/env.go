@@ -1,11 +1,12 @@
-package cage
+package env
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"golang.org/x/xerrors"
 )
@@ -48,41 +49,45 @@ func EnsureEnvars(
 	dest *Envars,
 ) error {
 	// required
+	if dest.Region == "" {
+		return xerrors.Errorf("--region [%s] is required", RegionKey)
+	}
 	if dest.Cluster == "" {
 		return xerrors.Errorf("--cluster [%s] is required", ClusterKey)
-	} else if dest.Service == "" {
+	}
+	if dest.Service == "" {
 		return xerrors.Errorf("--service [%s] is required", ServiceKey)
 	}
 	if dest.TaskDefinitionArn == "" && dest.TaskDefinitionInput == nil {
 		return xerrors.Errorf("--nextTaskDefinitionArn or deploy context must be provided")
 	}
-	if dest.Region == "" {
-		log.Fatalf("region must be specified. set --region flag or see also https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html")
-	}
 	return nil
 }
 
-func LoadDefinitionsFromFiles(dir string) (
-	*ecs.RegisterTaskDefinitionInput,
-	*ecs.CreateServiceInput,
-	error,
-) {
+func LoadServiceDefinition(dir string) (*ecs.CreateServiceInput, error) {
 	svcPath := filepath.Join(dir, "service.json")
-	tdPath := filepath.Join(dir, "task-definition.json")
 	_, noSvc := os.Stat(svcPath)
-	_, noTd := os.Stat(tdPath)
 	var service ecs.CreateServiceInput
+	if noSvc != nil {
+		return nil, xerrors.Errorf("no 'service.json' found in %s", dir)
+	}
+	if err := ReadAndUnmarshalJson(svcPath, &service); err != nil {
+		return nil, xerrors.Errorf("failed to read and unmarshal 'service.json': %s", err)
+	}
+	return &service, nil
+}
+
+func LoadTaskDefinition(dir string) (*ecs.RegisterTaskDefinitionInput, error) {
+	tdPath := filepath.Join(dir, "task-definition.json")
+	_, noTd := os.Stat(tdPath)
 	var td ecs.RegisterTaskDefinitionInput
-	if noSvc != nil || noTd != nil {
-		return nil, nil, xerrors.Errorf("roll out context specified at '%s' but no 'service.json' or 'task-definition.json'", dir)
+	if noTd != nil {
+		return nil, xerrors.Errorf("no 'task-definition.json' found in %s", dir)
 	}
-	if _, err := ReadAndUnmarshalJson(svcPath, &service); err != nil {
-		return nil, nil, xerrors.Errorf("failed to read and unmarshal service.json: %s", err)
+	if err := ReadAndUnmarshalJson(tdPath, &td); err != nil {
+		return nil, xerrors.Errorf("failed to read and unmarshal 'task-definition.json': %s", err)
 	}
-	if _, err := ReadAndUnmarshalJson(tdPath, &td); err != nil {
-		return nil, nil, xerrors.Errorf("failed to read and unmarshal task-definition.json: %s", err)
-	}
-	return &td, &service, nil
+	return &td, nil
 }
 
 func MergeEnvars(dest *Envars, src *Envars) {
@@ -109,13 +114,29 @@ func MergeEnvars(dest *Envars, src *Envars) {
 	}
 }
 
-func ReadAndUnmarshalJson(path string, dest interface{}) ([]byte, error) {
+func ReadAndUnmarshalJson(path string, dest interface{}) error {
 	if d, err := ReadFileAndApplyEnvars(path); err != nil {
-		return d, err
-	} else {
-		if err := json.Unmarshal(d, dest); err != nil {
-			return d, err
-		}
-		return d, nil
+		return err
+	} else if err := json.Unmarshal(d, dest); err != nil {
+		return err
 	}
+	return nil
+}
+
+func ReadFileAndApplyEnvars(path string) ([]byte, error) {
+	d, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	str := string(d)
+	reg := regexp.MustCompile(`\${(.+?)}`)
+	submatches := reg.FindAllStringSubmatch(str, -1)
+	for _, m := range submatches {
+		if envar, ok := os.LookupEnv(m[1]); ok {
+			str = strings.Replace(str, m[0], envar, -1)
+		} else {
+			return nil, xerrors.Errorf("envar literal '%s' found in %s but was not defined", m[0], path)
+		}
+	}
+	return []byte(str), nil
 }

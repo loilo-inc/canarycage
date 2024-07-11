@@ -3,12 +3,12 @@ package commands
 import (
 	"context"
 
-	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/env"
 	"github.com/urfave/cli/v2"
 )
 
 func (c *CageCommands) Up(
-	envars *cage.Envars,
+	envars *env.Envars,
 ) *cli.Command {
 	return &cli.Command{
 		Name:        "up",

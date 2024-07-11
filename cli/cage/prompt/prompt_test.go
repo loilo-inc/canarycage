@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
+	"github.com/loilo-inc/canarycage/env"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +24,7 @@ func TestPrompter(t *testing.T) {
 			assert.Error(t, err)
 		})
 	})
-	envars := &cage.Envars{
+	envars := &env.Envars{
 		Region:  "ap-northeast-1",
 		Cluster: "test-cluster",
 		Service: "test-service",

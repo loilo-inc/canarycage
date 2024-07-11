@@ -5,12 +5,13 @@ import (
 
 	"github.com/apex/log"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
 )
 
 func (c *CageCommands) Run(
-	envars *cage.Envars,
+	envars *env.Envars,
 ) *cli.Command {
 	return &cli.Command{
 		Name:        "run",
@@ -38,7 +39,7 @@ func (c *CageCommands) Run(
 			}
 			container := rest[0]
 			commands := rest[1:]
-			if _, err := cagecli.Run(context.Background(), &cage.RunInput{
+			if _, err := cagecli.Run(context.Background(), &types.RunInput{
 				Container: &container,
 				Overrides: &ecstypes.TaskOverride{
 					ContainerOverrides: []ecstypes.ContainerOverride{

@@ -3,7 +3,7 @@ package test
 import (
 	"time"
 
-	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/types"
 )
 
 func newTimer(_ time.Duration) *time.Timer {
@@ -24,6 +24,6 @@ func (t *timeImpl) Now() time.Time {
 func (t *timeImpl) NewTimer(d time.Duration) *time.Timer {
 	return newTimer(d)
 }
-func NewFakeTime() cage.Time {
+func NewFakeTime() types.Time {
 	return &timeImpl{}
 }

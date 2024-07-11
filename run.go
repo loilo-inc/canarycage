@@ -6,18 +6,13 @@ import (
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/loilo-inc/canarycage/awsiface"
+	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/xerrors"
 )
-
-type RunInput struct {
-	Container *string
-	Overrides *types.TaskOverride
-}
-
-type RunResult struct {
-	ExitCode int32
-}
 
 func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container *string) bool {
 	for _, v := range td.ContainerDefinitions {
@@ -28,20 +23,22 @@ func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container 
 	return false
 }
 
-func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
-	if !containerExistsInDefinition(c.Env.TaskDefinitionInput, input.Container) {
+func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult, error) {
+	env := c.di.Get(key.Env).(*env.Envars)
+	if !containerExistsInDefinition(env.TaskDefinitionInput, input.Container) {
 		return nil, xerrors.Errorf("🚫 '%s' not found in container definitions", *input.Container)
 	}
 	td, err := c.CreateNextTaskDefinition(ctx)
 	if err != nil {
 		return nil, err
 	}
-	o, err := c.Ecs.RunTask(ctx, &ecs.RunTaskInput{
-		Cluster:              &c.Env.Cluster,
+	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	o, err := ecsCli.RunTask(ctx, &ecs.RunTaskInput{
+		Cluster:              &env.Cluster,
 		TaskDefinition:       td.TaskDefinitionArn,
-		LaunchType:           types.LaunchTypeFargate,
-		NetworkConfiguration: c.Env.ServiceDefinitionInput.NetworkConfiguration,
-		PlatformVersion:      c.Env.ServiceDefinitionInput.PlatformVersion,
+		LaunchType:           ecstypes.LaunchTypeFargate,
+		NetworkConfiguration: env.ServiceDefinitionInput.NetworkConfiguration,
+		PlatformVersion:      env.ServiceDefinitionInput.PlatformVersion,
 		Overrides:            input.Overrides,
 		Group:                aws.String("cage:run-task"),
 	})
@@ -50,18 +47,18 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 	}
 	taskArn := o.Tasks[0].TaskArn
 	log.Infof("waiting for task '%s' to start...", *taskArn)
-	if err := ecs.NewTasksRunningWaiter(c.Ecs).Wait(ctx, &ecs.DescribeTasksInput{
-		Cluster: &c.Env.Cluster,
+	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
+		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
-	}, c.Timeout.TaskRunning()); err != nil {
+	}, env.GetTaskRunningWait()); err != nil {
 		return nil, xerrors.Errorf("task failed to start: %w", err)
 	}
 	log.Infof("task '%s' is running", *taskArn)
 	log.Infof("waiting for task '%s' to stop...", *taskArn)
-	if result, err := ecs.NewTasksStoppedWaiter(c.Ecs).WaitForOutput(ctx, &ecs.DescribeTasksInput{
-		Cluster: &c.Env.Cluster,
+	if result, err := ecs.NewTasksStoppedWaiter(ecsCli).WaitForOutput(ctx, &ecs.DescribeTasksInput{
+		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
-	}, c.Timeout.TaskStopped()); err != nil {
+	}, env.GetTaskStoppedWait()); err != nil {
 		return nil, xerrors.Errorf("task failed to stop: %w", err)
 	} else {
 		task := result.Tasks[0]
@@ -72,7 +69,7 @@ func (c *cage) Run(ctx context.Context, input *RunInput) (*RunResult, error) {
 				} else if *c.ExitCode != 0 {
 					return nil, xerrors.Errorf("task exited with %d", *c.ExitCode)
 				}
-				return &RunResult{ExitCode: *c.ExitCode}, nil
+				return &types.RunResult{ExitCode: *c.ExitCode}, nil
 			}
 		}
 		// Never reached?

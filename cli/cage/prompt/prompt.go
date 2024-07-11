@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/env"
 	"golang.org/x/xerrors"
 )
 
@@ -32,19 +32,19 @@ func (s *Prompter) Confirm(
 }
 
 func (s *Prompter) ConfirmTask(
-	envars *cage.Envars,
+	envars *env.Envars,
 ) error {
 	return s.confirmStackChange(envars, false)
 }
 
 func (s *Prompter) ConfirmService(
-	envars *cage.Envars,
+	envars *env.Envars,
 ) error {
 	return s.confirmStackChange(envars, true)
 }
 
 func (s *Prompter) confirmStackChange(
-	envars *cage.Envars,
+	envars *env.Envars,
 	service bool,
 ) error {
 	// Skip confirmation if running in CI
