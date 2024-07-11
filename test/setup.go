@@ -10,9 +10,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	"github.com/golang/mock/gomock"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
+	"go.uber.org/mock/gomock"
 )
 
 func Setup(ctrl *gomock.Controller, envars *env.Envars, currentTaskCount int, launchType ecstypes.LaunchType) (

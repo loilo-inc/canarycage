@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 func TestCage_Up(t *testing.T) {

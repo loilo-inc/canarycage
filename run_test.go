@@ -7,7 +7,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/golang/mock/gomock"
 	cage "github.com/loilo-inc/canarycage"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
@@ -16,6 +15,7 @@ import (
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 func TestCage_Run(t *testing.T) {

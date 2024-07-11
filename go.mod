@@ -9,12 +9,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.161.4
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.41.11
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.31.1
-	github.com/golang/mock v1.6.0
 	github.com/google/go-github/v62 v62.0.0
 	github.com/google/uuid v1.6.0
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/stretchr/testify v1.9.0
 	github.com/urfave/cli/v2 v2.27.2
+	go.uber.org/mock v0.4.0
 )
 
 require github.com/google/go-querystring v1.1.0 // indirect

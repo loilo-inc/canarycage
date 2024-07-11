@@ -7,7 +7,7 @@ package mock_upgrade
 import (
 	reflect "reflect"
 
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 	upgrade "github.com/loilo-inc/canarycage/cli/cage/upgrade"
 )
 

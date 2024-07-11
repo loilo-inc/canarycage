@@ -9,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/golang/mock/gomock"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
@@ -17,6 +16,7 @@ import (
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 func TestCommon_Start(t *testing.T) {
