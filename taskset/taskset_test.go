@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/golang/mock/gomock"
 	"github.com/loilo-inc/canarycage/mocks/mock_task"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/taskset"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 func TestSet(t *testing.T) {

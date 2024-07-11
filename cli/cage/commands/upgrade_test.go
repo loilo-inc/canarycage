@@ -3,12 +3,12 @@ package commands_test
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/loilo-inc/canarycage/cli/cage/commands"
 	"github.com/loilo-inc/canarycage/cli/cage/upgrade"
 	"github.com/loilo-inc/canarycage/mocks/mock_upgrade"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/mock/gomock"
 )
 
 func TestUpgrade(t *testing.T) {

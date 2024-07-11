@@ -5,13 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/mocks/mock_types"
 	"github.com/loilo-inc/canarycage/test"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/mock/gomock"
 )
 
 func TestCommands(t *testing.T) {

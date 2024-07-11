@@ -8,7 +8,7 @@ import (
 	reflect "reflect"
 
 	types "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 	task "github.com/loilo-inc/canarycage/task"
 )
 

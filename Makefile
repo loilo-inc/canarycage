@@ -1,4 +1,4 @@
-MOCKGEN := go run github.com/golang/mock/mockgen@v1.6.0
+MOCKGEN := go run go.uber.org/mock/mockgen
 .PHONY: test
 test:
 	go test ./... -coverprofile=coverage.txt -covermode=count
@@ -9,7 +9,8 @@ push-test-container: test-container
 	docker push loilodev/http-server:latest
 version:
 	go run cli/cage/main.go -v | cut -f 3 -d ' '
-mocks: mocks/mock_awsiface/iface.go \
+mocks: go.sum \
+	mocks/mock_awsiface/iface.go \
 	mocks/mock_types/iface.go \
 	mocks/mock_upgrade/upgrade.go \
 	mocks/mock_task/task.go \
