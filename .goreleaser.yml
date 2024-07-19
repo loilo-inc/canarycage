@@ -9,6 +9,8 @@ builds:
     goarch:
       - amd64
       - arm64
+git:
+  tag_sort: semver
 archives:
   - format: zip
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
