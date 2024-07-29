@@ -16,3 +16,4 @@ release:
   github:
     owner: loilo-inc
     name: canarycage
+  prerelease: auto
