@@ -2,6 +2,7 @@ package cage
 
 import (
 	"context"
+	"time"
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -46,6 +47,11 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 		return nil, err
 	}
 	taskArn := o.Tasks[0].TaskArn
+
+	// NOTE: https://github.com/loilo-inc/canarycage/issues/93
+	// wait for the task to be running
+	time.Sleep(2 * time.Second)
+
 	log.Infof("waiting for task '%s' to start...", *taskArn)
 	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
