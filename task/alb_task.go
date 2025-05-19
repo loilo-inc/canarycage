@@ -205,6 +205,8 @@ func (c *albTask) waitUntilTargetHealthy(
 				switch *recentState {
 				case elbv2types.TargetHealthStateEnumHealthy:
 					return nil
+				case elbv2types.TargetHealthStateEnumInitial:
+					continue
 				default:
 					notHealthyCount++
 				}
