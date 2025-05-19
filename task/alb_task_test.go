@@ -234,6 +234,27 @@ func TestAlbTask_WaitUntilTargetHealthy(t *testing.T) {
 		atask.target = target
 		return albMock, atask
 	}
+	t.Run("should not count as unhealthy if target is initial", func(t *testing.T) {
+		albMock, atask := setup(t)
+		gomock.InOrder(
+			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
+				TargetHealthDescriptions: []elbv2types.TargetHealthDescription{
+					{TargetHealth: &elbv2types.TargetHealth{State: elbv2types.TargetHealthStateEnumInitial},
+						Target: target,
+					},
+				},
+			}, nil).Times(5),
+			albMock.EXPECT().DescribeTargetHealth(gomock.Any(), gomock.Any()).Return(&elbv2.DescribeTargetHealthOutput{
+				TargetHealthDescriptions: []elbv2types.TargetHealthDescription{
+					{TargetHealth: &elbv2types.TargetHealth{State: elbv2types.TargetHealthStateEnumHealthy},
+						Target: target,
+					},
+				},
+			}, nil).Times(1),
+		)
+		err := atask.waitUntilTargetHealthy(context.TODO())
+		assert.NoError(t, err)
+	})
 	t.Run("should call DescribeTargetHealth periodically", func(t *testing.T) {
 		albMock, atask := setup(t)
 		gomock.InOrder(
