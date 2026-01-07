@@ -19,7 +19,7 @@ func TestEnsureEnvars(t *testing.T) {
 			TaskDefinitionInput: &ecs.RegisterTaskDefinitionInput{},
 		}
 		if err := env.EnsureEnvars(e); err != nil {
-			t.Fatalf(err.Error())
+			t.Fatalf("%s", err.Error())
 		}
 	})
 	t.Run("with td arn", func(t *testing.T) {
@@ -30,7 +30,7 @@ func TestEnsureEnvars(t *testing.T) {
 			TaskDefinitionArn: "arn://aaa",
 		}
 		if err := env.EnsureEnvars(e); err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err.Error())
 		}
 	})
 	t.Run("should return err if nor taskDefinitionArn neither TaskDefinitionInput is defined", func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestLoadServiceDefinition(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		d, err := env.LoadServiceDefinition("../fixtures")
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err.Error())
 		}
 		assert.Equal(t, *d.ServiceName, "service")
 	})
@@ -108,7 +108,7 @@ func TestLoadTaskDefinition(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		d, err := env.LoadTaskDefinition("../fixtures")
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err.Error())
 		}
 		assert.Equal(t, *d.Family, "test-task")
 	})
@@ -127,7 +127,7 @@ func TestReadFileAndApplyEnvars(t *testing.T) {
 	os.Setenv("FUGA", "fugafuga")
 	d, err := env.ReadFileAndApplyEnvars("./testdata/template.txt")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 	s := string(d)
 	e := `HOGE=hogehoge
