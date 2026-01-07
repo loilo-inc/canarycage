@@ -19,7 +19,7 @@ func TestEnsureEnvars(t *testing.T) {
 			TaskDefinitionInput: &ecs.RegisterTaskDefinitionInput{},
 		}
 		if err := env.EnsureEnvars(e); err != nil {
-			t.Fatalf("%s", err.Error())
+			t.Fatal(err.Error())
 		}
 	})
 	t.Run("with td arn", func(t *testing.T) {
