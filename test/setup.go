@@ -132,7 +132,7 @@ func ReadServiceDefinition(path string) *ecs.CreateServiceInput {
 	d, _ := os.ReadFile(path)
 	var dest ecs.CreateServiceInput
 	if err := json.Unmarshal(d, &dest); err != nil {
-		log.Fatalf(err.Error())
+		log.Fatal(err.Error())
 	}
 	return &dest
 }
