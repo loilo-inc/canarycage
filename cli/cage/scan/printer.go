@@ -54,6 +54,8 @@ func (p *printer) Print(result []*ScanResult) {
 			status = "NONE"
 		} else if critical > 0 || high > 0 {
 			status = "VULNERABLE"
+		} else if medium > 0 {
+			status = "WARNING"
 		}
 		p.logger.Printf(
 			bodyFmt,
