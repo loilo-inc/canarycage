@@ -28,7 +28,7 @@ func (p *printer) Print(result []*ScanResult) {
 		if r.Err != nil {
 			p.logger.Printf(bodyFmt,
 				r.ImageInfo.ContainerName,
-				"ERROR", 0, 0, 0, 0, 0, 1,
+				"ERROR", 0, 0, 0, 0, 0,
 				formatImageLabel(r.ImageInfo),
 			)
 			continue
