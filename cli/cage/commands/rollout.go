@@ -2,16 +2,18 @@ package commands
 
 import (
 	"context"
+	"os"
 
 	"github.com/apex/log"
+	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/cli/cage/prompt"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
 )
 
-func (c *CageCommands) RollOut(
-	envars *env.Envars,
-) *cli.Command {
+func (c *CageCommands) RollOut(flag *cageapp.Flag) *cli.Command {
+	envars := &env.Envars{}
 	var updateServiceConf bool
 	return &cli.Command{
 		Name:        "rollout",
@@ -20,11 +22,11 @@ func (c *CageCommands) RollOut(
 		Args:        true,
 		ArgsUsage:   "[directory path of service.json and task-definition.json]",
 		Flags: []cli.Flag{
-			RegionFlag(&envars.Region),
-			ClusterFlag(&envars.Cluster),
-			ServiceFlag(&envars.Service),
-			TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
-			CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
+			cageapp.RegionFlag(&envars.Region),
+			cageapp.ClusterFlag(&envars.Cluster),
+			cageapp.ServiceFlag(&envars.Service),
+			cageapp.TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
+			cageapp.CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
 			&cli.StringFlag{
 				Name:        "canaryInstanceArn",
 				EnvVars:     []string{env.CanaryInstanceArnKey},
@@ -37,13 +39,13 @@ func (c *CageCommands) RollOut(
 				Usage:       "Update service configurations except for task definiton. Default is false.",
 				Destination: &updateServiceConf,
 			},
-			TaskRunningWaitFlag(&envars.CanaryTaskRunningWait),
-			TaskHealthCheckWaitFlag(&envars.CanaryTaskHealthCheckWait),
-			TaskStoppedWaitFlag(&envars.CanaryTaskStoppedWait),
-			ServiceStableWaitFlag(&envars.ServiceStableWait),
+			cageapp.TaskRunningWaitFlag(&envars.CanaryTaskRunningWait),
+			cageapp.TaskHealthCheckWaitFlag(&envars.CanaryTaskHealthCheckWait),
+			cageapp.TaskStoppedWaitFlag(&envars.CanaryTaskStoppedWait),
+			cageapp.ServiceStableWaitFlag(&envars.ServiceStableWait),
 		},
 		Action: func(ctx *cli.Context) error {
-			dir, _, err := c.requireArgs(ctx, 1, 1)
+			dir, _, err := RequireArgs(ctx, 1, 1)
 			if err != nil {
 				return err
 			}
@@ -51,8 +53,11 @@ func (c *CageCommands) RollOut(
 			if err != nil {
 				return err
 			}
-			if err := c.Prompt.ConfirmService(envars); err != nil {
-				return err
+			if !flag.CI {
+				prompter := prompt.NewPrompter(os.Stdin)
+				if err := prompter.ConfirmService(envars); err != nil {
+					return err
+				}
 			}
 			result, err := cagecli.RollOut(context.Background(), &types.RollOutInput{UpdateService: updateServiceConf})
 			if err != nil {

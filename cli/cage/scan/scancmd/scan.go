@@ -1,4 +1,4 @@
-package commands
+package cmd
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/cli/cage/commands"
 	"github.com/loilo-inc/canarycage/cli/cage/scan"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
@@ -15,7 +16,7 @@ import (
 
 type diProvider = func(region string) (*di.D, error)
 
-func Scan(diProvider diProvider) *cli.Command {
+func Command(diProvider diProvider) *cli.Command {
 	var region string
 	var cluster string
 	var service string
@@ -30,7 +31,7 @@ func Scan(diProvider diProvider) *cli.Command {
 			cageapp.ServiceFlag(&service),
 		},
 		Action: func(ctx *cli.Context) error {
-			dir, _, err := RequireArgs(ctx, 0, 1)
+			dir, _, err := commands.RequireArgs(ctx, 0, 1)
 			if err != nil {
 				return err
 			}

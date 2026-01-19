@@ -13,7 +13,6 @@ import (
 
 type Envars struct {
 	_                         struct{} `type:"struct"`
-	CI                        bool     `json:"ci" type:"bool"`
 	Region                    string   `json:"region" type:"string"`
 	Cluster                   string   `json:"cluster" type:"string" required:"true"`
 	Service                   string   `json:"service" type:"string" required:"true"`

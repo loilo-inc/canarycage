@@ -2,9 +2,9 @@ package commands
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
+	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/mocks/mock_types"
 	"github.com/loilo-inc/canarycage/test"
@@ -22,17 +22,16 @@ func TestCommands(t *testing.T) {
 	stdinTask := fmt.Sprintf("%s\n%s\n%s\n", region, cluster, "yes")
 	setup := func(t *testing.T, input string) (*cli.App, *mock_types.MockCage) {
 		ctrl := gomock.NewController(t)
-		stdin := strings.NewReader(input)
 		cagecli := mock_types.NewMockCage(ctrl)
+		flag := &cageapp.Flag{}
 		app := cli.NewApp()
-		cmds := NewCageCommands(stdin, func(envars *env.Envars) (types.Cage, error) {
+		cmds := NewCageCommands(func(envars *env.Envars) (types.Cage, error) {
 			return cagecli, nil
 		})
-		envars := env.Envars{CI: input == ""}
 		app.Commands = []*cli.Command{
-			cmds.Up(&envars),
-			cmds.RollOut(&envars),
-			cmds.Run(&envars),
+			cmds.Up(flag),
+			cmds.RollOut(flag),
+			cmds.Run(flag),
 		}
 		return app, cagecli
 	}
@@ -108,7 +107,7 @@ func TestSetupCage(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		envars := &env.Envars{Region: "us-west-2"}
 		cageCli := mock_types.NewMockCage(gomock.NewController(t))
-		cmd := NewCageCommands(nil, func(envars *env.Envars) (types.Cage, error) {
+		cmd := NewCageCommands(func(envars *env.Envars) (types.Cage, error) {
 			return cageCli, nil
 		})
 		v, err := cmd.setupCage(envars, "../../../fixtures")
@@ -124,7 +123,7 @@ func TestSetupCage(t *testing.T) {
 	t.Run("should skip load task definition if --taskDefinitionArn provided", func(t *testing.T) {
 		envars := &env.Envars{Region: "us-west-2", TaskDefinitionArn: "arn"}
 		cageCli := mock_types.NewMockCage(gomock.NewController(t))
-		cmd := NewCageCommands(nil, func(envars *env.Envars) (types.Cage, error) {
+		cmd := NewCageCommands(func(envars *env.Envars) (types.Cage, error) {
 			return cageCli, nil
 		})
 		v, err := cmd.setupCage(envars, "../../../fixtures")
@@ -139,7 +138,7 @@ func TestSetupCage(t *testing.T) {
 	})
 	t.Run("should error if error returned from NewCage", func(t *testing.T) {
 		envars := &env.Envars{Region: "us-west-2"}
-		cmd := NewCageCommands(nil, func(envars *env.Envars) (types.Cage, error) {
+		cmd := NewCageCommands(func(envars *env.Envars) (types.Cage, error) {
 			return nil, test.Err
 		})
 		_, err := cmd.setupCage(envars, "../../../fixtures")

@@ -1,10 +1,7 @@
 package commands
 
 import (
-	"io"
-
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/loilo-inc/canarycage/cli/cage/prompt"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
@@ -12,23 +9,19 @@ import (
 )
 
 type CageCommands struct {
-	Prompt         *prompt.Prompter
-	cageCliProvier cageCliProvier
+	cageCliProvider cageCliProvider
 }
 
 func NewCageCommands(
-	stdin io.Reader,
-	cageCliProvier cageCliProvier,
+	cageCliProvider cageCliProvider,
 ) *CageCommands {
-	return &CageCommands{
-		Prompt:         prompt.NewPrompter(stdin),
-		cageCliProvier: cageCliProvier,
-	}
+	cmds := &CageCommands{cageCliProvider: cageCliProvider}
+	return cmds
 }
 
-type cageCliProvier = func(e *env.Envars) (types.Cage, error)
+type cageCliProvider = func(e *env.Envars) (types.Cage, error)
 
-func (c *CageCommands) requireArgs(
+func RequireArgs(
 	ctx *cli.Context,
 	minArgs int,
 	maxArgs int,
@@ -70,11 +63,7 @@ func (c *CageCommands) setupCage(
 	if err := env.EnsureEnvars(envars); err != nil {
 		return nil, err
 	}
-	di, err := c.diProvider(envars)
-	if err != nil {
-		return nil, err
-	}
-	cagecli, err := c.cageCliProvier(di)
+	cagecli, err := c.cageCliProvider(envars)
 	if err != nil {
 		return nil, err
 	}

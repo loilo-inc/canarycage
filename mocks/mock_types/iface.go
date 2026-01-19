@@ -72,21 +72,6 @@ func (mr *MockCageMockRecorder) Run(ctx, input any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockCage)(nil).Run), ctx, input)
 }
 
-// Scan mocks base method.
-func (m *MockCage) Scan(ctx context.Context) (*types.ScanResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Scan", ctx)
-	ret0, _ := ret[0].(*types.ScanResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Scan indicates an expected call of Scan.
-func (mr *MockCageMockRecorder) Scan(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Scan", reflect.TypeOf((*MockCage)(nil).Scan), ctx)
-}
-
 // Up mocks base method.
 func (m *MockCage) Up(ctx context.Context) (*types.UpResult, error) {
 	m.ctrl.T.Helper()
