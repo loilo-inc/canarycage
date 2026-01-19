@@ -22,7 +22,6 @@ func Scan(diProvider diProvider) *cli.Command {
 	return &cli.Command{
 		Name:      "scan",
 		Usage:     "Scan ECR image vulnerabilities for the given ECS service",
-		Args:      true,
 		ArgsUsage: "<directory path of service.json and task-definition.json>",
 		Flags: []cli.Flag{
 			cageapp.RegionFlag(&region),
