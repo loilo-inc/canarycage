@@ -1,4 +1,4 @@
-MOCKGEN := go run go.uber.org/mock/mockgen
+MOCKGEN := mockgen
 .PHONY: test
 test:
 	go test ./... -coverprofile=coverage.txt -covermode=count

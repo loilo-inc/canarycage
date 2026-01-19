@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	cage "github.com/loilo-inc/canarycage"
@@ -44,6 +45,7 @@ func main() {
 		cmds.RollOut(&envars),
 		cmds.Run(&envars),
 		cmds.Upgrade(upgrade.NewUpgrader(version)),
+		cmds.Scan(&envars),
 	}
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{
@@ -68,6 +70,7 @@ func provideCageCli(envars *env.Envars) (types.Cage, error) {
 	d := di.NewDomain(func(b *di.B) {
 		b.Set(key.Env, envars)
 		b.Set(key.EcsCli, ecs.NewFromConfig(conf))
+		b.Set(key.EcrCli, ecr.NewFromConfig(conf))
 		b.Set(key.Ec2Cli, ec2.NewFromConfig(conf))
 		b.Set(key.AlbCli, elasticloadbalancingv2.NewFromConfig(conf))
 		b.Set(key.TaskFactory, task.NewFactory(b.Future()))

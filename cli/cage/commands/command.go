@@ -26,7 +26,7 @@ func NewCageCommands(
 	}
 }
 
-type cageCliProvier = func(envars *env.Envars) (types.Cage, error)
+type cageCliProvier = func(e *env.Envars) (types.Cage, error)
 
 func (c *CageCommands) requireArgs(
 	ctx *cli.Context,
@@ -70,7 +70,11 @@ func (c *CageCommands) setupCage(
 	if err := env.EnsureEnvars(envars); err != nil {
 		return nil, err
 	}
-	cagecli, err := c.cageCliProvier(envars)
+	di, err := c.diProvider(envars)
+	if err != nil {
+		return nil, err
+	}
+	cagecli, err := c.cageCliProvier(di)
 	if err != nil {
 		return nil, err
 	}

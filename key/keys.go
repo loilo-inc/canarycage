@@ -4,6 +4,7 @@ type DepsKey string
 
 const (
 	EcsCli      DepsKey = "ecs"
+	EcrCli      DepsKey = "ecr"
 	Ec2Cli      DepsKey = "ec2"
 	AlbCli      DepsKey = "alb"
 	Env         DepsKey = "env"
