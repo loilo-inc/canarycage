@@ -3,6 +3,7 @@ package scan
 import (
 	"context"
 
+	"github.com/apex/log"
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/loilo-inc/canarycage/awsiface"
 )
@@ -33,6 +34,7 @@ func (s *scanner) Scan(
 ) (results []*ScanResult, err error) {
 	ecsTool := newEcsTool(s.ecs)
 	ecrTool := newEcrTool(s.ecr)
+	log.Infof("Scanning ECR image vulnerabilities for ECS service %s/%s", cluster, service)
 	var imageInfos []*ImageInfo
 	if imageInfos, err = ecsTool.GetServiceImageInfos(ctx, cluster, service); err != nil {
 		return nil, err

@@ -27,16 +27,22 @@ func NewPrinter(logger Logger) Printer {
 }
 
 func (p *printer) Print(result []*ScanResult) {
-	// |image|status|critical|high|medium|low|info|error|
-	fmtStr := "|%-40s|%-10s|%-8d|%-5d|%-6d|%-4d|%-4d|%-5d|\n"
-	p.logger.Printf(fmtStr, "IMAGE", "STATUS", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN")
+	containerMax, imageMax := MaxHeaderWidth(result)
+	// |container|status|critical|high|medium|low|info|image|
+	headerFmt := fmt.Sprintf("|%%-%ds|%%-10s|%%-8s|%%-5s|%%-6s|%%-4s|%%-4s|%%-%ds|\n", containerMax, imageMax)
+	p.logger.Printf(headerFmt, "CONTAINER", "STATUS", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "IMAGE")
+	bodyFmt := fmt.Sprintf("|%%-%ds|%%-10s|%%-8d|%%-5d|%%-6d|%%-4d|%%-4d|%%-%ds|\n", containerMax, imageMax)
 	for _, r := range result {
 		if r.Err != nil {
-			p.logger.Printf(fmtStr, formatImageLabel(r.ImageInfo), "ERROR", 0, 0, 0, 0, 0, 1)
+			p.logger.Printf(bodyFmt,
+				r.ImageInfo.ContainerName,
+				"ERROR", 0, 0, 0, 0, 0, 1,
+				formatImageLabel(r.ImageInfo),
+			)
 			continue
 		}
 		findings := r.ImageScanFindings
-		var critical, high, medium, low, info, unclassified int32
+		var critical, high, medium, low, info int32
 		for _, f := range findings.Findings {
 			switch f.Severity {
 			case "CRITICAL":
@@ -49,8 +55,6 @@ func (p *printer) Print(result []*ScanResult) {
 				low++
 			case "INFORMATIONAL":
 				info++
-			case "UNCLASSIFIED":
-				unclassified++
 			}
 		}
 		status := "OK"
@@ -60,19 +64,34 @@ func (p *printer) Print(result []*ScanResult) {
 			status = "VULNERABLE"
 		}
 		p.logger.Printf(
-			fmtStr,
-			formatImageLabel(r.ImageInfo),
+			bodyFmt,
+			r.ImageInfo.ContainerName,
 			status,
 			critical,
 			high,
 			medium,
 			low,
 			info,
-			unclassified,
+			formatImageLabel(r.ImageInfo),
 		)
 	}
 }
 
 func formatImageLabel(info *ImageInfo) string {
-	return fmt.Sprintf("%s (%s:%s)", info.Registry, info.Repository, info.Tag)
+	return fmt.Sprintf("%s/%s:%s", info.Registry, info.Repository, info.Tag)
+}
+
+func MaxHeaderWidth(imageInfos []*ScanResult) (int, int) {
+	containerMax := len("CONTAINER")
+	imageMax := len("IMAGE")
+	for _, info := range imageInfos {
+		if l := len(info.ImageInfo.ContainerName); l > containerMax {
+			containerMax = l
+		}
+		imageLabel := formatImageLabel(info.ImageInfo)
+		if l := len(imageLabel); l > imageMax {
+			imageMax = l
+		}
+	}
+	return containerMax, imageMax
 }
