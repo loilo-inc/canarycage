@@ -1,7 +1,7 @@
 package commands_test
 
 import (
-	"strings"
+	"io"
 	"testing"
 
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
@@ -16,10 +16,10 @@ import (
 var stdinService = "ap-notheast-1\ncluster\nservice\nyes\n"
 var stdinTask = "ap-notheast-1\ncluster\nyes\n"
 
-func setup(t *testing.T, input string) (*cli.App, *mock_types.MockCage) {
+func setup(t *testing.T, input io.Reader) (*cli.App, *mock_types.MockCage) {
 	ctrl := gomock.NewController(t)
 	cagecli := mock_types.NewMockCage(ctrl)
-	cageapp := &cageapp.App{Stdin: strings.NewReader(input)}
+	cageapp := &cageapp.App{Stdin: input}
 	app := cli.NewApp()
 	cmds := commands.NewCageCommands(func(envars *env.Envars) (types.Cage, error) {
 		return cagecli, nil
@@ -37,4 +37,10 @@ func setup(t *testing.T, input string) (*cli.App, *mock_types.MockCage) {
 		},
 	}
 	return app, cagecli
+}
+
+type errorReader struct{}
+
+func (e *errorReader) Read(p []byte) (n int, err error) {
+	return 0, io.EOF
 }

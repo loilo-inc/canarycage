@@ -24,6 +24,12 @@ func TestScan(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "--region flag is required")
 	})
+	t.Run("return errors when too many arguments", func(t *testing.T) {
+		app := setupScanApp(t, nil)
+		err := app.Run([]string{"cage", "scan", "--region", "us-east-1", "arg1", "arg2"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid number of arguments. expected at most 1")
+	})
 	t.Run("returns error when both directory and flags are missing", func(t *testing.T) {
 		app := setupScanApp(t, nil)
 
@@ -60,10 +66,7 @@ func TestScan(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 	})
-}
-
-func TestScan_Success(t *testing.T) {
-	setup := func(t *testing.T) *cli.App {
+	setupBase := func(t *testing.T) (*cli.App, *mock_scan.MockScanner, *mock_logger.MockLogger) {
 		t.Helper()
 		ctrl := gomock.NewController(t)
 		mockScanner := mock_scan.NewMockScanner(ctrl)
@@ -77,32 +80,59 @@ func TestScan_Success(t *testing.T) {
 			assert.Equal(t, "us-east-1", region)
 			return d, nil
 		})
-
-		mockScanner.EXPECT().
-			Scan(gomock.Any(), "cluster", "service"). // from fixtures/service.json
-			Return(makeScanResult(), nil)
-
-		mockLogger.EXPECT().Printf(
-			gomock.Any(), gomock.Any(), gomock.Any(),
-			gomock.Any(), gomock.Any(), gomock.Any(),
-			gomock.Any(), gomock.Any(), gomock.Any(),
-		).Times(2)
-
-		return app
+		return app, mockScanner, mockLogger
 	}
-	t.Run("executes scan with directory argument", func(t *testing.T) {
-		app := setup(t)
-		err := app.Run([]string{"cage", "scan",
-			"--region", "us-east-1", "../../../fixtures"})
-		assert.NoError(t, err)
+	t.Run("Succcess", func(t *testing.T) {
+		setup := func(t *testing.T) *cli.App {
+			t.Helper()
+			app, mockScanner, mockLogger := setupBase(t)
+			mockScanner.EXPECT().
+				Scan(gomock.Any(), "cluster", "service"). // from fixtures/service.json
+				Return(makeScanResult(), nil)
+
+			mockLogger.EXPECT().Printf(
+				gomock.Any(), gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any(), gomock.Any(),
+			).Times(2)
+			return app
+		}
+		t.Run("executes scan with directory argument", func(t *testing.T) {
+			app := setup(t)
+			err := app.Run([]string{"cage", "scan",
+				"--region", "us-east-1", "../../../fixtures"})
+			assert.NoError(t, err)
+		})
+		t.Run("executes scan with flags", func(t *testing.T) {
+			app := setup(t)
+			err := app.Run([]string{"cage", "scan",
+				"--region", "us-east-1",
+				"--cluster", "cluster",
+				"--service", "service"})
+			assert.NoError(t, err)
+		})
 	})
-	t.Run("executes scan with flags", func(t *testing.T) {
-		app := setup(t)
-		err := app.Run([]string{"cage", "scan",
-			"--region", "us-east-1",
-			"--cluster", "cluster",
-			"--service", "service"})
-		assert.NoError(t, err)
+	t.Run("Error", func(t *testing.T) {
+		t.Run("error on scanner.Scan()", func(t *testing.T) {
+			app, mockScanner, _ := setupBase(t)
+			mockScanner.EXPECT().
+				Scan(gomock.Any(), "cluster", "service").
+				Return(nil, errors.New("scan error"))
+
+			err := app.Run([]string{"cage", "scan",
+				"--region", "us-east-1",
+				"--cluster", "cluster",
+				"--service", "service"})
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "scan error")
+		})
+		t.Run("error on loading service definition", func(t *testing.T) {
+			app := setupScanApp(t, nil)
+			err := app.Run([]string{"cage", "scan",
+				"--region", "us-east-1", "../../../fixtures/invalid-service"})
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "no 'service.json' found")
+		})
 	})
 }
 
