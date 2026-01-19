@@ -33,6 +33,9 @@ func Scan(diProvider diProvider) *cli.Command {
 			if err != nil {
 				return err
 			}
+			if region == "" {
+				return errors.New("--region flag is required")
+			}
 			if dir != "" {
 				srv, err := env.LoadServiceDefinition(dir)
 				if err != nil {

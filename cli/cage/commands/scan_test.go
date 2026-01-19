@@ -18,6 +18,12 @@ import (
 )
 
 func TestScan(t *testing.T) {
+	t.Run("returns error when region is missing", func(t *testing.T) {
+		app := setupScanApp(t, nil)
+		err := app.Run([]string{"cage", "scan", "--region", ""})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "--region flag is required")
+	})
 	t.Run("returns error when both directory and flags are missing", func(t *testing.T) {
 		app := setupScanApp(t, nil)
 
