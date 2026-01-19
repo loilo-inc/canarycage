@@ -2,11 +2,11 @@ package scan_test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/loilo-inc/canarycage/cli/cage/scan"
+	"github.com/stretchr/testify/assert"
 )
 
 type mockLogger struct {
@@ -15,6 +15,13 @@ type mockLogger struct {
 
 func (m *mockLogger) Printf(format string, args ...any) {
 	m.logs = append(m.logs, fmt.Sprintf(format, args...))
+}
+
+var imageInfo = &scan.ImageInfo{
+	ContainerName: "test-container",
+	Registry:      "test-registry",
+	Repository:    "test-repo",
+	Tag:           "latest",
 }
 
 func TestPrinter_Print(t *testing.T) {
@@ -26,60 +33,38 @@ func TestPrinter_Print(t *testing.T) {
 		expectedCounts [][]int32
 	}{
 		{
-			name: "single result with no findings",
-			results: []*scan.ScanResult{
-				{
-					ImageInfo: &scan.ImageInfo{
-						ContainerName: "container1",
-						Registry:      "registry.io",
-						Repository:    "myapp",
-						Tag:           "v1.0",
-					},
-					ImageScanFindings: &ecrtypes.ImageScanFindings{
-						Findings: []ecrtypes.ImageScanFinding{},
-					},
-				},
-			},
+			name:           "single result with no findings",
+			results:        makeScanResult(),
 			expectedLines:  2, // header + 1 body
 			expectedStatus: []string{"NONE"},
 			expectedCounts: [][]int32{{0, 0, 0, 0, 0}},
 		},
 		{
 			name: "single result with vulnerabilities",
-			results: []*scan.ScanResult{
-				{
-					ImageInfo: &scan.ImageInfo{
-						ContainerName: "container2",
-						Registry:      "registry.io",
-						Repository:    "myapp",
-						Tag:           "v2.0",
-					},
-					ImageScanFindings: &ecrtypes.ImageScanFindings{
-						Findings: []ecrtypes.ImageScanFinding{
-							{Severity: "CRITICAL"},
-							{Severity: "HIGH"},
-							{Severity: "MEDIUM"},
-							{Severity: "LOW"},
-							{Severity: "INFORMATIONAL"},
-						},
-					},
-				},
-			},
+			results: makeScanResult(
+				"CRITICAL",
+				"HIGH",
+				"MEDIUM",
+				"LOW",
+				"INFORMATIONAL",
+			),
 			expectedLines:  2,
 			expectedStatus: []string{"VULNERABLE"},
 			expectedCounts: [][]int32{{1, 1, 1, 1, 1}},
 		},
 		{
+			name:           "single result with only medium severity",
+			results:        makeScanResult("MEDIUM", "MEDIUM"),
+			expectedLines:  2,
+			expectedStatus: []string{"WARNING"},
+			expectedCounts: [][]int32{{0, 0, 2, 0, 0}},
+		},
+		{
 			name: "result with error",
 			results: []*scan.ScanResult{
 				{
-					ImageInfo: &scan.ImageInfo{
-						ContainerName: "container3",
-						Registry:      "registry.io",
-						Repository:    "myapp",
-						Tag:           "v3.0",
-					},
-					Err: fmt.Errorf("scan failed"),
+					ImageInfo: imageInfo,
+					Err:       fmt.Errorf("scan failed"),
 				},
 			},
 			expectedLines:  2,
@@ -89,63 +74,24 @@ func TestPrinter_Print(t *testing.T) {
 		{
 			name: "multiple results mixed",
 			results: []*scan.ScanResult{
+				makeScanResult("CRITICAL", "HIGH")[0],
 				{
-					ImageInfo: &scan.ImageInfo{
-						ContainerName: "container4",
-						Registry:      "registry.io",
-						Repository:    "app1",
-						Tag:           "v1",
-					},
-					ImageScanFindings: &ecrtypes.ImageScanFindings{
-						Findings: []ecrtypes.ImageScanFinding{
-							{Severity: "CRITICAL"},
-							{Severity: "CRITICAL"},
-						},
-					},
-				},
-				{
-					ImageInfo: &scan.ImageInfo{
-						ContainerName: "container5",
-						Registry:      "registry.io",
-						Repository:    "app2",
-						Tag:           "v2",
-					},
+					ImageInfo: imageInfo,
 					ImageScanFindings: &ecrtypes.ImageScanFindings{
 						Findings: []ecrtypes.ImageScanFinding{},
 					},
 				},
 				{
-					ImageInfo: &scan.ImageInfo{
-						ContainerName: "container6",
-						Registry:      "registry.io",
-						Repository:    "app3",
-						Tag:           "v3",
-					},
-					Err: fmt.Errorf("error"),
+					ImageInfo: imageInfo,
+					Err:       fmt.Errorf("error"),
 				},
 			},
 			expectedLines:  4, // header + 3 bodies
 			expectedStatus: []string{"VULNERABLE", "NONE", "ERROR"},
-			expectedCounts: [][]int32{{2, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}},
 		},
 		{
-			name: "result with only low severity",
-			results: []*scan.ScanResult{
-				{
-					ImageInfo: &scan.ImageInfo{
-						ContainerName: "container7",
-						Registry:      "registry.io",
-						Repository:    "app",
-						Tag:           "v1",
-					},
-					ImageScanFindings: &ecrtypes.ImageScanFindings{
-						Findings: []ecrtypes.ImageScanFinding{
-							{Severity: "LOW"},
-							{Severity: "INFORMATIONAL"},
-						},
-					},
-				},
-			},
+			name:           "result with only low severity",
+			results:        makeScanResult("LOW", "INFORMATIONAL"),
 			expectedLines:  2,
 			expectedStatus: []string{"OK"},
 			expectedCounts: [][]int32{{0, 0, 0, 1, 1}},
@@ -159,32 +105,25 @@ func TestPrinter_Print(t *testing.T) {
 
 			printer.Print(tt.results)
 
-			if len(logger.logs) != tt.expectedLines {
-				t.Errorf("expected %d log lines, got %d", tt.expectedLines, len(logger.logs))
-			}
+			assert.Equal(t, tt.expectedLines, len(logger.logs), "unexpected number of log lines")
 
 			// Check header is present
 			if len(logger.logs) > 0 {
 				header := logger.logs[0]
-				if !strings.Contains(header, "CONTAINER") || !strings.Contains(header, "STATUS") {
-					t.Errorf("expected header to contain CONTAINER and STATUS, got: %s", header)
-				}
+				assert.Contains(t, header, "CONTAINER", "header should contain CONTAINER")
+				assert.Contains(t, header, "STATUS", "header should contain STATUS")
 			}
 
 			// Check statuses
 			for i, expectedStatus := range tt.expectedStatus {
 				bodyLine := logger.logs[i+1]
-				if !strings.Contains(bodyLine, expectedStatus) {
-					t.Errorf("expected line %d to contain status %s, got: %s", i+1, expectedStatus, bodyLine)
-				}
+				assert.Contains(t, bodyLine, expectedStatus, "line should contain expected status")
 			}
 
 			// Check container names
 			for i, result := range tt.results {
 				bodyLine := logger.logs[i+1]
-				if !strings.Contains(bodyLine, result.ImageInfo.ContainerName) {
-					t.Errorf("expected line %d to contain container name %s, got: %s", i+1, result.ImageInfo.ContainerName, bodyLine)
-				}
+				assert.Contains(t, bodyLine, result.ImageInfo.ContainerName, "line should contain container name")
 			}
 		})
 	}
@@ -196,7 +135,30 @@ func TestPrinter_Print_EmptyResults(t *testing.T) {
 
 	printer.Print([]*scan.ScanResult{})
 
-	if len(logger.logs) != 1 {
-		t.Errorf("expected 1 log line (header only), got %d", len(logger.logs))
+	assert.Equal(t, 1, len(logger.logs), "expected header only")
+}
+
+func makeScanResult(
+	list ...ecrtypes.FindingSeverity) []*scan.ScanResult {
+	return []*scan.ScanResult{
+		{
+			ImageInfo: &scan.ImageInfo{
+				ContainerName: "test-container",
+				Registry:      "test-registry",
+				Repository:    "test-repo",
+				Tag:           "latest",
+			},
+			ImageScanFindings: &ecrtypes.ImageScanFindings{
+				Findings: makeFindings(list),
+			},
+		},
 	}
+}
+
+func makeFindings(severities []ecrtypes.FindingSeverity) []ecrtypes.ImageScanFinding {
+	findings := make([]ecrtypes.ImageScanFinding, len(severities))
+	for i, sev := range severities {
+		findings[i] = ecrtypes.ImageScanFinding{Severity: sev}
+	}
+	return findings
 }
