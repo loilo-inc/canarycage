@@ -2,6 +2,7 @@ package cageapp
 
 import (
 	"context"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -10,8 +11,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/cli/cage/scan"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
@@ -43,8 +46,10 @@ func ProvideScanDI(region string) (*di.D, error) {
 		return nil, err
 	}
 	d := di.NewDomain(func(b *di.B) {
-		b.Set(key.EcsCli, ecs.NewFromConfig(conf))
-		b.Set(key.EcrCli, ecr.NewFromConfig(conf))
+		ecsCli := ecs.NewFromConfig(conf)
+		ecrCli := ecr.NewFromConfig(conf)
+		b.Set(key.Scanner, scan.NewScanner(ecsCli, ecrCli))
+		b.Set(key.Logger, logger.DefaultLogger(os.Stdout))
 	})
 	return d, nil
 }

@@ -1,28 +1,20 @@
 package scan
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/loilo-inc/canarycage/logger"
+)
 
 type printer struct {
-	logger Logger
+	logger logger.Logger
 }
-type Logger interface {
-	Printf(format string, args ...any)
-}
+
 type Printer interface {
 	Print(result []*ScanResult)
 }
 
-func DefaultLogger() Logger {
-	return &defaultLogger{}
-}
-
-type defaultLogger struct{}
-
-func (l *defaultLogger) Printf(format string, args ...any) {
-	fmt.Printf(format, args...)
-}
-
-func NewPrinter(logger Logger) Printer {
+func NewPrinter(logger logger.Logger) Printer {
 	return &printer{logger: logger}
 }
 

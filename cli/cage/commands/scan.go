@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/scan"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/logos/di"
 	"github.com/urfave/cli/v2"
 )
@@ -50,14 +50,12 @@ func Scan(diProvider diProvider) *cli.Command {
 			if err != nil {
 				return err
 			}
-			ecscli := d.Get(key.EcsCli).(awsiface.EcsClient)
-			ecrcli := d.Get(key.EcrCli).(awsiface.EcrClient)
-			scanner := scan.NewScanner(ecscli, ecrcli)
+			scanner := d.Get(key.Scanner).(scan.Scanner)
 			result, err := scanner.Scan(context.Background(), cluster, service)
 			if err != nil {
 				return err
 			}
-			logger := scan.DefaultLogger()
+			logger := d.Get(key.Logger).(logger.Logger)
 			printer := scan.NewPrinter(logger)
 			printer.Print(result)
 			return nil
