@@ -1,6 +1,9 @@
 package scan
 
-import "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+import (
+	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
+	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+)
 
 type ImageInfo struct {
 	Registry      string
@@ -8,4 +11,10 @@ type ImageInfo struct {
 	PlatformArch  types.CPUArchitecture
 	Repository    string
 	Tag           string
+}
+
+type ScanResult struct {
+	ImageInfo         *ImageInfo
+	ImageScanFindings *ecrtypes.ImageScanFindings
+	Err               error
 }

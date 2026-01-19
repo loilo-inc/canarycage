@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
@@ -23,15 +24,22 @@ func TestCommands(t *testing.T) {
 	setup := func(t *testing.T, input string) (*cli.App, *mock_types.MockCage) {
 		ctrl := gomock.NewController(t)
 		cagecli := mock_types.NewMockCage(ctrl)
-		flag := &cageapp.Flag{}
+		cageapp := &cageapp.App{Stdin: strings.NewReader(input)}
 		app := cli.NewApp()
 		cmds := NewCageCommands(func(envars *env.Envars) (types.Cage, error) {
 			return cagecli, nil
 		})
 		app.Commands = []*cli.Command{
-			cmds.Up(flag),
-			cmds.RollOut(flag),
-			cmds.Run(flag),
+			cmds.Up(cageapp),
+			cmds.RollOut(cageapp),
+			cmds.Run(cageapp),
+		}
+		app.Flags = []cli.Flag{
+			&cli.BoolFlag{
+				Name:        "ci",
+				Destination: &cageapp.CI,
+				Value:       false,
+			},
 		}
 		return app, cagecli
 	}
@@ -45,10 +53,10 @@ func TestCommands(t *testing.T) {
 		t.Run("basic/ci", func(t *testing.T) {
 			app, cagecli := setup(t, "")
 			cagecli.EXPECT().RollOut(gomock.Any(), &types.RollOutInput{}).Return(&types.RollOutResult{}, nil)
-			err := app.Run([]string{"cage", "rollout", "--region", "ap-notheast-1", "../../../fixtures"})
+			err := app.Run([]string{"cage", "--ci", "rollout", "--region", "ap-notheast-1", "../../../fixtures"})
 			assert.NoError(t, err)
 		})
-		t.Run("basic/udate-service", func(t *testing.T) {
+		t.Run("basic/update-service", func(t *testing.T) {
 			app, cagecli := setup(t, stdinService)
 			cagecli.EXPECT().RollOut(gomock.Any(), &types.RollOutInput{UpdateService: true}).Return(&types.RollOutResult{}, nil)
 			err := app.Run([]string{"cage", "rollout", "--region", "ap-notheast-1", "--updateService", "../../../fixtures"})
@@ -71,7 +79,7 @@ func TestCommands(t *testing.T) {
 		t.Run("basic/ci", func(t *testing.T) {
 			app, cagecli := setup(t, "")
 			cagecli.EXPECT().Up(gomock.Any()).Return(&types.UpResult{}, nil)
-			err := app.Run([]string{"cage", "up", "--region", "ap-notheast-1", "../../../fixtures"})
+			err := app.Run([]string{"cage", "--ci", "up", "--region", "ap-notheast-1", "../../../fixtures"})
 			assert.NoError(t, err)
 		})
 		t.Run("error", func(t *testing.T) {
@@ -91,7 +99,7 @@ func TestCommands(t *testing.T) {
 		t.Run("basic/ci", func(t *testing.T) {
 			app, cagecli := setup(t, "")
 			cagecli.EXPECT().Run(gomock.Any(), gomock.Any()).Return(&types.RunResult{}, nil)
-			err := app.Run([]string{"cage", "run", "--region", "ap-notheast-1", "../../../fixtures", "container", "exec"})
+			err := app.Run([]string{"cage", "--ci", "run", "--region", "ap-notheast-1", "../../../fixtures", "container", "exec"})
 			assert.NoError(t, err)
 		})
 		t.Run("error", func(t *testing.T) {

@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"os"
 
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
@@ -10,7 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (c *CageCommands) Up(flag *cageapp.Flag) *cli.Command {
+func (c *CageCommands) Up(app *cageapp.App) *cli.Command {
 	envars := &env.Envars{}
 	return &cli.Command{
 		Name:        "up",
@@ -35,8 +34,8 @@ func (c *CageCommands) Up(flag *cageapp.Flag) *cli.Command {
 			if err != nil {
 				return err
 			}
-			if !flag.CI {
-				prompter := prompt.NewPrompter(os.Stdin)
+			if !app.CI {
+				prompter := prompt.NewPrompter(app.Stdin)
 				if err := prompter.ConfirmService(envars); err != nil {
 					return err
 				}

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/apex/log"
-	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/loilo-inc/canarycage/awsiface"
 )
 
@@ -15,12 +14,6 @@ type scanner struct {
 
 type Scanner interface {
 	Scan(ctx context.Context, cluster string, service string) ([]*ScanResult, error)
-}
-
-type ScanResult struct {
-	ImageInfo         *ImageInfo
-	ImageScanFindings *ecrtypes.ImageScanFindings
-	Err               error
 }
 
 func NewScanner(ecs awsiface.EcsClient, ecr awsiface.EcrClient) Scanner {

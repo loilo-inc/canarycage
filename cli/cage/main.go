@@ -19,7 +19,7 @@ var (
 )
 
 func main() {
-	flag := &cageapp.Flag{}
+	flag := &cageapp.App{}
 	app := cli.NewApp()
 	app.Name = "canarycage"
 	app.HelpName = "cage"

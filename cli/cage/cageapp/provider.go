@@ -3,7 +3,6 @@ package cageapp
 import (
 	"context"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -39,7 +38,6 @@ func ProvideCageCli(envars *env.Envars) (types.Cage, error) {
 }
 
 func ProvideScanDI(region string) (*di.D, error) {
-	log.Infof("Initializing AWS clients for region: %s", region)
 	conf, err := loadAwsConfig(region)
 	if err != nil {
 		return nil, err

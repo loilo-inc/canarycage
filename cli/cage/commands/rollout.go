@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"os"
 
 	"github.com/apex/log"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
@@ -12,7 +11,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (c *CageCommands) RollOut(flag *cageapp.Flag) *cli.Command {
+func (c *CageCommands) RollOut(app *cageapp.App) *cli.Command {
 	envars := &env.Envars{}
 	var updateServiceConf bool
 	return &cli.Command{
@@ -53,8 +52,8 @@ func (c *CageCommands) RollOut(flag *cageapp.Flag) *cli.Command {
 			if err != nil {
 				return err
 			}
-			if !flag.CI {
-				prompter := prompt.NewPrompter(os.Stdin)
+			if !app.CI {
+				prompter := prompt.NewPrompter(app.Stdin)
 				if err := prompter.ConfirmService(envars); err != nil {
 					return err
 				}

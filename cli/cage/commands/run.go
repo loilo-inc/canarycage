@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"os"
 
 	"github.com/apex/log"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -13,7 +12,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (c *CageCommands) Run(flag *cageapp.Flag) *cli.Command {
+func (c *CageCommands) Run(app *cageapp.App) *cli.Command {
 	envars := &env.Envars{}
 	return &cli.Command{
 		Name:        "run",
@@ -36,8 +35,8 @@ func (c *CageCommands) Run(flag *cageapp.Flag) *cli.Command {
 			if err != nil {
 				return err
 			}
-			if !flag.CI {
-				prompter := prompt.NewPrompter(os.Stdin)
+			if !app.CI {
+				prompter := prompt.NewPrompter(app.Stdin)
 				if err := prompter.ConfirmTask(envars); err != nil {
 					return err
 				}
