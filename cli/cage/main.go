@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/loilo-inc/canarycage/cli/cage/audit"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/commands"
 	"github.com/loilo-inc/canarycage/cli/cage/upgrade"
@@ -26,13 +27,13 @@ func main() {
 	app.Version = fmt.Sprintf("%s (commit: %s, date: %s)", version, commit, date)
 	app.Usage = "A deployment tool for AWS ECS"
 	app.Description = "A deployment tool for AWS ECS"
-	cmds := commands.NewCageCommands(cageapp.ProvideCageCli)
+	cmds := commands.NewCageCommands(commands.ProvideCageCli)
 	app.Commands = []*cli.Command{
 		cmds.Up(appConf),
 		cmds.RollOut(appConf),
 		cmds.Run(appConf),
 		commands.Upgrade(upgrade.NewUpgrader(version)),
-		commands.Scan(cageapp.ProvideScanDI),
+		commands.Audit(appConf, audit.ProvideAuditDI),
 	}
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{
@@ -40,6 +41,12 @@ func main() {
 			Usage:       "CI mode. Skip all confirmations and use default values.",
 			EnvVars:     []string{"CI"},
 			Destination: &appConf.CI,
+		},
+		&cli.BoolFlag{
+			Name:        "no-color",
+			Usage:       "Disable colored output",
+			EnvVars:     []string{"NO_COLOR"},
+			Destination: &appConf.NoColor,
 		},
 	}
 	if err := app.Run(os.Args); err != nil {

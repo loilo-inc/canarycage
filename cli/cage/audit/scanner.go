@@ -1,10 +1,9 @@
-package scan
+package audit
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/apex/log"
 	"github.com/loilo-inc/canarycage/awsiface"
 )
 
@@ -28,7 +27,6 @@ func (s *scanner) Scan(
 ) (results []*ScanResult, err error) {
 	ecsTool := newEcsTool(s.ecs)
 	ecrTool := newEcrTool(s.ecr)
-	log.Infof("Scanning ECR image vulnerabilities for ECS service %s/%s", cluster, service)
 	var imageInfos []*ImageInfo
 	if imageInfos, err = ecsTool.GetServiceImageInfos(ctx, cluster, service); err != nil {
 		return nil, err
@@ -37,20 +35,21 @@ func (s *scanner) Scan(
 	for i, info := range imageInfos {
 		if info.IsECRImage() {
 			findingsList[i] = scanImage(ctx, ecrTool, info)
-			findingsList[i].ImageInfo = imageInfos[i]
 		} else {
-			findingsList[i] = &ScanResult{ImageInfo: info, Err: fmt.Errorf("non-ECR image")}
+			findingsList[i] = &ScanResult{ImageInfo: info, Err: ErrNonEcrImage}
 		}
 	}
 	return findingsList, nil
 }
 
+var ErrNonEcrImage = fmt.Errorf("non-ECR image")
+
 func scanImage(ctx context.Context, ecrTool EcrTool, info *ImageInfo) *ScanResult {
 	if imageID, err := ecrTool.GetActualImageIdentifier(ctx, info); err != nil {
-		return &ScanResult{Err: err}
+		return &ScanResult{ImageInfo: info, Err: err}
 	} else if findings, err := ecrTool.GetImageScanFindings(ctx, info, imageID); err != nil {
-		return &ScanResult{Err: err}
+		return &ScanResult{ImageInfo: info, Err: err}
 	} else {
-		return &ScanResult{ImageScanFindings: findings}
+		return &ScanResult{ImageInfo: info, ImageScanFindings: findings}
 	}
 }

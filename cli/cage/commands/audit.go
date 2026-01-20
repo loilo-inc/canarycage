@@ -1,32 +1,36 @@
 package commands
 
 import (
-	"context"
 	"errors"
 
+	"github.com/loilo-inc/canarycage/cli/cage/audit"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
-	"github.com/loilo-inc/canarycage/cli/cage/scan"
 	"github.com/loilo-inc/canarycage/env"
-	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/logos/di"
 	"github.com/urfave/cli/v2"
 )
 
 type diProvider = func(region string) (*di.D, error)
 
-func Scan(diProvider diProvider) *cli.Command {
+func Audit(app *cageapp.App, diProvider diProvider) *cli.Command {
 	var region string
 	var cluster string
 	var service string
+	var logDetail bool
 	return &cli.Command{
-		Name:      "scan",
-		Usage:     "Scan ECR image vulnerabilities for the given ECS service",
-		ArgsUsage: "<directory path of service.json and task-definition.json>",
+		Name:      "audit",
+		Usage:     "Audit container images used in an ECS service",
+		ArgsUsage: "[directory path of service.json and task-definition.json]",
 		Flags: []cli.Flag{
 			cageapp.RegionFlag(&region),
 			cageapp.ClusterFlag(&cluster),
 			cageapp.ServiceFlag(&service),
+			&cli.BoolFlag{
+				Name:        "detail",
+				Usage:       "By default, only the name and URI of the finding are logged.",
+				Value:       false,
+				Destination: &logDetail,
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			dir, _, err := RequireArgs(ctx, 0, 1)
@@ -49,19 +53,12 @@ func Scan(diProvider diProvider) *cli.Command {
 			} else if cluster == "" || service == "" {
 				return errors.New("either directory argument or both --cluster and --service flags must be provided")
 			}
-			d, err := diProvider(region)
+			di, err := diProvider(region)
 			if err != nil {
 				return err
 			}
-			scanner := d.Get(key.Scanner).(scan.Scanner)
-			result, err := scanner.Scan(context.Background(), cluster, service)
-			if err != nil {
-				return err
-			}
-			logger := d.Get(key.Logger).(logger.Logger)
-			printer := scan.NewPrinter(logger)
-			printer.Print(result)
-			return nil
+			cmd := audit.NewCommand(di, app, logDetail)
+			return cmd.Run(ctx.Context, cluster, service)
 		},
 	}
 }

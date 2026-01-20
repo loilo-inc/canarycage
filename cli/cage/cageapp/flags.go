@@ -9,8 +9,9 @@ import (
 )
 
 type App struct {
-	CI    bool
-	Stdin io.Reader
+	CI      bool
+	NoColor bool
+	Stdin   io.Reader
 }
 
 func NewApp() *App {
