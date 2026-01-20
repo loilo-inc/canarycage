@@ -19,7 +19,7 @@ var (
 )
 
 func main() {
-	flag := &cageapp.App{}
+	appConf := cageapp.NewApp()
 	app := cli.NewApp()
 	app.Name = "canarycage"
 	app.HelpName = "cage"
@@ -28,9 +28,9 @@ func main() {
 	app.Description = "A deployment tool for AWS ECS"
 	cmds := commands.NewCageCommands(cageapp.ProvideCageCli)
 	app.Commands = []*cli.Command{
-		cmds.Up(flag),
-		cmds.RollOut(flag),
-		cmds.Run(flag),
+		cmds.Up(appConf),
+		cmds.RollOut(appConf),
+		cmds.Run(appConf),
 		commands.Upgrade(upgrade.NewUpgrader(version)),
 		commands.Scan(cageapp.ProvideScanDI),
 	}
@@ -39,7 +39,7 @@ func main() {
 			Name:        "ci",
 			Usage:       "CI mode. Skip all confirmations and use default values.",
 			EnvVars:     []string{"CI"},
-			Destination: &flag.CI,
+			Destination: &appConf.CI,
 		},
 	}
 	if err := app.Run(os.Args); err != nil {

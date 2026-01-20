@@ -278,13 +278,3 @@ func TestSplitRepoTag(t *testing.T) {
 		assert.Equal(t, "latest", tag)
 	})
 }
-
-func TestIsEcr(t *testing.T) {
-	t.Run("matches valid ecr registry", func(t *testing.T) {
-		assert.True(t, IsEcr("123456789012.dkr.ecr.us-west-2.amazonaws.com"))
-	})
-
-	t.Run("rejects non-ecr registry", func(t *testing.T) {
-		assert.False(t, IsEcr("example.com"))
-	})
-}

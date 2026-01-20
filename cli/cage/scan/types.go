@@ -19,9 +19,10 @@ func (i *ImageInfo) IsECRImage() bool {
 	return i.Registry == "public.ecr.aws" || i.registryHasECRSuffix()
 }
 
+var ecrURLPattern = regexp.MustCompile(`^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com$`)
+
 func (i *ImageInfo) registryHasECRSuffix() bool {
-	pat := regexp.MustCompile(`^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com$`)
-	return pat.MatchString(i.Registry)
+	return ecrURLPattern.MatchString(i.Registry)
 }
 
 type ScanResult struct {

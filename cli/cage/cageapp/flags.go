@@ -2,6 +2,7 @@ package cageapp
 
 import (
 	"io"
+	"os"
 
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/urfave/cli/v2"
@@ -10,6 +11,10 @@ import (
 type App struct {
 	CI    bool
 	Stdin io.Reader
+}
+
+func NewApp() *App {
+	return &App{Stdin: os.Stdin}
 }
 
 func RegionFlag(dest *string) *cli.StringFlag {

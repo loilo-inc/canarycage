@@ -3,7 +3,6 @@ package scan
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -104,10 +103,4 @@ func splitRepoTag(value string) (string, string) {
 		}
 	}
 	return repository, tag
-}
-
-var ecrURLPattern = regexp.MustCompile(`^\d{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com$`)
-
-func IsEcr(registry string) bool {
-	return ecrURLPattern.MatchString(registry)
 }
