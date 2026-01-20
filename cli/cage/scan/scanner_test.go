@@ -82,13 +82,6 @@ func TestScanner_Scan(t *testing.T) {
 				}, nil
 			})
 
-		mockEcr.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).
-			DoAndReturn(func(ctx context.Context, input *ecr.BatchGetImageInput, opts ...func(*ecr.Options)) (*ecr.BatchGetImageOutput, error) {
-				assert.Equal(t, "nginx", *input.RepositoryName)
-				assert.Equal(t, "latest", *input.ImageIds[0].ImageTag)
-				return nil, errors.New("batch error")
-			})
-
 		mockEcr.EXPECT().DescribeImageScanFindings(ctx, gomock.AssignableToTypeOf(&ecr.DescribeImageScanFindingsInput{})).
 			DoAndReturn(func(ctx context.Context, input *ecr.DescribeImageScanFindingsInput, opts ...func(*ecr.Options)) (*ecr.DescribeImageScanFindingsOutput, error) {
 				assert.Equal(t, "my-repo", *input.RepositoryName)
@@ -105,7 +98,7 @@ func TestScanner_Scan(t *testing.T) {
 			assert.Equal(t, "app", results[0].ImageInfo.ContainerName)
 			assert.NoError(t, results[0].Err)
 			assert.Equal(t, "sidecar", results[1].ImageInfo.ContainerName)
-			assert.Error(t, results[1].Err)
+			assert.EqualError(t, results[1].Err, "non-ECR image")
 		}
 	})
 
@@ -120,7 +113,7 @@ func TestScanner_Scan(t *testing.T) {
 
 		results, err := scanner.Scan(ctx, "cluster-a", "service-a")
 
-		assert.Error(t, err)
+		assert.EqualError(t, err, "ecs error")
 		assert.Nil(t, results)
 	})
 }
@@ -135,8 +128,7 @@ func TestScanImage(t *testing.T) {
 
 		result := scanImage(ctx, tool, &ImageInfo{Repository: "repo"})
 
-		assert.Error(t, result.Err)
-		assert.Contains(t, result.Err.Error(), "id error")
+		assert.EqualError(t, result.Err, "id error")
 	})
 
 	t.Run("GetImageScanFindings error returns error", func(t *testing.T) {
@@ -147,8 +139,7 @@ func TestScanImage(t *testing.T) {
 
 		result := scanImage(ctx, tool, &ImageInfo{Repository: "repo"})
 
-		assert.Error(t, result.Err)
-		assert.Contains(t, result.Err.Error(), "scan error")
+		assert.EqualError(t, result.Err, "scan error")
 	})
 
 	t.Run("success returns findings", func(t *testing.T) {

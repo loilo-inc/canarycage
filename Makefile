@@ -1,5 +1,5 @@
-# go install go.uber.org/mock/mockgen@latest
-MOCKGEN := mockgen
+# go.modのバージョンを使うと、missing go.sum entry for module providing package...エラーが出る
+MOCKGEN := go run go.uber.org/mock/mockgen@v0.6.0
 .PHONY: test
 test:
 	go test ./... -coverprofile=coverage.txt -covermode=count

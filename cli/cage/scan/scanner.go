@@ -2,6 +2,7 @@ package scan
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/apex/log"
 	"github.com/loilo-inc/canarycage/awsiface"
@@ -34,8 +35,12 @@ func (s *scanner) Scan(
 	}
 	findingsList := make([]*ScanResult, len(imageInfos))
 	for i, info := range imageInfos {
-		findingsList[i] = scanImage(ctx, ecrTool, info)
-		findingsList[i].ImageInfo = imageInfos[i]
+		if info.IsECRImage() {
+			findingsList[i] = scanImage(ctx, ecrTool, info)
+			findingsList[i].ImageInfo = imageInfos[i]
+		} else {
+			findingsList[i] = &ScanResult{ImageInfo: info, Err: fmt.Errorf("non-ECR image")}
+		}
 	}
 	return findingsList, nil
 }
