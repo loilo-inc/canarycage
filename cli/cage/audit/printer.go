@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	"github.com/loilo-inc/canarycage/cli/color"
 	"github.com/loilo-inc/canarycage/logger"
 )
 
@@ -44,9 +43,9 @@ func (p *Printer) Print(result []*ScanResult) {
 	p.logImageScanFindings("HIGH", agg.HighCves())
 	p.logImageScanFindings("MEDIUM", agg.MediumCves())
 	total := agg.TotalCVECount()
-	chalk := color.Color{NoColor: p.NoColor}
+	color := logger.Color{NoColor: p.NoColor}
 	if total == 0 {
-		p.Logger.Printf("%s\n", chalk.Greenf("No CVEs found"))
+		p.Logger.Printf("%s\n", color.Greenf("No CVEs found"))
 		return
 	}
 	summary := agg.SummarizeTotal()

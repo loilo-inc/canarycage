@@ -58,7 +58,7 @@ type ScanResultSummary struct {
 }
 
 func summaryScanResult(result *ScanResult) *ScanResultSummary {
-	var status string
+	var status = "OK"
 	var critical, high, medium, low, info int32
 	findings := result.ImageScanFindings
 	for _, f := range findings.Findings {

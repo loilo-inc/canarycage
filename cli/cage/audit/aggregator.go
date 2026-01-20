@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	"github.com/loilo-inc/canarycage/cli/color"
+	"github.com/loilo-inc/canarycage/logger"
 )
 
 type aggregater struct {
@@ -132,7 +132,7 @@ func (a *aggregater) filterCvesBySeverity(severity ecrtypes.FindingSeverity) []e
 type severityPrinter struct {
 	noColor  bool
 	severity ecrtypes.FindingSeverity
-	color    color.Color
+	color    logger.Color
 }
 
 func (s *severityPrinter) Sprintf(format string, a ...any) string {
