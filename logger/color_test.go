@@ -74,6 +74,15 @@ func TestColor_Magentaf(t *testing.T) {
 	}
 }
 
+func TestColor_Bold(t *testing.T) {
+	c := &Color{NoColor: false}
+	result := c.Bold("bold")
+	expected := "\033[1mbold\033[0m"
+	if result != expected {
+		t.Errorf("Bold() = %q, want %q", result, expected)
+	}
+}
+
 func TestColor_Boldf(t *testing.T) {
 	c := &Color{NoColor: false}
 	result := c.Boldf("bold: %s", "text")

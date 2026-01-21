@@ -1,7 +1,10 @@
 package commands
 
 import (
+	"context"
+
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
@@ -9,17 +12,15 @@ import (
 )
 
 type CageCommands struct {
-	cageCliProvider cageCliProvider
+	cageCliProvider cageapp.CageCmdProvider
 }
 
 func NewCageCommands(
-	cageCliProvider cageCliProvider,
+	cageCliProvider cageapp.CageCmdProvider,
 ) *CageCommands {
 	cmds := &CageCommands{cageCliProvider: cageCliProvider}
 	return cmds
 }
-
-type cageCliProvider = func(e *env.Envars) (types.Cage, error)
 
 func RequireArgs(
 	ctx *cli.Context,
@@ -63,7 +64,7 @@ func (c *CageCommands) setupCage(
 	if err := env.EnsureEnvars(envars); err != nil {
 		return nil, err
 	}
-	cagecli, err := c.cageCliProvider(envars)
+	cagecli, err := c.cageCliProvider(context.TODO(), envars)
 	if err != nil {
 		return nil, err
 	}

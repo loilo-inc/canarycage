@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	cage "github.com/loilo-inc/canarycage"
+	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/task"
@@ -17,14 +18,11 @@ import (
 	"github.com/loilo-inc/logos/di"
 )
 
-func ProvideCageCli(envars *env.Envars) (types.Cage, error) {
-	conf, err := config.LoadDefaultConfig(
-		context.Background(),
+func ProvideCageCli(ctx context.Context, envars *env.Envars) (types.Cage, error) {
+	conf := awsiface.MustLoadConfig(
+		ctx,
 		config.WithRegion(envars.Region),
 	)
-	if err != nil {
-		return nil, err
-	}
 	d := di.NewDomain(func(b *di.B) {
 		b.Set(key.Env, envars)
 		b.Set(key.EcsCli, ecs.NewFromConfig(conf))

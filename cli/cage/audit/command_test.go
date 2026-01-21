@@ -36,10 +36,13 @@ func TestAuditCommandRun(t *testing.T) {
 
 		mockScanner.EXPECT().Scan(ctx, "cluster", "service").Return(nil, test.Err)
 
-		app := &cageapp.App{}
-		cmd := audit.NewCommand(mockDI, app, false)
+		cmd := audit.NewCommand(mockDI, &cageapp.AuditCmdInput{
+			Cluster: "cluster",
+			Service: "service",
+			App:     &cageapp.App{},
+		})
 
-		err := cmd.Run(ctx, "cluster", "service")
+		err := cmd.Run(ctx)
 		assert.EqualError(t, err, "error")
 	})
 
@@ -56,10 +59,13 @@ func TestAuditCommandRun(t *testing.T) {
 		results := []*audit.ScanResult{}
 		mockScanner.EXPECT().Scan(ctx, "cluster", "service").Return(results, nil)
 
-		app := &cageapp.App{}
-		cmd := audit.NewCommand(mockDI, app, false)
+		cmd := audit.NewCommand(mockDI, &cageapp.AuditCmdInput{
+			Cluster: "cluster",
+			Service: "service",
+			App:     &cageapp.App{},
+		})
 
-		err := cmd.Run(ctx, "cluster", "service")
+		err := cmd.Run(ctx)
 		assert.NoError(t, err)
 	})
 
@@ -77,10 +83,13 @@ func TestAuditCommandRun(t *testing.T) {
 			return nil, nil
 		})
 
-		app := &cageapp.App{}
-		cmd := audit.NewCommand(mockDI, app, false)
+		cmd := audit.NewCommand(mockDI, &cageapp.AuditCmdInput{
+			Cluster: "cluster",
+			Service: "service",
+			App:     &cageapp.App{},
+		})
 
-		err := cmd.Run(ctx, "cluster", "service")
+		err := cmd.Run(ctx)
 		assert.Equal(t, context.Canceled, err)
 	})
 }

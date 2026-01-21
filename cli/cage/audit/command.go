@@ -13,21 +13,19 @@ import (
 
 type command struct {
 	di           *di.D
-	app          *cageapp.App
-	logDetail    bool
+	input        *cageapp.AuditCmdInput
 	spinInterval time.Duration
 }
 
-func NewCommand(di *di.D, app *cageapp.App, logDetail bool) *command {
+func NewCommand(di *di.D, input *cageapp.AuditCmdInput) *command {
 	return &command{
 		di:           di,
-		app:          app,
-		logDetail:    logDetail,
+		input:        input,
 		spinInterval: 100 * time.Millisecond,
 	}
 }
 
-func (a *command) Run(ctx context.Context, cluster, service string) error {
+func (a *command) Run(ctx context.Context) error {
 	t := a.di.Get(key.Time).(types.Time)
 	l := a.di.Get(key.Logger).(logger.Logger)
 	scanner := a.di.Get(key.Scanner).(Scanner)
@@ -35,8 +33,8 @@ func (a *command) Run(ctx context.Context, cluster, service string) error {
 	errchannel := make(chan error, 1)
 	go func() {
 		defer close(errchannel)
-		results, err := scanner.Scan(ctx, cluster, service)
-		printer := NewPrinter(l, a.app.NoColor, a.logDetail)
+		results, err := scanner.Scan(ctx, a.input.Cluster, a.input.Service)
+		printer := NewPrinter(l, a.input.App.NoColor, a.input.LogDetail)
 		l.Printf("\r") // clear spinner line
 		if err != nil {
 			errchannel <- err
@@ -54,7 +52,7 @@ func (a *command) Run(ctx context.Context, cluster, service string) error {
 		case <-timer.C:
 			l.Printf(
 				"\r%s Scanning ECR image vulnerabilities for ECS service %s/%s",
-				spinner.Next(), cluster, service,
+				spinner.Next(), a.input.Cluster, a.input.Service,
 			)
 		}
 	}

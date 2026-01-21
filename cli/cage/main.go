@@ -33,7 +33,7 @@ func main() {
 		cmds.RollOut(appConf),
 		cmds.Run(appConf),
 		commands.Upgrade(upgrade.NewUpgrader(version)),
-		commands.Audit(appConf, audit.ProvideAuditDI),
+		commands.Audit(audit.ProvideAuditCmd),
 	}
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{

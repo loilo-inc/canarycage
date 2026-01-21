@@ -87,6 +87,44 @@ func (mr *MockCageMockRecorder) Up(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Up", reflect.TypeOf((*MockCage)(nil).Up), ctx)
 }
 
+// MockAudit is a mock of Audit interface.
+type MockAudit struct {
+	ctrl     *gomock.Controller
+	recorder *MockAuditMockRecorder
+	isgomock struct{}
+}
+
+// MockAuditMockRecorder is the mock recorder for MockAudit.
+type MockAuditMockRecorder struct {
+	mock *MockAudit
+}
+
+// NewMockAudit creates a new mock instance.
+func NewMockAudit(ctrl *gomock.Controller) *MockAudit {
+	mock := &MockAudit{ctrl: ctrl}
+	mock.recorder = &MockAuditMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockAudit) EXPECT() *MockAuditMockRecorder {
+	return m.recorder
+}
+
+// Run mocks base method.
+func (m *MockAudit) Run(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Run", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Run indicates an expected call of Run.
+func (mr *MockAuditMockRecorder) Run(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockAudit)(nil).Run), ctx)
+}
+
 // MockTime is a mock of Time interface.
 type MockTime struct {
 	ctrl     *gomock.Controller

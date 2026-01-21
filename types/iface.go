@@ -13,6 +13,10 @@ type Cage interface {
 	RollOut(ctx context.Context, input *RollOutInput) (*RollOutResult, error)
 }
 
+type Audit interface {
+	Run(ctx context.Context) error
+}
+
 type Time interface {
 	NewTimer(time.Duration) *time.Timer
 }

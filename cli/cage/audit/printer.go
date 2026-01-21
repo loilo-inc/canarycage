@@ -92,7 +92,7 @@ func (p *printer) logImageScanFindings(
 		containers := aggregater.GetVulnContainers(*cve.Name)
 		var containerList []string
 		for _, c := range containers {
-			containerList = append(containerList, color.Boldf("%s", c))
+			containerList = append(containerList, color.Bold(c))
 		}
 		p.logger.Printf("- %s \n", strings.Join(containerList, ", "))
 		p.logger.Printf("  %s (%s)\n", *cve.Name, *cve.Uri)

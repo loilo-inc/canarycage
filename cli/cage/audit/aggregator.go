@@ -159,5 +159,5 @@ func (s *severityPrinter) Sprintf(format string, a ...any) string {
 }
 
 func (s *severityPrinter) BSprintf(format string, a ...any) string {
-	return s.color.Boldf("%s", s.Sprintf(format, a...))
+	return s.color.Bold(s.Sprintf(format, a...))
 }

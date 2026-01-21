@@ -1,6 +1,7 @@
 package commands_test
 
 import (
+	"context"
 	"io"
 	"testing"
 
@@ -21,7 +22,7 @@ func setup(t *testing.T, input io.Reader) (*cli.App, *mock_types.MockCage) {
 	cagecli := mock_types.NewMockCage(ctrl)
 	cageapp := &cageapp.App{Stdin: input}
 	app := cli.NewApp()
-	cmds := commands.NewCageCommands(func(envars *env.Envars) (types.Cage, error) {
+	cmds := commands.NewCageCommands(func(ctx context.Context, envars *env.Envars) (types.Cage, error) {
 		return cagecli, nil
 	})
 	app.Commands = []*cli.Command{

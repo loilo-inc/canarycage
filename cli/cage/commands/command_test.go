@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"testing"
 
 	"github.com/loilo-inc/canarycage/env"
@@ -15,7 +16,7 @@ func TestSetupCage(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		envars := &env.Envars{Region: "us-west-2"}
 		cageCli := mock_types.NewMockCage(gomock.NewController(t))
-		cmd := NewCageCommands(func(envars *env.Envars) (types.Cage, error) {
+		cmd := NewCageCommands(func(ctx context.Context, envars *env.Envars) (types.Cage, error) {
 			return cageCli, nil
 		})
 		v, err := cmd.setupCage(envars, "../../../fixtures")
@@ -31,7 +32,7 @@ func TestSetupCage(t *testing.T) {
 	t.Run("should skip load task definition if --taskDefinitionArn provided", func(t *testing.T) {
 		envars := &env.Envars{Region: "us-west-2", TaskDefinitionArn: "arn"}
 		cageCli := mock_types.NewMockCage(gomock.NewController(t))
-		cmd := NewCageCommands(func(envars *env.Envars) (types.Cage, error) {
+		cmd := NewCageCommands(func(ctx context.Context, envars *env.Envars) (types.Cage, error) {
 			return cageCli, nil
 		})
 		v, err := cmd.setupCage(envars, "../../../fixtures")
@@ -46,7 +47,7 @@ func TestSetupCage(t *testing.T) {
 	})
 	t.Run("should error if error returned from NewCage", func(t *testing.T) {
 		envars := &env.Envars{Region: "us-west-2"}
-		cmd := NewCageCommands(func(envars *env.Envars) (types.Cage, error) {
+		cmd := NewCageCommands(func(ctx context.Context, envars *env.Envars) (types.Cage, error) {
 			return nil, test.Err
 		})
 		_, err := cmd.setupCage(envars, "../../../fixtures")
