@@ -184,7 +184,7 @@ func Test_summaryScanResult(t *testing.T) {
 			},
 			want: &ScanResultSummary{
 				ContainerName: "test-container",
-				Status:        "",
+				Status:        "OK",
 				CriticalCount: 0,
 				HighCount:     0,
 				MediumCount:   0,
