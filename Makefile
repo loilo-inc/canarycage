@@ -16,7 +16,7 @@ mocks: go.sum \
 	mocks/mock_awsiface/iface.go \
 	mocks/mock_types/iface.go \
 	mocks/mock_upgrade/upgrade.go \
-	mocks/mock_scan/scanner.go \
+	mocks/mock_audit/scanner.go \
 	mocks/mock_task/task.go \
 	mocks/mock_taskset/taskset.go \
 	mocks/mock_task/factory.go \
@@ -28,7 +28,7 @@ mocks/mock_types/iface.go: types/iface.go
 	$(MOCKGEN) -source=./types/iface.go > mocks/mock_types/iface.go
 mocks/mock_upgrade/upgrade.go: cli/cage/upgrade/upgrade.go
 	$(MOCKGEN) -source=./cli/cage/upgrade/upgrade.go > mocks/mock_upgrade/upgrade.go
-mocks/mock_scan/scanner.go: cli/cage/audit/scanner.go
+mocks/mock_audit/scanner.go: cli/cage/audit/scanner.go
 	$(MOCKGEN) -source=./cli/cage/audit/scanner.go > mocks/mock_audit/scanner.go
 mocks/mock_task/task.go: task/task.go
 	$(MOCKGEN) -source=./task/task.go > mocks/mock_task/task.go

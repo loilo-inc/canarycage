@@ -78,16 +78,16 @@ func (p *printer) Print(result []*ScanResult) {
 }
 
 func (p *printer) logImageScanFindings(
-	serverity ecrtypes.FindingSeverity,
+	severity ecrtypes.FindingSeverity,
 	findings []ecrtypes.ImageScanFinding,
 	aggregater *aggregater,
 ) {
 	if len(findings) == 0 {
 		return
 	}
-	sp := &severityPrinter{severity: serverity, color: p.color}
+	sp := &severityPrinter{severity: severity, color: p.color}
 	color := p.color
-	p.logger.Printf("\n=== %s ===\n", sp.BSprintf("%s", serverity))
+	p.logger.Printf("\n=== %s ===\n", sp.BSprintf("%s", severity))
 	for _, cve := range findings {
 		containers := aggregater.GetVulnContainers(*cve.Name)
 		var containerList []string

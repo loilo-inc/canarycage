@@ -8,8 +8,9 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func Audit(provider cageapp.AuditCmdProvider) *cli.Command {
+func Audit(app *cageapp.App, provider cageapp.AuditCmdProvider) *cli.Command {
 	input := cageapp.NewAuditCmdInput()
+	input.App = app
 	return &cli.Command{
 		Name:      "audit",
 		Usage:     "Audit container images used in an ECS service",

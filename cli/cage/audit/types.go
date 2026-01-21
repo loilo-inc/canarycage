@@ -20,7 +20,7 @@ func (i *ImageInfo) IsECRImage() bool {
 	return i.Registry == "public.ecr.aws" || i.registryHasECRSuffix()
 }
 
-var ecrURLPattern = regexp.MustCompile(`^[0-9]{12}\.dkr\.ecr\.[a-za-zA-Z0-9-]+\.amazonaws\.com$`)
+var ecrURLPattern = regexp.MustCompile(`^[0-9]{12}\.dkr\.ecr\.[a-zA-Z0-9-]+\.amazonaws\.com$`)
 
 func (i *ImageInfo) registryHasECRSuffix() bool {
 	return ecrURLPattern.MatchString(i.Registry)

@@ -61,7 +61,7 @@ type AggregateResult struct {
 
 func (a *aggregater) SummarizeTotal() *AggregateResult {
 	result := &AggregateResult{}
-	highestServity := ecrtypes.FindingSeverityInformational
+	highest := ecrtypes.FindingSeverityInformational
 	for cve := range a.cves {
 		severity := a.cveToSeverity[cve]
 		switch severity {
@@ -78,15 +78,15 @@ func (a *aggregater) SummarizeTotal() *AggregateResult {
 		}
 	}
 	if result.CriticalCount > 0 {
-		highestServity = ecrtypes.FindingSeverityCritical
+		highest = ecrtypes.FindingSeverityCritical
 	} else if result.HighCount > 0 {
-		highestServity = ecrtypes.FindingSeverityHigh
+		highest = ecrtypes.FindingSeverityHigh
 	} else if result.MediumCount > 0 {
-		highestServity = ecrtypes.FindingSeverityMedium
+		highest = ecrtypes.FindingSeverityMedium
 	} else {
-		highestServity = ecrtypes.FindingSeverityLow
+		highest = ecrtypes.FindingSeverityLow
 	}
-	result.HighestSeverity = highestServity
+	result.HighestSeverity = highest
 	result.TotalCount = int32(len(a.cves))
 	return result
 }
