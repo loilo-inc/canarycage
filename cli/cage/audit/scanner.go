@@ -27,7 +27,7 @@ func (s *scanner) Scan(
 ) (results []*ScanResult, err error) {
 	ecsTool := newEcsTool(s.ecs)
 	ecrTool := newEcrTool(s.ecr)
-	var imageInfos []*ImageInfo
+	var imageInfos []ImageInfo
 	if imageInfos, err = ecsTool.GetServiceImageInfos(ctx, cluster, service); err != nil {
 		return nil, err
 	}
@@ -44,10 +44,10 @@ func (s *scanner) Scan(
 
 var ErrNonEcrImage = fmt.Errorf("non-ECR image")
 
-func scanImage(ctx context.Context, ecrTool EcrTool, info *ImageInfo) *ScanResult {
-	if imageID, err := ecrTool.GetActualImageIdentifier(ctx, info); err != nil {
+func scanImage(ctx context.Context, ecrTool EcrTool, info ImageInfo) *ScanResult {
+	if imageID, err := ecrTool.GetActualImageIdentifier(ctx, &info); err != nil {
 		return &ScanResult{ImageInfo: info, Err: err}
-	} else if findings, err := ecrTool.GetImageScanFindings(ctx, info, imageID); err != nil {
+	} else if findings, err := ecrTool.GetImageScanFindings(ctx, &info, imageID); err != nil {
 		return &ScanResult{ImageInfo: info, Err: err}
 	} else {
 		return &ScanResult{ImageInfo: info, ImageScanFindings: findings}

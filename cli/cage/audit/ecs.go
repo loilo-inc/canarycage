@@ -15,14 +15,14 @@ type ecsTool struct {
 }
 
 type EcsTool interface {
-	GetServiceImageInfos(ctx context.Context, cluster string, service string) ([]*ImageInfo, error)
+	GetServiceImageInfos(ctx context.Context, cluster string, service string) ([]ImageInfo, error)
 }
 
 func newEcsTool(ecsClient awsiface.EcsClient) EcsTool {
 	return &ecsTool{Ecs: ecsClient}
 }
 
-func (t *ecsTool) GetServiceImageInfos(ctx context.Context, cluster string, service string) ([]*ImageInfo, error) {
+func (t *ecsTool) GetServiceImageInfos(ctx context.Context, cluster string, service string) ([]ImageInfo, error) {
 	res, err := t.Ecs.DescribeServices(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &cluster,
 		Services: []string{service},
@@ -55,13 +55,13 @@ func (t *ecsTool) GetServiceImageInfos(ctx context.Context, cluster string, serv
 		return nil, fmt.Errorf("no container definitions found for task definition: %s", taskDefinition)
 	}
 
-	images := make([]*ImageInfo, 0, len(td.ContainerDefinitions))
+	images := make([]ImageInfo, 0, len(td.ContainerDefinitions))
 	for _, cd := range td.ContainerDefinitions {
 		if cd.Name == nil || cd.Image == nil {
 			return nil, fmt.Errorf("container definition is missing name or image: %s", taskDefinition)
 		}
 		parsed := ParseImageInfo(*cd.Image)
-		images = append(images, &ImageInfo{
+		images = append(images, ImageInfo{
 			ContainerName: *cd.Name,
 			PlatformArch:  arch,
 			Registry:      parsed.Registry,

@@ -102,8 +102,8 @@ func (p *printer) logImageScanFindings(
 	}
 }
 
-func formatImageLabel(info *ImageInfo) string {
-	return fmt.Sprintf("%s/%s:%s", info.Registry, info.Repository, info.Tag)
+func (i *ImageInfo) formatImageLabel() string {
+	return fmt.Sprintf("%s/%s:%s", i.Registry, i.Repository, i.Tag)
 }
 
 func MaxHeaderWidth(imageInfos []*ScanResult) (int, int) {
@@ -113,7 +113,7 @@ func MaxHeaderWidth(imageInfos []*ScanResult) (int, int) {
 		if l := len(info.ImageInfo.ContainerName); l > containerMax {
 			containerMax = l
 		}
-		imageLabel := formatImageLabel(info.ImageInfo)
+		imageLabel := info.formatImageLabel()
 		if l := len(imageLabel); l > imageMax {
 			imageMax = l
 		}

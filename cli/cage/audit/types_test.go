@@ -56,7 +56,7 @@ func TestImageInfo_IsECRImage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			i := &ImageInfo{
+			i := ImageInfo{
 				Registry: tt.registry,
 			}
 			if got := i.IsECRImage(); got != tt.want {
@@ -74,7 +74,7 @@ func Test_summaryScanResult(t *testing.T) {
 		{
 			name: "no findings - NONE status",
 			result: &ScanResult{
-				ImageInfo: &ImageInfo{
+				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 					Registry:      "123456789012.dkr.ecr.us-east-1.amazonaws.com",
 					Repository:    "test-repo",
@@ -92,18 +92,13 @@ func Test_summaryScanResult(t *testing.T) {
 				MediumCount:   0,
 				LowCount:      0,
 				InfoCount:     0,
-				ImageURI: formatImageLabel(&ImageInfo{
-					ContainerName: "test-container",
-					Registry:      "123456789012.dkr.ecr.us-east-1.amazonaws.com",
-					Repository:    "test-repo",
-					Tag:           "latest",
-				}),
+				ImageURI:      "123456789012.dkr.ecr.us-east-1.amazonaws.com/test-repo:latest",
 			},
 		},
 		{
 			name: "critical findings - VULNERABLE status",
 			result: &ScanResult{
-				ImageInfo: &ImageInfo{
+				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
 				ImageScanFindings: &ecrtypes.ImageScanFindings{
@@ -126,7 +121,7 @@ func Test_summaryScanResult(t *testing.T) {
 		{
 			name: "high findings - VULNERABLE status",
 			result: &ScanResult{
-				ImageInfo: &ImageInfo{
+				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
 				ImageScanFindings: &ecrtypes.ImageScanFindings{
@@ -149,7 +144,7 @@ func Test_summaryScanResult(t *testing.T) {
 		{
 			name: "medium findings - WARNING status",
 			result: &ScanResult{
-				ImageInfo: &ImageInfo{
+				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
 				ImageScanFindings: &ecrtypes.ImageScanFindings{
@@ -172,7 +167,7 @@ func Test_summaryScanResult(t *testing.T) {
 		{
 			name: "low and informational findings - empty status",
 			result: &ScanResult{
-				ImageInfo: &ImageInfo{
+				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
 				ImageScanFindings: &ecrtypes.ImageScanFindings{
@@ -195,7 +190,7 @@ func Test_summaryScanResult(t *testing.T) {
 		{
 			name: "mixed severity findings",
 			result: &ScanResult{
-				ImageInfo: &ImageInfo{
+				ImageInfo: ImageInfo{
 					ContainerName: "mixed-container",
 				},
 				ImageScanFindings: &ecrtypes.ImageScanFindings{
@@ -248,5 +243,3 @@ func Test_summaryScanResult(t *testing.T) {
 		})
 	}
 }
-
-

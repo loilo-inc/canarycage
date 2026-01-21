@@ -27,23 +27,9 @@ func (i *ImageInfo) registryHasECRSuffix() bool {
 }
 
 type ScanResult struct {
-	ImageInfo         *ImageInfo
+	ImageInfo
 	ImageScanFindings *ecrtypes.ImageScanFindings
 	Err               error
-}
-
-func (s *ScanResult) ContainerName() string {
-	if s.ImageInfo != nil {
-		return s.ImageInfo.ContainerName
-	}
-	return ""
-}
-
-func (s *ScanResult) ImageURI() string {
-	if s.ImageInfo != nil {
-		return formatImageLabel(s.ImageInfo)
-	}
-	return ""
 }
 
 type ScanResultSummary struct {
@@ -83,13 +69,13 @@ func summaryScanResult(result *ScanResult) *ScanResultSummary {
 		status = "WARNING"
 	}
 	return &ScanResultSummary{
-		ContainerName: result.ContainerName(),
+		ContainerName: result.ContainerName,
 		Status:        status,
 		CriticalCount: critical,
 		HighCount:     high,
 		MediumCount:   medium,
 		LowCount:      low,
 		InfoCount:     info,
-		ImageURI:      result.ImageURI(),
+		ImageURI:      result.formatImageLabel(),
 	}
 }

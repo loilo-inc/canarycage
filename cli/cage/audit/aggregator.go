@@ -24,7 +24,7 @@ func NewAggregater() *aggregater {
 }
 
 func (a *aggregater) Add(r *ScanResult) {
-	container := r.ContainerName()
+	container := r.ContainerName
 	if r.Err != nil {
 		a.summaries[container] = append(a.summaries[container], &ScanResultSummary{
 			ContainerName: container,
@@ -83,8 +83,10 @@ func (a *aggregater) SummarizeTotal() *AggregateResult {
 		highest = ecrtypes.FindingSeverityHigh
 	} else if result.MediumCount > 0 {
 		highest = ecrtypes.FindingSeverityMedium
-	} else {
+	} else if result.LowCount > 0 {
 		highest = ecrtypes.FindingSeverityLow
+	} else {
+		highest = ecrtypes.FindingSeverityInformational
 	}
 	result.HighestSeverity = highest
 	result.TotalCount = int32(len(a.cves))

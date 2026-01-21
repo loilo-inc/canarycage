@@ -20,7 +20,7 @@ func makeScanResult(
 	list ...ecrtypes.FindingSeverity) []*ScanResult {
 	return []*ScanResult{
 		{
-			ImageInfo: &ImageInfo{
+			ImageInfo: ImageInfo{
 				ContainerName: "test-container",
 				Registry:      "test-registry",
 				Repository:    "test-repo",
@@ -144,6 +144,169 @@ func TestPrinter_Print(t *testing.T) {
 		}
 		if !totalFound {
 			t.Error("Expected Total summary line")
+		}
+	})
+}
+
+func TestPrinter_logImageScanFindings(t *testing.T) {
+	t.Run("does nothing when findings are empty", func(t *testing.T) {
+		logger := &mockLogger{}
+		printer := NewPrinter(logger, true, false)
+		agg := NewAggregater()
+
+		printer.logImageScanFindings(ecrtypes.FindingSeverityCritical, []ecrtypes.ImageScanFinding{}, agg)
+
+		if len(logger.logs) != 0 {
+			t.Errorf("Expected no logs, got %d", len(logger.logs))
+		}
+	})
+
+	t.Run("prints severity header", func(t *testing.T) {
+		logger := &mockLogger{}
+		printer := NewPrinter(logger, true, false)
+		agg := NewAggregater()
+		result := makeScanResult(ecrtypes.FindingSeverityCritical)
+		agg.Add(result[0])
+
+		findings := result[0].ImageScanFindings.Findings
+		printer.logImageScanFindings(ecrtypes.FindingSeverityCritical, findings, agg)
+
+		headerFound := false
+		for _, log := range logger.logs {
+			if containsString(log, "=== CRITICAL ===") {
+				headerFound = true
+				break
+			}
+		}
+		if !headerFound {
+			t.Error("Expected severity header to be printed")
+		}
+	})
+
+	t.Run("prints CVE name and URI", func(t *testing.T) {
+		logger := &mockLogger{}
+		printer := NewPrinter(logger, true, false)
+		agg := NewAggregater()
+		result := makeScanResult(ecrtypes.FindingSeverityHigh)
+		agg.Add(result[0])
+
+		findings := result[0].ImageScanFindings.Findings
+		printer.logImageScanFindings(ecrtypes.FindingSeverityHigh, findings, agg)
+
+		cveFound := false
+		uriFound := false
+		for _, log := range logger.logs {
+			if containsString(log, "CVE-2023-0001") {
+				cveFound = true
+			}
+			if containsString(log, "http://example.com") {
+				uriFound = true
+			}
+		}
+		if !cveFound {
+			t.Error("Expected CVE name to be printed")
+		}
+		if !uriFound {
+			t.Error("Expected CVE URI to be printed")
+		}
+	})
+
+	t.Run("prints container names", func(t *testing.T) {
+		logger := &mockLogger{}
+		printer := NewPrinter(logger, true, false)
+		agg := NewAggregater()
+		result := makeScanResult(ecrtypes.FindingSeverityMedium)
+		agg.Add(result[0])
+
+		findings := result[0].ImageScanFindings.Findings
+		printer.logImageScanFindings(ecrtypes.FindingSeverityMedium, findings, agg)
+
+		containerFound := false
+		for _, log := range logger.logs {
+			if containsString(log, "test-container") {
+				containerFound = true
+				break
+			}
+		}
+		if !containerFound {
+			t.Error("Expected container name to be printed")
+		}
+	})
+
+	t.Run("prints description when logDetail is true", func(t *testing.T) {
+		logger := &mockLogger{}
+		printer := NewPrinter(logger, true, true) // logDetail = true
+		agg := NewAggregater()
+		result := makeScanResult(ecrtypes.FindingSeverityCritical)
+		agg.Add(result[0])
+
+		findings := result[0].ImageScanFindings.Findings
+		printer.logImageScanFindings(ecrtypes.FindingSeverityCritical, findings, agg)
+
+		descriptionFound := false
+		for _, log := range logger.logs {
+			if containsString(log, "Test vulnerability description") {
+				descriptionFound = true
+				break
+			}
+		}
+		if !descriptionFound {
+			t.Error("Expected description to be printed when logDetail is true")
+		}
+	})
+
+	t.Run("does not print description when logDetail is false", func(t *testing.T) {
+		logger := &mockLogger{}
+		printer := NewPrinter(logger, true, false) // logDetail = false
+		agg := NewAggregater()
+		result := makeScanResult(ecrtypes.FindingSeverityCritical)
+		agg.Add(result[0])
+
+		findings := result[0].ImageScanFindings.Findings
+		printer.logImageScanFindings(ecrtypes.FindingSeverityCritical, findings, agg)
+
+		descriptionFound := false
+		for _, log := range logger.logs {
+			if containsString(log, "Test vulnerability description") {
+				descriptionFound = true
+				break
+			}
+		}
+		if descriptionFound {
+			t.Error("Expected description NOT to be printed when logDetail is false")
+		}
+	})
+
+	t.Run("handles multiple findings", func(t *testing.T) {
+		logger := &mockLogger{}
+		printer := NewPrinter(logger, true, false)
+		agg := NewAggregater()
+		result := makeScanResult(
+			ecrtypes.FindingSeverityHigh,
+			ecrtypes.FindingSeverityHigh,
+			ecrtypes.FindingSeverityHigh,
+		)
+		agg.Add(result[0])
+
+		findings := result[0].ImageScanFindings.Findings
+		printer.logImageScanFindings(ecrtypes.FindingSeverityHigh, findings, agg)
+
+		cve1Found := false
+		cve2Found := false
+		cve3Found := false
+		for _, log := range logger.logs {
+			if containsString(log, "CVE-2023-0001") {
+				cve1Found = true
+			}
+			if containsString(log, "CVE-2023-0002") {
+				cve2Found = true
+			}
+			if containsString(log, "CVE-2023-0003") {
+				cve3Found = true
+			}
+		}
+		if !cve1Found || !cve2Found || !cve3Found {
+			t.Error("Expected all three CVEs to be printed")
 		}
 	})
 }

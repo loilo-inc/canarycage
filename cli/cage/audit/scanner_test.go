@@ -126,7 +126,7 @@ func TestScanImage(t *testing.T) {
 			errID: errors.New("id error"),
 		}
 
-		result := scanImage(ctx, tool, &ImageInfo{Repository: "repo"})
+		result := scanImage(ctx, tool, ImageInfo{Repository: "repo"})
 
 		assert.EqualError(t, result.Err, "id error")
 	})
@@ -137,7 +137,7 @@ func TestScanImage(t *testing.T) {
 			errScan: errors.New("scan error"),
 		}
 
-		result := scanImage(ctx, tool, &ImageInfo{Repository: "repo"})
+		result := scanImage(ctx, tool, ImageInfo{Repository: "repo"})
 
 		assert.EqualError(t, result.Err, "scan error")
 	})
@@ -149,7 +149,7 @@ func TestScanImage(t *testing.T) {
 			findings: findings,
 		}
 
-		result := scanImage(ctx, tool, &ImageInfo{Repository: "repo"})
+		result := scanImage(ctx, tool, ImageInfo{Repository: "repo"})
 
 		assert.NoError(t, result.Err)
 		assert.Equal(t, findings, result.ImageScanFindings)
