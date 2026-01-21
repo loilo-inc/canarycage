@@ -8,17 +8,19 @@ import (
 )
 
 type aggregater struct {
-	cves          map[string]ecrtypes.ImageScanFinding
-	cveToSeverity map[string]string
+	cves            map[string]ecrtypes.ImageScanFinding
+	cveToSeverity   map[string]string
+	cveToContainers map[string][]string
 	// container name to summaries
 	summaries map[string][]*ScanResultSummary
 }
 
 func NewAggregater() *aggregater {
 	return &aggregater{
-		cves:          make(map[string]ecrtypes.ImageScanFinding),
-		cveToSeverity: make(map[string]string),
-		summaries:     make(map[string][]*ScanResultSummary)}
+		cves:            make(map[string]ecrtypes.ImageScanFinding),
+		cveToSeverity:   make(map[string]string),
+		cveToContainers: make(map[string][]string),
+		summaries:       make(map[string][]*ScanResultSummary)}
 }
 
 func (a *aggregater) Add(r *ScanResult) {
@@ -42,6 +44,7 @@ func (a *aggregater) Add(r *ScanResult) {
 		if _, exists := a.cves[*f.Name]; !exists {
 			a.cves[*f.Name] = f
 			a.cveToSeverity[*f.Name] = string(f.Severity)
+			a.cveToContainers[*f.Name] = append(a.cveToContainers[*f.Name], container)
 		}
 	}
 }
@@ -129,8 +132,15 @@ func (a *aggregater) filterCvesBySeverity(severity ecrtypes.FindingSeverity) []e
 	return cves
 }
 
+func (a *aggregater) GetVulnContainers(cveName string) []string {
+	containersSet, exists := a.cveToContainers[cveName]
+	if !exists {
+		return []string{}
+	}
+	return containersSet
+}
+
 type severityPrinter struct {
-	noColor  bool
 	severity ecrtypes.FindingSeverity
 	color    logger.Color
 }

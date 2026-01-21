@@ -36,15 +36,11 @@ func (a *command) Run(ctx context.Context, cluster, service string) error {
 	go func() {
 		defer close(errchannel)
 		results, err := scanner.Scan(ctx, cluster, service)
-		printer := &Printer{
-			Logger:    l,
-			NoColor:   a.app.NoColor,
-			LogDetail: a.logDetail,
-		}
+		printer := NewPrinter(l, a.app.NoColor, a.logDetail)
+		l.Printf("\r") // clear spinner line
 		if err != nil {
 			errchannel <- err
 		} else {
-			l.Printf("\r") // clear spinner line
 			printer.Print(results)
 		}
 	}()

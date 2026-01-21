@@ -36,7 +36,7 @@ func TestAuditCommandRun(t *testing.T) {
 
 		mockScanner.EXPECT().Scan(ctx, "cluster", "service").Return(nil, test.Err)
 
-		app := &cageapp.App{NoColor: false}
+		app := &cageapp.App{}
 		cmd := audit.NewCommand(mockDI, app, false)
 
 		err := cmd.Run(ctx, "cluster", "service")
@@ -56,7 +56,7 @@ func TestAuditCommandRun(t *testing.T) {
 		results := []*audit.ScanResult{}
 		mockScanner.EXPECT().Scan(ctx, "cluster", "service").Return(results, nil)
 
-		app := &cageapp.App{NoColor: false}
+		app := &cageapp.App{}
 		cmd := audit.NewCommand(mockDI, app, false)
 
 		err := cmd.Run(ctx, "cluster", "service")
@@ -77,7 +77,7 @@ func TestAuditCommandRun(t *testing.T) {
 			return nil, nil
 		})
 
-		app := &cageapp.App{NoColor: false}
+		app := &cageapp.App{}
 		cmd := audit.NewCommand(mockDI, app, false)
 
 		err := cmd.Run(ctx, "cluster", "service")

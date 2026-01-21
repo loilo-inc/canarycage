@@ -8,17 +8,25 @@ import (
 	"github.com/loilo-inc/canarycage/logger"
 )
 
-type Printer struct {
-	Logger    logger.Logger
-	LogDetail bool
-	NoColor   bool
+type printer struct {
+	logger    logger.Logger
+	color     logger.Color
+	logDetail bool
 }
 
-func (p *Printer) Print(result []*ScanResult) {
+func NewPrinter(l logger.Logger, noColor, logDetail bool) *printer {
+	return &printer{
+		logger:    l,
+		color:     logger.Color{NoColor: noColor},
+		logDetail: logDetail,
+	}
+}
+
+func (p *printer) Print(result []*ScanResult) {
 	containerMax, imageMax := MaxHeaderWidth(result)
 	// |container|status|critical|high|medium|low|info|image|
 	headerFmt := fmt.Sprintf("|%%-%ds|%%-10s|%%-8s|%%-5s|%%-6s|%%-4s|%%-4s|%%-%ds|\n", containerMax, imageMax)
-	p.Logger.Printf(headerFmt, "CONTAINER", "STATUS", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "IMAGE")
+	p.logger.Printf(headerFmt, "CONTAINER", "STATUS", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "IMAGE")
 	bodyFmt := fmt.Sprintf("|%%-%ds|%%-10s|%%-8d|%%-5d|%%-6d|%%-4d|%%-4d|%%-%ds|\n", containerMax, imageMax)
 	agg := NewAggregater()
 	for _, r := range result {
@@ -26,7 +34,7 @@ func (p *Printer) Print(result []*ScanResult) {
 	}
 	for _, summaries := range agg.summaries {
 		for _, summary := range summaries {
-			p.Logger.Printf(
+			p.logger.Printf(
 				bodyFmt,
 				summary.ContainerName,
 				summary.Status,
@@ -39,45 +47,57 @@ func (p *Printer) Print(result []*ScanResult) {
 			)
 		}
 	}
-	p.logImageScanFindings("CRITICAL", agg.CriticalCves())
-	p.logImageScanFindings("HIGH", agg.HighCves())
-	p.logImageScanFindings("MEDIUM", agg.MediumCves())
+	p.logImageScanFindings("CRITICAL", agg.CriticalCves(), agg)
+	p.logImageScanFindings("HIGH", agg.HighCves(), agg)
+	p.logImageScanFindings("MEDIUM", agg.MediumCves(), agg)
 	total := agg.TotalCVECount()
-	color := logger.Color{NoColor: p.NoColor}
+	color := p.color
 	if total == 0 {
-		p.Logger.Printf("%s\n", color.Greenf("No CVEs found"))
+		p.logger.Printf("%s\n", color.Greenf("No CVEs found"))
 		return
 	}
 	summary := agg.SummarizeTotal()
 	highest := &severityPrinter{
 		severity: summary.HighestSeverity,
+		color:    p.color,
 	}
 	var list []string
 	for _, v := range summary.SeverityCounts() {
 		if v.Count == 0 {
 			continue
 		}
-		sp := &severityPrinter{severity: v.Severity}
+		sp := &severityPrinter{severity: v.Severity, color: p.color}
 		list = append(list, fmt.Sprintf("%d %s", v.Count, sp.BSprintf("%s", v.Severity)))
 	}
 
-	p.Logger.Printf(
-		"Total: %s (%s)\n",
+	p.logger.Printf(
+		"\nTotal: %s (%s)\n",
 		highest.BSprintf("%d", summary.TotalCount),
 		strings.Join(list, ", "),
 	)
 }
 
-func (p *Printer) logImageScanFindings(serverity ecrtypes.FindingSeverity, findings []ecrtypes.ImageScanFinding) {
+func (p *printer) logImageScanFindings(
+	serverity ecrtypes.FindingSeverity,
+	findings []ecrtypes.ImageScanFinding,
+	aggregater *aggregater,
+) {
 	if len(findings) == 0 {
 		return
 	}
-	sp := &severityPrinter{severity: serverity}
-	p.Logger.Printf("=== %s ===\n", sp.BSprintf("%s", serverity))
+	sp := &severityPrinter{severity: serverity, color: p.color}
+	color := p.color
+	p.logger.Printf("\n=== %s ===\n", sp.BSprintf("%s", serverity))
 	for _, cve := range findings {
-		p.Logger.Printf("- %s (%s)\n", *cve.Name, *cve.Uri)
-		if p.LogDetail && cve.Description != nil {
-			p.Logger.Printf("%s\n", *cve.Description)
+		containers := aggregater.GetVulnContainers(*cve.Name)
+		var containerList []string
+		for _, c := range containers {
+			containerList = append(containerList, color.Boldf("%s", c))
+		}
+		p.logger.Printf("- %s \n", strings.Join(containerList, ", "))
+		p.logger.Printf("  %s (%s)\n", *cve.Name, *cve.Uri)
+		if p.logDetail {
+			p.logger.Printf("\n%s\n", *cve.Description)
 		}
 	}
 }

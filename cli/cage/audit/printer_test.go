@@ -16,13 +16,6 @@ func (m *mockLogger) Printf(format string, args ...any) {
 	m.logs = append(m.logs, fmt.Sprintf(format, args...))
 }
 
-var imageInfo = &ImageInfo{
-	ContainerName: "test-container",
-	Registry:      "test-registry",
-	Repository:    "test-repo",
-	Tag:           "latest",
-}
-
 func makeScanResult(
 	list ...ecrtypes.FindingSeverity) []*ScanResult {
 	return []*ScanResult{
@@ -56,11 +49,7 @@ func makeFindings(severities []ecrtypes.FindingSeverity) []ecrtypes.ImageScanFin
 func TestPrinter_Print(t *testing.T) {
 	t.Run("prints no CVEs message when no findings", func(t *testing.T) {
 		logger := &mockLogger{}
-		printer := &Printer{
-			Logger:    logger,
-			LogDetail: false,
-			NoColor:   true,
-		}
+		printer := NewPrinter(logger, true, false)
 
 		result := makeScanResult()
 		printer.Print(result)
@@ -80,11 +69,7 @@ func TestPrinter_Print(t *testing.T) {
 
 	t.Run("prints table header", func(t *testing.T) {
 		logger := &mockLogger{}
-		printer := &Printer{
-			Logger:    logger,
-			LogDetail: false,
-			NoColor:   true,
-		}
+		printer := NewPrinter(logger, true, false)
 
 		result := makeScanResult(ecrtypes.FindingSeverityCritical)
 		printer.Print(result)
@@ -104,11 +89,7 @@ func TestPrinter_Print(t *testing.T) {
 
 	t.Run("prints findings by severity", func(t *testing.T) {
 		logger := &mockLogger{}
-		printer := &Printer{
-			Logger:    logger,
-			LogDetail: false,
-			NoColor:   true,
-		}
+		printer := NewPrinter(logger, true, false)
 
 		result := makeScanResult(
 			ecrtypes.FindingSeverityCritical,
@@ -145,11 +126,7 @@ func TestPrinter_Print(t *testing.T) {
 
 	t.Run("prints total summary with counts", func(t *testing.T) {
 		logger := &mockLogger{}
-		printer := &Printer{
-			Logger:    logger,
-			LogDetail: false,
-			NoColor:   true,
-		}
+		printer := NewPrinter(logger, true, false)
 
 		result := makeScanResult(
 			ecrtypes.FindingSeverityCritical,
