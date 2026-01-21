@@ -34,7 +34,7 @@ func (a *command) Run(ctx context.Context) error {
 	go func() {
 		defer close(errchannel)
 		results, err := scanner.Scan(ctx, a.input.Cluster, a.input.Service)
-		printer := NewPrinter(l, a.input.App.NoColor, a.input.LogDetail)
+		printer := NewPrinter(l, a.input.NoColor, a.input.LogDetail)
 		l.Printf("\r") // clear spinner line
 		if err != nil {
 			errchannel <- err

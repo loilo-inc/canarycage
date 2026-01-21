@@ -5,12 +5,10 @@ import (
 
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
-	"github.com/loilo-inc/canarycage/env"
 	"github.com/urfave/cli/v2"
 )
 
-func (c *CageCommands) Up(app *cageapp.App) *cli.Command {
-	envars := &env.Envars{}
+func (c *CageCommands) Up(input *cageapp.CageCmdInput) *cli.Command {
 	return &cli.Command{
 		Name:        "up",
 		Usage:       "create new ECS service with specified task definition",
@@ -18,25 +16,25 @@ func (c *CageCommands) Up(app *cageapp.App) *cli.Command {
 		Args:        true,
 		ArgsUsage:   "[directory path of service.json and task-definition.json]",
 		Flags: []cli.Flag{
-			cageapp.RegionFlag(&envars.Region),
-			cageapp.ClusterFlag(&envars.Cluster),
-			cageapp.ServiceFlag(&envars.Service),
-			cageapp.TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
-			cageapp.CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
-			cageapp.ServiceStableWaitFlag(&envars.ServiceStableWait),
+			cageapp.RegionFlag(&input.Region),
+			cageapp.ClusterFlag(&input.Cluster),
+			cageapp.ServiceFlag(&input.Service),
+			cageapp.TaskDefinitionArnFlag(&input.TaskDefinitionArn),
+			cageapp.CanaryTaskIdleDurationFlag(&input.CanaryTaskIdleDuration),
+			cageapp.ServiceStableWaitFlag(&input.ServiceStableWait),
 		},
 		Action: func(ctx *cli.Context) error {
 			dir, _, err := RequireArgs(ctx, 1, 1)
 			if err != nil {
 				return err
 			}
-			cagecli, err := c.setupCage(envars, dir)
+			cagecli, err := c.setupCage(input, dir)
 			if err != nil {
 				return err
 			}
-			if !app.CI {
-				prompter := prompt.NewPrompter(app.Stdin)
-				if err := prompter.ConfirmService(envars); err != nil {
+			if !input.CI {
+				prompter := prompt.NewPrompter(input.Stdin)
+				if err := prompter.ConfirmService(input.Envars); err != nil {
 					return err
 				}
 			}

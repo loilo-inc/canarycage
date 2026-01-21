@@ -248,3 +248,5 @@ func Test_summaryScanResult(t *testing.T) {
 		})
 	}
 }
+
+

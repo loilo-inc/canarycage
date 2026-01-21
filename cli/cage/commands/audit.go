@@ -9,7 +9,7 @@ import (
 )
 
 func Audit(provider cageapp.AuditCmdProvider) *cli.Command {
-	var input cageapp.AuditCmdInput
+	input := cageapp.NewAuditCmdInput()
 	return &cli.Command{
 		Name:      "audit",
 		Usage:     "Audit container images used in an ECS service",
@@ -46,7 +46,7 @@ func Audit(provider cageapp.AuditCmdProvider) *cli.Command {
 			} else if input.Cluster == "" || input.Service == "" {
 				return errors.New("either directory argument or both --cluster and --service flags must be provided")
 			}
-			cmd, err := provider(ctx.Context, &input)
+			cmd, err := provider(ctx.Context, input)
 			if err != nil {
 				return err
 			}

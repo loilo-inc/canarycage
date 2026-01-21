@@ -20,7 +20,10 @@ var (
 )
 
 func main() {
-	appConf := cageapp.NewApp()
+	appConf := &cageapp.App{}
+	configCmdInput := func(input *cageapp.CageCmdInput) {
+		input.App = appConf
+	}
 	app := cli.NewApp()
 	app.Name = "canarycage"
 	app.HelpName = "cage"
@@ -29,9 +32,9 @@ func main() {
 	app.Description = "A deployment tool for AWS ECS"
 	cmds := commands.NewCageCommands(commands.ProvideCageCli)
 	app.Commands = []*cli.Command{
-		cmds.Up(appConf),
-		cmds.RollOut(appConf),
-		cmds.Run(appConf),
+		cmds.Up(cageapp.NewCageCmdInput(os.Stdin, configCmdInput)),
+		cmds.RollOut(cageapp.NewCageCmdInput(os.Stdin, configCmdInput)),
+		cmds.Run(cageapp.NewCageCmdInput(os.Stdin, configCmdInput)),
 		commands.Upgrade(upgrade.NewUpgrader(version)),
 		commands.Audit(audit.ProvideAuditCmd),
 	}

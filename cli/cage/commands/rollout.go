@@ -11,8 +11,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (c *CageCommands) RollOut(app *cageapp.App) *cli.Command {
-	envars := &env.Envars{}
+func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 	var updateServiceConf bool
 	return &cli.Command{
 		Name:        "rollout",
@@ -21,16 +20,16 @@ func (c *CageCommands) RollOut(app *cageapp.App) *cli.Command {
 		Args:        true,
 		ArgsUsage:   "[directory path of service.json and task-definition.json]",
 		Flags: []cli.Flag{
-			cageapp.RegionFlag(&envars.Region),
-			cageapp.ClusterFlag(&envars.Cluster),
-			cageapp.ServiceFlag(&envars.Service),
-			cageapp.TaskDefinitionArnFlag(&envars.TaskDefinitionArn),
-			cageapp.CanaryTaskIdleDurationFlag(&envars.CanaryTaskIdleDuration),
+			cageapp.RegionFlag(&input.Region),
+			cageapp.ClusterFlag(&input.Cluster),
+			cageapp.ServiceFlag(&input.Service),
+			cageapp.TaskDefinitionArnFlag(&input.TaskDefinitionArn),
+			cageapp.CanaryTaskIdleDurationFlag(&input.CanaryTaskIdleDuration),
 			&cli.StringFlag{
 				Name:        "canaryInstanceArn",
 				EnvVars:     []string{env.CanaryInstanceArnKey},
 				Usage:       "EC2 instance ARN for placing canary task. required only when LaunchType is EC2",
-				Destination: &envars.CanaryInstanceArn,
+				Destination: &input.CanaryInstanceArn,
 			},
 			&cli.BoolFlag{
 				Name:        "updateService",
@@ -38,32 +37,32 @@ func (c *CageCommands) RollOut(app *cageapp.App) *cli.Command {
 				Usage:       "Update service configurations except for task definiton. Default is false.",
 				Destination: &updateServiceConf,
 			},
-			cageapp.TaskRunningWaitFlag(&envars.CanaryTaskRunningWait),
-			cageapp.TaskHealthCheckWaitFlag(&envars.CanaryTaskHealthCheckWait),
-			cageapp.TaskStoppedWaitFlag(&envars.CanaryTaskStoppedWait),
-			cageapp.ServiceStableWaitFlag(&envars.ServiceStableWait),
+			cageapp.TaskRunningWaitFlag(&input.CanaryTaskRunningWait),
+			cageapp.TaskHealthCheckWaitFlag(&input.CanaryTaskHealthCheckWait),
+			cageapp.TaskStoppedWaitFlag(&input.CanaryTaskStoppedWait),
+			cageapp.ServiceStableWaitFlag(&input.ServiceStableWait),
 		},
 		Action: func(ctx *cli.Context) error {
 			dir, _, err := RequireArgs(ctx, 1, 1)
 			if err != nil {
 				return err
 			}
-			cagecli, err := c.setupCage(envars, dir)
+			cagecli, err := c.setupCage(input, dir)
 			if err != nil {
 				return err
 			}
-			if !app.CI {
-				prompter := prompt.NewPrompter(app.Stdin)
-				if err := prompter.ConfirmService(envars); err != nil {
+			if !input.CI {
+				prompter := prompt.NewPrompter(input.Stdin)
+				if err := prompter.ConfirmService(input.Envars); err != nil {
 					return err
 				}
 			}
 			result, err := cagecli.RollOut(context.Background(), &types.RollOutInput{UpdateService: updateServiceConf})
 			if err != nil {
 				if !result.ServiceUpdated {
-					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", envars.Service)
+					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", input.Service)
 				} else {
-					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. CHECK ECS CONSOLE NOW!", envars.Service)
+					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. CHECK ECS CONSOLE NOW!", input.Service)
 				}
 				return err
 			}

@@ -38,7 +38,7 @@ func RequireArgs(
 }
 
 func (c *CageCommands) setupCage(
-	envars *env.Envars,
+	input *cageapp.CageCmdInput,
 	dir string,
 ) (types.Cage, error) {
 	var service *ecs.CreateServiceInput
@@ -48,23 +48,23 @@ func (c *CageCommands) setupCage(
 	} else {
 		service = srv
 	}
-	if envars.TaskDefinitionArn == "" {
+	if input.TaskDefinitionArn == "" {
 		if td, err := env.LoadTaskDefinition(dir); err != nil {
 			return nil, err
 		} else {
 			taskDefinition = td
 		}
 	}
-	env.MergeEnvars(envars, &env.Envars{
+	env.MergeEnvars(input.Envars, &env.Envars{
 		Cluster:                *service.Cluster,
 		Service:                *service.ServiceName,
 		TaskDefinitionInput:    taskDefinition,
 		ServiceDefinitionInput: service,
 	})
-	if err := env.EnsureEnvars(envars); err != nil {
+	if err := env.EnsureEnvars(input.Envars); err != nil {
 		return nil, err
 	}
-	cagecli, err := c.cageCliProvider(context.TODO(), envars)
+	cagecli, err := c.cageCliProvider(context.TODO(), input)
 	if err != nil {
 		return nil, err
 	}

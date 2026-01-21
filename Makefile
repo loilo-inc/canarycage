@@ -4,7 +4,7 @@ MOCKGEN := go run go.uber.org/mock/mockgen@v0.6.0
 test:
 	go test ./... -coverprofile=coverage.txt -covermode=count
 test/cli:
-	go test ./cli/... -coverprofile=coverage-cli.txt -covermode=count
+	go test ./cli/... -coverprofile=coverage.txt -covermode=count
 test-container:
 	docker build -t canarycage/test-container test-container
 push-test-container: test-container
