@@ -5,14 +5,13 @@ import (
 
 	"github.com/apex/log"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/cli/cage/prompt"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
 )
 
-func (c *CageCommands) Run(
-	envars *env.Envars,
-) *cli.Command {
+func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 	return &cli.Command{
 		Name:        "run",
 		Usage:       "run task with specified task definition",
@@ -20,22 +19,25 @@ func (c *CageCommands) Run(
 		Args:        true,
 		ArgsUsage:   "<directory path of service.json and task-definition.json> <container> <commands>...",
 		Flags: []cli.Flag{
-			RegionFlag(&envars.Region),
-			ClusterFlag(&envars.Cluster),
-			TaskRunningWaitFlag(&envars.CanaryTaskRunningWait),
-			TaskStoppedWaitFlag(&envars.CanaryTaskStoppedWait),
+			cageapp.RegionFlag(&input.Region),
+			cageapp.ClusterFlag(&input.Cluster),
+			cageapp.TaskRunningWaitFlag(&input.CanaryTaskRunningWait),
+			cageapp.TaskStoppedWaitFlag(&input.CanaryTaskStoppedWait),
 		},
 		Action: func(ctx *cli.Context) error {
-			dir, rest, err := c.requireArgs(ctx, 3, 100)
+			dir, rest, err := RequireArgs(ctx, 3, 100)
 			if err != nil {
 				return err
 			}
-			cagecli, err := c.setupCage(envars, dir)
+			cagecli, err := c.setupCage(input, dir)
 			if err != nil {
 				return err
 			}
-			if err := c.Prompt.ConfirmTask(envars); err != nil {
-				return err
+			if !input.CI {
+				prompter := prompt.NewPrompter(input.Stdin)
+				if err := prompter.ConfirmTask(input.Envars); err != nil {
+					return err
+				}
 			}
 			container := rest[0]
 			commands := rest[1:]

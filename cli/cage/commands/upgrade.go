@@ -5,9 +5,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (c *CageCommands) Upgrade(
-	upgrader upgrade.Upgrader,
-) *cli.Command {
+func Upgrade(upgrader upgrade.Upgrader) *cli.Command {
 	var preRelease bool
 	return &cli.Command{
 		Name:  "upgrade",

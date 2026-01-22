@@ -1,9 +1,14 @@
-package commands
+package cageapp
 
 import (
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/urfave/cli/v2"
 )
+
+type App struct {
+	CI      bool
+	NoColor bool
+}
 
 func RegionFlag(dest *string) *cli.StringFlag {
 	return &cli.StringFlag{

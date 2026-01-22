@@ -47,10 +47,6 @@ func (s *Prompter) confirmStackChange(
 	envars *env.Envars,
 	service bool,
 ) error {
-	// Skip confirmation if running in CI
-	if envars.CI {
-		return nil
-	}
 	if err := s.Confirm("region", envars.Region); err != nil {
 		return err
 	}

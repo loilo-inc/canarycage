@@ -19,9 +19,8 @@ func TestUpgrade(t *testing.T) {
 		u.EXPECT().Upgrade(
 			gomock.Eq(&upgrade.Input{}),
 		).Return(nil)
-		cmds := commands.NewCageCommands(nil, nil)
 		app.Commands = []*cli.Command{
-			cmds.Upgrade(u),
+			commands.Upgrade(u),
 		}
 		err := app.Run([]string{"cage", "upgrade"})
 		assert.NoError(t, err)
@@ -33,9 +32,8 @@ func TestUpgrade(t *testing.T) {
 		u.EXPECT().Upgrade(
 			gomock.Eq(&upgrade.Input{PreRelease: true}),
 		).Return(nil)
-		cmds := commands.NewCageCommands(nil, nil)
 		app.Commands = []*cli.Command{
-			cmds.Upgrade(u),
+			commands.Upgrade(u),
 		}
 		err := app.Run([]string{"cage", "upgrade", "--pre-release"})
 		assert.NoError(t, err)

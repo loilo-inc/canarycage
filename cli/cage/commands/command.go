@@ -1,10 +1,10 @@
 package commands
 
 import (
-	"io"
+	"context"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/loilo-inc/canarycage/cli/cage/prompt"
+	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
@@ -12,23 +12,17 @@ import (
 )
 
 type CageCommands struct {
-	Prompt         *prompt.Prompter
-	cageCliProvier cageCliProvier
+	cageCliProvider cageapp.CageCmdProvider
 }
 
 func NewCageCommands(
-	stdin io.Reader,
-	cageCliProvier cageCliProvier,
+	cageCliProvider cageapp.CageCmdProvider,
 ) *CageCommands {
-	return &CageCommands{
-		Prompt:         prompt.NewPrompter(stdin),
-		cageCliProvier: cageCliProvier,
-	}
+	cmds := &CageCommands{cageCliProvider: cageCliProvider}
+	return cmds
 }
 
-type cageCliProvier = func(envars *env.Envars) (types.Cage, error)
-
-func (c *CageCommands) requireArgs(
+func RequireArgs(
 	ctx *cli.Context,
 	minArgs int,
 	maxArgs int,
@@ -44,7 +38,7 @@ func (c *CageCommands) requireArgs(
 }
 
 func (c *CageCommands) setupCage(
-	envars *env.Envars,
+	input *cageapp.CageCmdInput,
 	dir string,
 ) (types.Cage, error) {
 	var service *ecs.CreateServiceInput
@@ -54,23 +48,23 @@ func (c *CageCommands) setupCage(
 	} else {
 		service = srv
 	}
-	if envars.TaskDefinitionArn == "" {
+	if input.TaskDefinitionArn == "" {
 		if td, err := env.LoadTaskDefinition(dir); err != nil {
 			return nil, err
 		} else {
 			taskDefinition = td
 		}
 	}
-	env.MergeEnvars(envars, &env.Envars{
+	env.MergeEnvars(input.Envars, &env.Envars{
 		Cluster:                *service.Cluster,
 		Service:                *service.ServiceName,
 		TaskDefinitionInput:    taskDefinition,
 		ServiceDefinitionInput: service,
 	})
-	if err := env.EnsureEnvars(envars); err != nil {
+	if err := env.EnsureEnvars(input.Envars); err != nil {
 		return nil, err
 	}
-	cagecli, err := c.cageCliProvier(envars)
+	cagecli, err := c.cageCliProvider(context.TODO(), input)
 	if err != nil {
 		return nil, err
 	}
