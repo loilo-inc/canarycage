@@ -135,10 +135,7 @@ func (a *aggregater) filterCvesBySeverity(severity ecrtypes.FindingSeverity) []e
 }
 
 func (a *aggregater) GetVulnContainers(cveName string) []string {
-	containersSet, exists := a.cveToContainers[cveName]
-	if !exists {
-		return []string{}
-	}
+	containersSet := a.cveToContainers[cveName]
 	return containersSet
 }
 

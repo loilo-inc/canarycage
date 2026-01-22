@@ -235,6 +235,31 @@ func TestAggregateResult_SeverityCounts(t *testing.T) {
 	assert.Equal(t, 1, counts[4].Count)
 }
 
+func TestAggregater_GetVulnContainers(t *testing.T) {
+	t.Run("returns containers affected by CVE", func(t *testing.T) {
+		agg := NewAggregater()
+		agg.cveToContainers = map[string][]string{
+			"CVE-2021-1234": {"container1", "container2"},
+			"CVE-2021-5678": {"container3"},
+		}
+
+		containers := agg.GetVulnContainers("CVE-2021-1234")
+		assert.Equal(t, 2, len(containers))
+		assert.Contains(t, containers, "container1")
+		assert.Contains(t, containers, "container2")
+	})
+
+	t.Run("returns nil for non-existent CVE", func(t *testing.T) {
+		agg := NewAggregater()
+		agg.cveToContainers = map[string][]string{
+			"CVE-2021-1234": {"container1"},
+		}
+
+		containers := agg.GetVulnContainers("CVE-9999-9999")
+		assert.Nil(t, containers)
+	})
+}
+
 func stringPtr(s string) *string {
 	return &s
 }

@@ -14,6 +14,10 @@ type printer struct {
 	logDetail bool
 }
 
+type Printer interface {
+	Print(result []*ScanResult)
+}
+
 func NewPrinter(l logger.Logger, noColor, logDetail bool) *printer {
 	return &printer{
 		logger:    l,

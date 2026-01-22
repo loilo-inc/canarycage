@@ -9,6 +9,7 @@ const (
 	AlbCli      DepsKey = "alb"
 	Logger      DepsKey = "logger"
 	Scanner     DepsKey = "scanner"
+	Printer     DepsKey = "printer"
 	Env         DepsKey = "env"
 	Time        DepsKey = "time"
 	TaskFactory DepsKey = "task-factory"
