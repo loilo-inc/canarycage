@@ -98,8 +98,19 @@ func (p *printer) logImageScanFindings(
 		for _, c := range containers {
 			containerList = append(containerList, color.Bold(c))
 		}
-		p.logger.Printf("- %s \n", strings.Join(containerList, ", "))
-		p.logger.Printf("  %s (%s)\n", *cve.Name, *cve.Uri)
+		var packageName string = "unknown"
+		var packageVersion string = "unknown"
+		for _, attr := range cve.Attributes {
+			switch *attr.Key {
+			case "package_name":
+				packageName = *attr.Value
+			case "package_version":
+				packageVersion = *attr.Value
+			}
+		}
+		p.logger.Printf("- %s %s \n", *cve.Name, strings.Join(containerList, ", "))
+		p.logger.Printf("  %s::%s (%s)\n",
+			packageName, packageVersion, *cve.Uri)
 		if p.logDetail {
 			p.logger.Printf("\n%s\n", *cve.Description)
 		}
