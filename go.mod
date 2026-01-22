@@ -3,7 +3,6 @@ module github.com/loilo-inc/canarycage
 go 1.25.5
 
 require (
-	github.com/apex/log v1.9.0
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.6
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.0

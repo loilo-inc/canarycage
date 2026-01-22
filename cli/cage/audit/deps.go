@@ -16,7 +16,7 @@ import (
 	"github.com/loilo-inc/logos/di"
 )
 
-func ProvideAuditCmd(ctx context.Context, input *cageapp.AuditCmdInput) (types.Audit, error) {
+func ProvideAuditCli(ctx context.Context, input *cageapp.AuditCmdInput) (types.Audit, error) {
 	conf := awsiface.MustLoadConfig(
 		ctx,
 		config.WithRegion(input.Region),

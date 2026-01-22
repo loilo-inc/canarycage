@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
@@ -69,7 +69,7 @@ func (c *common) waitForTaskRunning(ctx context.Context) error {
 	}
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
-
+	log := c.di.Get(key.Logger).(logger.Logger)
 	// NOTE: https://github.com/loilo-inc/canarycage/issues/93
 	// wait for the task to be running
 	time.Sleep(2 * time.Second)
@@ -86,6 +86,7 @@ func (c *common) waitForTaskRunning(ctx context.Context) error {
 }
 
 func (c *common) waitContainerHealthCheck(ctx context.Context) error {
+	log := c.di.Get(key.Logger).(logger.Logger)
 	log.Infof("😷 ensuring canary task container(s) to become healthy...")
 	containerHasHealthChecks := map[string]struct{}{}
 	for _, definition := range c.TaskDefinition.ContainerDefinitions {
@@ -94,7 +95,7 @@ func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 		}
 	}
 	if len(containerHasHealthChecks) == 0 {
-		log.Info("no container has health check, skipped.")
+		log.Infof("no container has health check, skipped.")
 		return nil
 	}
 	env := c.di.Get(key.Env).(*env.Envars)
@@ -137,7 +138,7 @@ func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 		rest -= healthCheckPeriod
 	}
 	if len(containerHasHealthChecks) == 0 {
-		log.Info("🤩 canary task container(s) is healthy!")
+		log.Infof("🤩 canary task container(s) is healthy!")
 		log.Infof("canary task '%s' ensured.", *c.taskArn)
 		return nil
 	}
@@ -150,6 +151,7 @@ func (c *common) stopTask(ctx context.Context) error {
 	}
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	log := c.di.Get(key.Logger).(logger.Logger)
 	log.Infof("stopping the canary task '%s'...", *c.taskArn)
 	if _, err := ecsCli.StopTask(ctx, &ecs.StopTaskInput{
 		Cluster: &env.Cluster,

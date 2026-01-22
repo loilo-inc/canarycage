@@ -1,14 +1,12 @@
 package commands
 
 import (
-	"context"
-
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
 	"github.com/urfave/cli/v2"
 )
 
-func (c *CageCommands) Up(input *cageapp.CageCmdInput) *cli.Command {
+func Up(input *cageapp.CageCmdInput, provider cageapp.CageCmdProvider) *cli.Command {
 	return &cli.Command{
 		Name:        "up",
 		Usage:       "create new ECS service with specified task definition",
@@ -28,7 +26,10 @@ func (c *CageCommands) Up(input *cageapp.CageCmdInput) *cli.Command {
 			if err != nil {
 				return err
 			}
-			cagecli, err := c.setupCage(input, dir)
+			if err := setupCage(ctx.Context, input, dir); err != nil {
+				return err
+			}
+			cagecli, err := provider(ctx.Context, input)
 			if err != nil {
 				return err
 			}
@@ -38,7 +39,7 @@ func (c *CageCommands) Up(input *cageapp.CageCmdInput) *cli.Command {
 					return err
 				}
 			}
-			_, err = cagecli.Up(context.Background())
+			_, err = cagecli.Up(ctx.Context)
 			return err
 		},
 	}

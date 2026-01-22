@@ -3,18 +3,34 @@ package cage
 import (
 	"context"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/rollout"
 	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/xerrors"
 )
 
 func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.RollOutResult, error) {
+	log := c.di.Get(key.Logger).(logger.Logger)
+	env := c.di.Get(key.Env).(*env.Envars)
+	result, err := c.doRollOut(ctx, input)
+	if err != nil {
+		if !result.ServiceUpdated {
+			log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", env.Service)
+		} else {
+			log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. CHECK ECS CONSOLE NOW!", env.Service)
+		}
+		return nil, err
+	}
+	log.Infof("🎉service roll out has completed successfully!🎉")
+	return result, nil
+}
+
+func (c *cage) doRollOut(ctx context.Context, input *types.RollOutInput) (*types.RollOutResult, error) {
 	result := &types.RollOutResult{}
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
@@ -41,6 +57,7 @@ func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.R
 			return result, xerrors.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'")
 		}
 	}
+	log := c.di.Get(key.Logger).(logger.Logger)
 	log.Infof("ensuring next task definition...")
 	var nextTaskDefinition *ecstypes.TaskDefinition
 	if o, err := c.CreateNextTaskDefinition(ctx); err != nil {

@@ -1,6 +1,8 @@
 package logger
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Color struct {
 	NoColor bool

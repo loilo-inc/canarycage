@@ -6,21 +6,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/env"
-	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 )
-
-type CageCommands struct {
-	cageCliProvider cageapp.CageCmdProvider
-}
-
-func NewCageCommands(
-	cageCliProvider cageapp.CageCmdProvider,
-) *CageCommands {
-	cmds := &CageCommands{cageCliProvider: cageCliProvider}
-	return cmds
-}
 
 func RequireArgs(
 	ctx *cli.Context,
@@ -37,20 +25,21 @@ func RequireArgs(
 	return
 }
 
-func (c *CageCommands) setupCage(
+func setupCage(
+	ctx context.Context,
 	input *cageapp.CageCmdInput,
 	dir string,
-) (types.Cage, error) {
+) error {
 	var service *ecs.CreateServiceInput
 	var taskDefinition *ecs.RegisterTaskDefinitionInput
 	if srv, err := env.LoadServiceDefinition(dir); err != nil {
-		return nil, err
+		return err
 	} else {
 		service = srv
 	}
 	if input.TaskDefinitionArn == "" {
 		if td, err := env.LoadTaskDefinition(dir); err != nil {
-			return nil, err
+			return err
 		} else {
 			taskDefinition = td
 		}
@@ -62,11 +51,7 @@ func (c *CageCommands) setupCage(
 		ServiceDefinitionInput: service,
 	})
 	if err := env.EnsureEnvars(input.Envars); err != nil {
-		return nil, err
+		return err
 	}
-	cagecli, err := c.cageCliProvider(context.TODO(), input)
-	if err != nil {
-		return nil, err
-	}
-	return cagecli, nil
+	return nil
 }

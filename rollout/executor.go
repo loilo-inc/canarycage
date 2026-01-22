@@ -3,12 +3,12 @@ package rollout
 import (
 	"context"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/taskset"
 	"github.com/loilo-inc/canarycage/types"
@@ -33,8 +33,9 @@ func NewExecutor(di *di.D, td *ecstypes.TaskDefinition) Executor {
 func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (lastErr error) {
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	log := c.di.Get(key.Logger).(logger.Logger)
 	if input.UpdateService {
-		log.Info("--updateService flag is set. use provided service configurations for canary test instead of current service")
+		log.Infof("--updateService flag is set. use provided service configurations for canary test instead of current service")
 	}
 	canaryTasks, startCanaryTaskErr := c.startCanaryTasks(ctx, input)
 	// ensure canary task stopped after rolling out either success or failure

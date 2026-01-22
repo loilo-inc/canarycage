@@ -1,9 +1,6 @@
 package commands
 
 import (
-	"context"
-
-	"github.com/apex/log"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
 	"github.com/loilo-inc/canarycage/env"
@@ -11,7 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
+func RollOut(input *cageapp.CageCmdInput, provider cageapp.CageCmdProvider) *cli.Command {
 	var updateServiceConf bool
 	return &cli.Command{
 		Name:        "rollout",
@@ -47,7 +44,10 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 			if err != nil {
 				return err
 			}
-			cagecli, err := c.setupCage(input, dir)
+			if err := setupCage(ctx.Context, input, dir); err != nil {
+				return err
+			}
+			cagecli, err := provider(ctx.Context, input)
 			if err != nil {
 				return err
 			}
@@ -57,17 +57,8 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 					return err
 				}
 			}
-			result, err := cagecli.RollOut(context.Background(), &types.RollOutInput{UpdateService: updateServiceConf})
-			if err != nil {
-				if !result.ServiceUpdated {
-					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", input.Service)
-				} else {
-					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. CHECK ECS CONSOLE NOW!", input.Service)
-				}
-				return err
-			}
-			log.Infof("🎉service roll out has completed successfully!🎉")
-			return nil
+			_, err = cagecli.RollOut(ctx.Context, &types.RollOutInput{UpdateService: updateServiceConf})
+			return err
 		},
 	}
 }

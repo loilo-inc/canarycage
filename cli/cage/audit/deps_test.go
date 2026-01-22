@@ -11,7 +11,7 @@ func TestProvideAuditCmd(t *testing.T) {
 	ctx := context.Background()
 	input := cageapp.NewAuditCmdInput()
 	input.Region = "us-east-1"
-	audit, err := ProvideAuditCmd(ctx, input)
+	audit, err := ProvideAuditCli(ctx, input)
 	if err != nil {
 		t.Fatalf("ProvideAuditCmd() error = %v, want nil", err)
 	}
@@ -30,7 +30,7 @@ func TestProvideAuditCmd_WithDifferentRegions(t *testing.T) {
 			input := cageapp.NewAuditCmdInput()
 			input.Region = region
 
-			audit, err := ProvideAuditCmd(ctx, input)
+			audit, err := ProvideAuditCli(ctx, input)
 			if err != nil {
 				t.Fatalf("ProvideAuditCmd() error = %v, want nil", err)
 			}

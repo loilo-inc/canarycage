@@ -1,9 +1,6 @@
 package commands
 
 import (
-	"context"
-
-	"github.com/apex/log"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
@@ -11,7 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
+func Run(input *cageapp.CageCmdInput, provider cageapp.CageCmdProvider) *cli.Command {
 	return &cli.Command{
 		Name:        "run",
 		Usage:       "run task with specified task definition",
@@ -29,7 +26,10 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 			if err != nil {
 				return err
 			}
-			cagecli, err := c.setupCage(input, dir)
+			if err := setupCage(ctx.Context, input, dir); err != nil {
+				return err
+			}
+			cagecli, err := provider(ctx.Context, input)
 			if err != nil {
 				return err
 			}
@@ -41,7 +41,7 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 			}
 			container := rest[0]
 			commands := rest[1:]
-			if _, err := cagecli.Run(context.Background(), &types.RunInput{
+			if _, err := cagecli.Run(ctx.Context, &types.RunInput{
 				Container: &container,
 				Overrides: &ecstypes.TaskOverride{
 					ContainerOverrides: []ecstypes.ContainerOverride{
@@ -52,7 +52,6 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 			}); err != nil {
 				return err
 			}
-			log.Infof("👍 task successfully executed")
 			return nil
 		},
 	}

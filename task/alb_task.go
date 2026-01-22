@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -15,6 +14,7 @@ import (
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
@@ -48,12 +48,13 @@ func (c *albTask) Wait(ctx context.Context) error {
 	if err := c.registerToTargetGroup(ctx); err != nil {
 		return err
 	}
+	log := c.di.Get(key.Logger).(logger.Logger)
 	log.Infof("canary task '%s' is registered to target group '%s'", *c.target.Id, *c.lb.TargetGroupArn)
 	log.Infof("😷 waiting canary target to be healthy...")
 	if err := c.waitUntilTargetHealthy(ctx); err != nil {
 		return err
 	}
-	log.Info("🤩 canary target is healthy!")
+	log.Infof("🤩 canary target is healthy!")
 	return nil
 }
 
@@ -88,6 +89,7 @@ func (c *albTask) describeTaskTarget(
 	} else {
 		target.AvailabilityZone = o.Subnets[0].AvailabilityZone
 	}
+	log := c.di.Get(key.Logger).(logger.Logger)
 	log.Infof("canary task was placed: id = '%s', hostPort = '%d', az = '%s'", *target.Id, *target.Port, *target.AvailabilityZone)
 	return target, nil
 }
@@ -157,6 +159,7 @@ func (c *albTask) getTargetPort() (*int32, error) {
 }
 
 func (c *albTask) registerToTargetGroup(ctx context.Context) error {
+	log := c.di.Get(key.Logger).(logger.Logger)
 	log.Infof("registering the canary task to target group '%s'...", *c.lb.TargetGroupArn)
 	if target, err := c.describeTaskTarget(ctx); err != nil {
 		return err
@@ -178,6 +181,7 @@ func (c *albTask) waitUntilTargetHealthy(
 ) error {
 	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
 	timer := c.di.Get(key.Time).(types.Time)
+	log := c.di.Get(key.Logger).(logger.Logger)
 	log.Infof("checking the health state of canary task...")
 	var notHealthyCount = 0
 	var recentState *elbv2types.TargetHealthStateEnum
@@ -249,6 +253,7 @@ func (c *albTask) deregisterTarget(ctx context.Context) {
 	}
 	albCli := c.di.Get(key.AlbCli).(awsiface.AlbClient)
 	deregistrationDelay, err := c.getTargetDeregistrationDelay(ctx)
+	log := c.di.Get(key.Logger).(logger.Logger)
 	if err != nil {
 		log.Errorf("failed to get deregistration delay: %v", err)
 		log.Errorf("deregistration delay is set to %d seconds", deregistrationDelay)

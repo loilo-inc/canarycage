@@ -21,13 +21,13 @@ func setup(t *testing.T, stdin io.Reader) (*cli.App, *mock_types.MockCage) {
 	cagecli := mock_types.NewMockCage(ctrl)
 	input := cageapp.NewCageCmdInput(stdin)
 	app := cli.NewApp()
-	cmds := commands.NewCageCommands(func(ctx context.Context, input *cageapp.CageCmdInput) (types.Cage, error) {
+	provide := func(ctx context.Context, input *cageapp.CageCmdInput) (types.Cage, error) {
 		return cagecli, nil
-	})
+	}
 	app.Commands = []*cli.Command{
-		cmds.Up(input),
-		cmds.RollOut(input),
-		cmds.Run(input),
+		commands.Up(input, provide),
+		commands.RollOut(input, provide),
+		commands.Run(input, provide),
 	}
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{

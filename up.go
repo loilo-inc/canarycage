@@ -3,12 +3,12 @@ package cage
 import (
 	"context"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/xerrors"
 )
@@ -20,6 +20,7 @@ func (c *cage) Up(ctx context.Context) (*types.UpResult, error) {
 	}
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	log := c.di.Get(key.Logger).(logger.Logger)
 	log.Infof("checking existence of service '%s'", env.Service)
 	if o, err := ecsCli.DescribeServices(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &env.Cluster,
@@ -43,6 +44,7 @@ func (c *cage) Up(ctx context.Context) (*types.UpResult, error) {
 func (c *cage) createService(ctx context.Context, serviceDefinitionInput *ecs.CreateServiceInput) (*ecstypes.Service, error) {
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	log := c.di.Get(key.Logger).(logger.Logger)
 	log.Infof("creating service '%s' with task-definition '%s'...", *serviceDefinitionInput.ServiceName, *serviceDefinitionInput.TaskDefinition)
 	o, err := ecsCli.CreateService(ctx, serviceDefinitionInput)
 	if err != nil {

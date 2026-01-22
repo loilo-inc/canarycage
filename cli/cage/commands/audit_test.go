@@ -124,11 +124,11 @@ func TestAudit(t *testing.T) {
 
 func setupAuditApp(t *testing.T, provider cageapp.AuditCmdProvider) *cli.App {
 	t.Helper()
-	conf := &cageapp.App{}
+	input := cageapp.NewAuditCmdInput()
 	app := cli.NewApp()
 	app.Name = "cage"
 	app.Commands = []*cli.Command{
-		Audit(conf, provider),
+		Audit(input, provider),
 	}
 	return app
 }

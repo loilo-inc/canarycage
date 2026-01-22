@@ -14,8 +14,10 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/apex/log"
 	"github.com/google/go-github/v62/github"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
+	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
 )
 
@@ -23,6 +25,7 @@ type Upgrader interface {
 	Upgrade(p *Input) error
 }
 type upgrader struct {
+	di             *di.D
 	currentVersion string
 }
 
@@ -36,6 +39,7 @@ func NewUpgrader(currentVersion string) Upgrader {
 }
 
 func (u *upgrader) Upgrade(p *Input) error {
+	log := u.di.Get(key.Logger).(logger.Logger)
 	log.Infof("checking for updates...")
 	latestRelease, err := u.FindLatestRelease(p.PreRelease)
 	if err != nil {
@@ -46,7 +50,7 @@ func (u *upgrader) Upgrade(p *Input) error {
 	latestVer := semver.MustParse(latestRelease.GetTagName())
 	if currVerErr == nil {
 		if currVer.Equal(latestVer) || currVer.GreaterThan(latestVer) {
-			log.Info("no updates available")
+			log.Infof("no updates available")
 			return nil
 		}
 	}
@@ -68,7 +72,7 @@ func (u *upgrader) Upgrade(p *Input) error {
 	if checksumAsset == nil || binaryAsset == nil {
 		return xerrors.Errorf("failed to find assets for version %s", version)
 	}
-	log.Info("downloading checksums...")
+	log.Infof("downloading checksums...")
 	checksum, err := parseChecksums(checksumAsset.GetBrowserDownloadURL(), binariAssetName)
 	if err != nil {
 		return err
@@ -78,7 +82,7 @@ func (u *upgrader) Upgrade(p *Input) error {
 	if err != nil {
 		return err
 	}
-	log.Info("swapping binary...")
+	log.Infof("swapping binary...")
 	targetPath := p.TargetPath
 	if targetPath == "" {
 		exec, err := os.Executable()

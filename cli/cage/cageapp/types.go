@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/loilo-inc/canarycage/cli/cage/upgrade"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/types"
 )
@@ -40,6 +41,21 @@ type AuditCmdProvider = func(ctx context.Context, input *AuditCmdInput) (types.A
 
 func NewAuditCmdInput(opts ...func(*AuditCmdInput)) *AuditCmdInput {
 	input := &AuditCmdInput{App: &App{}}
+	for _, opt := range opts {
+		opt(input)
+	}
+	return input
+}
+
+type UpgradeCmdInput struct {
+	*App
+	PreRelease  bool
+	CurrVersion string
+}
+type UpgradeCmdProvider = func() (upgrade.Upgrader, error)
+
+func NewUpgradeCmdInput(opts ...func(*UpgradeCmdInput)) *UpgradeCmdInput {
+	input := &UpgradeCmdInput{App: &App{}}
 	for _, opt := range opts {
 		opt(input)
 	}

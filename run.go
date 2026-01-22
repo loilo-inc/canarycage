@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/xerrors"
 )
@@ -25,6 +25,16 @@ func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container 
 }
 
 func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult, error) {
+	result, err := c.doRun(ctx, input)
+	log := c.di.Get(key.Logger).(logger.Logger)
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("👍 task successfully executed")
+	return result, nil
+}
+
+func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResult, error) {
 	env := c.di.Get(key.Env).(*env.Envars)
 	if !containerExistsInDefinition(env.TaskDefinitionInput, input.Container) {
 		return nil, xerrors.Errorf("🚫 '%s' not found in container definitions", *input.Container)
@@ -47,7 +57,7 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 		return nil, err
 	}
 	taskArn := o.Tasks[0].TaskArn
-
+	log := c.di.Get(key.Logger).(logger.Logger)
 	// NOTE: https://github.com/loilo-inc/canarycage/issues/93
 	// wait for the task to be running
 	time.Sleep(2 * time.Second)

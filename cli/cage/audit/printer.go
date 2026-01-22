@@ -9,7 +9,7 @@ import (
 )
 
 type printer struct {
-	logger    logger.Logger
+	logger    logger.Printer
 	color     logger.Color
 	logDetail bool
 }
@@ -18,7 +18,7 @@ type Printer interface {
 	Print(result []*ScanResult)
 }
 
-func NewPrinter(l logger.Logger, noColor, logDetail bool) *printer {
+func NewPrinter(l logger.Printer, noColor, logDetail bool) *printer {
 	return &printer{
 		logger:    l,
 		color:     logger.Color{NoColor: noColor},

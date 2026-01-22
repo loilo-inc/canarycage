@@ -21,22 +21,27 @@ var (
 
 func main() {
 	appConf := &cageapp.App{}
-	configCmdInput := func(input *cageapp.CageCmdInput) {
+	cageCmdInput := cageapp.NewCageCmdInput(os.Stdin, func(input *cageapp.CageCmdInput) {
 		input.App = appConf
-	}
+	})
+	auditCmdInput := cageapp.NewAuditCmdInput(func(input *cageapp.AuditCmdInput) {
+		input.App = appConf
+	})
+	upgradeCmdInput := cageapp.NewUpgradeCmdInput(func(input *cageapp.UpgradeCmdInput) {
+		input.App = appConf
+	})
 	app := cli.NewApp()
 	app.Name = "canarycage"
 	app.HelpName = "cage"
 	app.Version = fmt.Sprintf("%s (commit: %s, date: %s)", version, commit, date)
 	app.Usage = "A deployment tool for AWS ECS"
 	app.Description = "A deployment tool for AWS ECS"
-	cmds := commands.NewCageCommands(commands.ProvideCageCli)
 	app.Commands = []*cli.Command{
-		cmds.Up(cageapp.NewCageCmdInput(os.Stdin, configCmdInput)),
-		cmds.RollOut(cageapp.NewCageCmdInput(os.Stdin, configCmdInput)),
-		cmds.Run(cageapp.NewCageCmdInput(os.Stdin, configCmdInput)),
-		commands.Upgrade(upgrade.NewUpgrader(version)),
-		commands.Audit(appConf, audit.ProvideAuditCmd),
+		commands.Up(cageCmdInput, commands.ProvideCageCli),
+		commands.RollOut(cageCmdInput, commands.ProvideCageCli),
+		commands.Run(cageCmdInput, commands.ProvideCageCli),
+		commands.Upgrade(upgradeCmdInput, upgrade.ProvideUpgrader),
+		commands.Audit(auditCmdInput, audit.ProvideAuditCli),
 	}
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{

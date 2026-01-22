@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
@@ -40,6 +40,7 @@ func (c *simpleTask) Stop(ctx context.Context) error {
 func (c *simpleTask) waitForIdleDuration(ctx context.Context) error {
 	env := c.di.Get(key.Env).(*env.Envars)
 	timer := c.di.Get(key.Time).(types.Time)
+	log := c.di.Get(key.Logger).(logger.Logger)
 	log.Infof("wait %d seconds for canary task to be stable...", env.CanaryTaskIdleDuration)
 	rest := env.GetCanaryTaskIdleWait()
 	waitPeriod := 15 * time.Second
