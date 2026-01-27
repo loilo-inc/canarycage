@@ -51,6 +51,7 @@ func TestExecutor_Rollout(t *testing.T) {
 			b.Set(key.Env, envars)
 			b.Set(key.EcsCli, ecsMock)
 			b.Set(key.TaskFactory, factoryMock)
+			b.Set(key.Logger, test.NewLogger())
 		})
 		factoryMock.EXPECT().NewAlbTask(&task.Input{
 			TaskDefinition:       td.TaskDefinition,
@@ -133,6 +134,7 @@ func TestExecutor_Rollout_Failure(t *testing.T) {
 			b.Set(key.Env, envars)
 			b.Set(key.EcsCli, ecsMock)
 			b.Set(key.TaskFactory, factoryMock)
+			b.Set(key.Logger, test.NewLogger())
 		})
 		td := &ecstypes.TaskDefinition{
 			TaskDefinitionArn: aws.String("arn://aaa"),

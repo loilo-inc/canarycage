@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
@@ -67,6 +67,7 @@ func (c *common) waitForTaskRunning(ctx context.Context) error {
 	if c.taskArn == nil {
 		return xerrors.New("task is not started")
 	}
+	l := c.logger()
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
 
@@ -74,19 +75,20 @@ func (c *common) waitForTaskRunning(ctx context.Context) error {
 	// wait for the task to be running
 	time.Sleep(2 * time.Second)
 
-	log.Infof("🥚 waiting for canary task '%s' is running...", *c.taskArn)
+	l.Printf("🥚 waiting for canary task '%s' is running...", *c.taskArn)
 	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*c.taskArn},
 	}, env.GetTaskRunningWait()); err != nil {
 		return xerrors.Errorf("failed to wait for canary task to be running: %w", err)
 	}
-	log.Infof("🐣 canary task '%s' is running!", *c.taskArn)
+	l.Printf("🐣 canary task '%s' is running!", *c.taskArn)
 	return nil
 }
 
 func (c *common) waitContainerHealthCheck(ctx context.Context) error {
-	log.Infof("😷 ensuring canary task container(s) to become healthy...")
+	l := c.logger()
+	l.Printf("😷 ensuring canary task container(s) to become healthy...")
 	containerHasHealthChecks := map[string]struct{}{}
 	for _, definition := range c.TaskDefinition.ContainerDefinitions {
 		if definition.HealthCheck != nil {
@@ -94,7 +96,7 @@ func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 		}
 	}
 	if len(containerHasHealthChecks) == 0 {
-		log.Info("no container has health check, skipped.")
+		l.Printf("no container has health check, skipped.")
 		return nil
 	}
 	env := c.di.Get(key.Env).(*env.Envars)
@@ -110,7 +112,7 @@ func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timer.NewTimer(healthCheckPeriod).C:
-			log.Infof("canary task '%s' waits until %d container(s) become healthy", *c.taskArn, len(containerHasHealthChecks))
+			l.Printf("canary task '%s' waits until %d container(s) become healthy", *c.taskArn, len(containerHasHealthChecks))
 			var task ecstypes.Task
 			if o, err := ecsCli.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 				Cluster: &env.Cluster,
@@ -128,7 +130,7 @@ func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 					continue
 				}
 				if container.HealthStatus != ecstypes.HealthStatusHealthy {
-					log.Infof("container '%s' is not healthy: %s", *container.Name, container.HealthStatus)
+					l.Printf("container '%s' is not healthy: %s", *container.Name, container.HealthStatus)
 					continue
 				}
 				delete(containerHasHealthChecks, *container.Name)
@@ -137,8 +139,8 @@ func (c *common) waitContainerHealthCheck(ctx context.Context) error {
 		rest -= healthCheckPeriod
 	}
 	if len(containerHasHealthChecks) == 0 {
-		log.Info("🤩 canary task container(s) is healthy!")
-		log.Infof("canary task '%s' ensured.", *c.taskArn)
+		l.Printf("🤩 canary task container(s) is healthy!")
+		l.Printf("canary task '%s' ensured.", *c.taskArn)
 		return nil
 	}
 	return xerrors.Errorf("😨 canary task hasn't become to be healthy")
@@ -148,9 +150,10 @@ func (c *common) stopTask(ctx context.Context) error {
 	if c.taskArn == nil {
 		return nil
 	}
+	l := c.logger()
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
-	log.Infof("stopping the canary task '%s'...", *c.taskArn)
+	l.Printf("stopping the canary task '%s'...", *c.taskArn)
 	if _, err := ecsCli.StopTask(ctx, &ecs.StopTaskInput{
 		Cluster: &env.Cluster,
 		Task:    c.taskArn,
@@ -163,6 +166,10 @@ func (c *common) stopTask(ctx context.Context) error {
 	}, env.GetTaskStoppedWait()); err != nil {
 		return xerrors.Errorf("failed to wait for canary task to be stopped: %w", err)
 	}
-	log.Infof("canary task '%s' has successfully been stopped", *c.taskArn)
+	l.Printf("canary task '%s' has successfully been stopped", *c.taskArn)
 	return nil
+}
+
+func (c *common) logger() logger.Logger {
+	return c.di.Get(key.Logger).(logger.Logger)
 }

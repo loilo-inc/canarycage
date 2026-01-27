@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -52,15 +51,15 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 	// wait for the task to be running
 	time.Sleep(2 * time.Second)
 
-	log.Infof("waiting for task '%s' to start...", *taskArn)
+	c.logger().Printf("waiting for task '%s' to start...", *taskArn)
 	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
 	}, env.GetTaskRunningWait()); err != nil {
 		return nil, xerrors.Errorf("task failed to start: %w", err)
 	}
-	log.Infof("task '%s' is running", *taskArn)
-	log.Infof("waiting for task '%s' to stop...", *taskArn)
+	c.logger().Printf("task '%s' is running", *taskArn)
+	c.logger().Printf("waiting for task '%s' to stop...", *taskArn)
 	if result, err := ecs.NewTasksStoppedWaiter(ecsCli).WaitForOutput(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},

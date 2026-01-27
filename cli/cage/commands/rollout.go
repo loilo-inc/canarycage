@@ -3,10 +3,11 @@ package commands
 import (
 	"context"
 
-	"github.com/apex/log"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
 	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
 )
@@ -43,6 +44,7 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 			cageapp.ServiceStableWaitFlag(&input.ServiceStableWait),
 		},
 		Action: func(ctx *cli.Context) error {
+			l := c.di.Get(key.Logger).(logger.Logger)
 			dir, _, err := RequireArgs(ctx, 1, 1)
 			if err != nil {
 				return err
@@ -60,13 +62,13 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 			result, err := cagecli.RollOut(context.Background(), &types.RollOutInput{UpdateService: updateServiceConf})
 			if err != nil {
 				if !result.ServiceUpdated {
-					log.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", input.Service)
+					l.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", input.Service)
 				} else {
-					log.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. CHECK ECS CONSOLE NOW!", input.Service)
+					l.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. CHECK ECS CONSOLE NOW!", input.Service)
 				}
 				return err
 			}
-			log.Infof("🎉service roll out has completed successfully!🎉")
+			l.Printf("🎉service roll out has completed successfully!🎉")
 			return nil
 		},
 	}

@@ -2,6 +2,7 @@ package upgrade_test
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -13,10 +14,16 @@ import (
 	"github.com/google/go-github/v62/github"
 	"github.com/jarcoal/httpmock"
 	"github.com/loilo-inc/canarycage/cli/cage/upgrade"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
+	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUpgrade(t *testing.T) {
+	logDI := di.NewDomain(func(b *di.B) {
+		b.Set(key.Logger, logger.DefaultLogger(io.Discard, io.Discard))
+	})
 	makeAsset := func(tag, name string) *github.ReleaseAsset {
 		return &github.ReleaseAsset{
 			Name:               github.String(name),
@@ -102,7 +109,7 @@ func TestUpgrade(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
 		tmpDir := setupCurrent(t, "0.1.0")
-		u := upgrade.NewUpgrader("0.1.0")
+		u := upgrade.NewUpgrader(logDI, "0.1.0")
 		err := u.Upgrade(&upgrade.Input{
 			TargetPath: tmpDir + "/cage"})
 		if err != nil {
@@ -113,7 +120,7 @@ func TestUpgrade(t *testing.T) {
 	t.Run("no updates", func(t *testing.T) {
 		registerResponses(t, "0.1.0")
 		tmpDir := setupCurrent(t, "0.1.0")
-		u := upgrade.NewUpgrader("0.1.0")
+		u := upgrade.NewUpgrader(logDI, "0.1.0")
 		err := u.Upgrade(&upgrade.Input{
 			TargetPath: tmpDir + "/cage",
 		})
@@ -123,7 +130,7 @@ func TestUpgrade(t *testing.T) {
 	t.Run("pre-release", func(t *testing.T) {
 		registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
 		tmpDir := setupCurrent(t, "0.1.0")
-		u := upgrade.NewUpgrader("0.1.0")
+		u := upgrade.NewUpgrader(logDI, "0.1.0")
 		err := u.Upgrade(&upgrade.Input{
 			PreRelease: true,
 			TargetPath: tmpDir + "/cage"})
@@ -135,7 +142,7 @@ func TestUpgrade(t *testing.T) {
 	t.Run("should upgrade if current version is not a valid semver", func(t *testing.T) {
 		registerResponses(t, "0.1.0", "0.2.0")
 		tmpDir := setupCurrent(t, "dev")
-		u := upgrade.NewUpgrader("dev")
+		u := upgrade.NewUpgrader(logDI, "dev")
 		err := u.Upgrade(&upgrade.Input{
 			TargetPath: tmpDir + "/cage"})
 		if err != nil {
@@ -151,7 +158,7 @@ func TestUpgrade(t *testing.T) {
 			httpmock.NewJsonResponderOrPanic(200, makeReleases("0.1.0", "0.2.0")))
 		httpmock.RegisterResponder("GET", "https://localhost/0.2.0/canarycage_0.2.0_checksums.txt",
 			httpmock.NewStringResponder(200, "invalid"))
-		u := upgrade.NewUpgrader("0.1.0")
+		u := upgrade.NewUpgrader(logDI, "0.1.0")
 		err := u.Upgrade(&upgrade.Input{})
 		assert.EqualError(t, err, "invalid checksum line: invalid")
 	})

@@ -2,6 +2,7 @@ package logger_test
 
 import (
 	"bytes"
+	"regexp"
 	"testing"
 
 	"github.com/loilo-inc/canarycage/logger"
@@ -16,7 +17,7 @@ func TestDefaultLogger(t *testing.T) {
 
 		log.Printf("test message: %s\n", "hello")
 
-		assert.Equal(t, "test message: hello\n", stdout.String())
+		assert.Regexp(t, regexp.MustCompile(`^\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2}  info  test message: hello\\n$`), stdout.String())
 		assert.Equal(t, "", stderr.String())
 	})
 
@@ -28,7 +29,7 @@ func TestDefaultLogger(t *testing.T) {
 		log.Errorf("error message: %d\n", 42)
 
 		assert.Equal(t, "", stdout.String())
-		assert.Equal(t, "error message: 42\n", stderr.String())
+		assert.Regexp(t, regexp.MustCompile(`^\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2}  error  error message: 42\\n$`), stderr.String())
 	})
 
 	t.Run("Printf and Errorf write to separate streams", func(t *testing.T) {
@@ -39,7 +40,7 @@ func TestDefaultLogger(t *testing.T) {
 		log.Printf("info\n")
 		log.Errorf("error\n")
 
-		assert.Equal(t, "info\n", stdout.String())
-		assert.Equal(t, "error\n", stderr.String())
+		assert.Regexp(t, regexp.MustCompile(`^\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2}  info  info\\n$`), stdout.String())
+		assert.Regexp(t, regexp.MustCompile(`^\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2}  error  error\\n$`), stderr.String())
 	})
 }

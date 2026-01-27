@@ -45,6 +45,7 @@ func TestCage_Run(t *testing.T) {
 		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 			b.Set(key.Time, test.NewFakeTime())
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{
@@ -75,6 +76,7 @@ func TestCage_Run(t *testing.T) {
 		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 			b.Set(key.Time, test.NewFakeTime())
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{
@@ -97,6 +99,7 @@ func TestCage_Run(t *testing.T) {
 		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 			b.Set(key.Time, test.NewFakeTime())
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{
@@ -125,6 +128,7 @@ func TestCage_Run(t *testing.T) {
 		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 			b.Set(key.Time, test.NewFakeTime())
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{
@@ -153,6 +157,7 @@ func TestCage_Run(t *testing.T) {
 		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 			b.Set(key.Time, test.NewFakeTime())
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{
@@ -169,6 +174,7 @@ func TestCage_Run(t *testing.T) {
 		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 			b.Set(key.Time, test.NewFakeTime())
 		}))
 		result, err := cagecli.Run(ctx, &types.RunInput{

@@ -46,6 +46,7 @@ func TestAlbTask(t *testing.T) {
 			b.Set(key.EcsCli, mocker.Ecs)
 			b.Set(key.Ec2Cli, mocker.Ec2)
 			b.Set(key.AlbCli, mocker.Alb)
+			b.Set(key.Logger, test.NewLogger())
 			b.Set(key.Time, test.NewFakeTime())
 		})
 		stask := &albTask{
@@ -101,6 +102,7 @@ func TestAlbTask_Wait(t *testing.T) {
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.Env, test.DefaultEnvars())
 					b.Set(key.EcsCli, ecsMock)
+					b.Set(key.Logger, test.NewLogger())
 				}),
 			},
 		}
@@ -125,6 +127,7 @@ func TestAlbTask_Wait(t *testing.T) {
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.Env, env)
 					b.Set(key.EcsCli, ecsMock)
+					b.Set(key.Logger, test.NewLogger())
 					b.Set(key.Time, test.NewFakeTime())
 				}),
 			},
@@ -159,6 +162,7 @@ func TestAlbTask_Wait(t *testing.T) {
 					b.Set(key.EcsCli, mocker.Ecs)
 					b.Set(key.AlbCli, albMock)
 					b.Set(key.Ec2Cli, mocker.Ec2)
+					b.Set(key.Logger, test.NewLogger())
 					b.Set(key.Time, test.NewFakeTime())
 				}),
 			},
@@ -190,6 +194,7 @@ func TestAlbTask_Wait(t *testing.T) {
 					b.Set(key.EcsCli, mocker.Ecs)
 					b.Set(key.AlbCli, albMock)
 					b.Set(key.Ec2Cli, mocker.Ec2)
+					b.Set(key.Logger, test.NewLogger())
 					b.Set(key.Time, test.NewFakeTime())
 				}),
 			},
@@ -222,6 +227,7 @@ func TestAlbTask_WaitUntilTargetHealthy(t *testing.T) {
 			common: &common{
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.AlbCli, albMock)
+					b.Set(key.Logger, test.NewLogger())
 					b.Set(key.Time, test.NewFakeTime())
 				}),
 				Input: &Input{
@@ -332,6 +338,7 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 			common: &common{
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.Env, env)
+					b.Set(key.Logger, test.NewLogger())
 				}),
 				Input: &Input{
 					TaskDefinition:       td.TaskDefinition,
@@ -379,6 +386,7 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 						b.Set(key.Ec2Cli, ec2Mock)
 						b.Set(key.AlbCli, albMock)
 						b.Set(key.EcsCli, ecsMock)
+						b.Set(key.Logger, test.NewLogger())
 					}),
 					Input: &Input{
 						TaskDefinition:       td.TaskDefinition,
@@ -484,6 +492,7 @@ func TestAlbTask_RegisterToTargetGroup(t *testing.T) {
 						b.Set(key.Ec2Cli, ec2Mock)
 						b.Set(key.AlbCli, albMock)
 						b.Set(key.EcsCli, ecsMock)
+						b.Set(key.Logger, test.NewLogger())
 					}),
 					Input: &Input{
 						TaskDefinition:       td.TaskDefinition,
@@ -555,6 +564,7 @@ func TestAlbTask_GetTargetDeregistrationDelay(t *testing.T) {
 			common: &common{
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.AlbCli, albMock)
+					b.Set(key.Logger, test.NewLogger())
 				}),
 				Input: &Input{},
 			},
@@ -617,6 +627,7 @@ func TestAlbTask_DeregisterTarget(t *testing.T) {
 			common: &common{
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.AlbCli, albMock)
+					b.Set(key.Logger, test.NewLogger())
 				}),
 				Input: &Input{
 					TaskDefinition:       td.TaskDefinition,

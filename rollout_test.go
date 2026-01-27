@@ -76,6 +76,7 @@ func integrationTest(t *testing.T, env *env.Envars, lbcount int, input *types.Ro
 		b.Set(key.Ec2Cli, mocker.Ec2)
 		b.Set(key.EcsCli, mocker.Ecs)
 		b.Set(key.AlbCli, mocker.Alb)
+		b.Set(key.Logger, test.NewLogger())
 		b.Set(key.Time, test.NewFakeTime())
 		b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 	})}
@@ -115,6 +116,7 @@ func TestCage_Rollout_Failure(t *testing.T) {
 		c := &cage{di: di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 		})}
 		ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any()).Return(nil, test.Err)
 		result, err := c.RollOut(context.TODO(), &types.RollOutInput{})
@@ -128,6 +130,7 @@ func TestCage_Rollout_Failure(t *testing.T) {
 		c := &cage{di: di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 		})}
 		ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any()).Return(&ecs.DescribeServicesOutput{
 			Services: []ecstypes.Service{},
@@ -143,6 +146,7 @@ func TestCage_Rollout_Failure(t *testing.T) {
 		c := &cage{di: di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 		})}
 		ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any()).Return(&ecs.DescribeServicesOutput{
 			Services: []ecstypes.Service{{
@@ -160,6 +164,7 @@ func TestCage_Rollout_Failure(t *testing.T) {
 		c := &cage{di: di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 		})}
 		ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any()).Return(&ecs.DescribeServicesOutput{
 			Services: []ecstypes.Service{{
@@ -178,6 +183,7 @@ func TestCage_Rollout_Failure(t *testing.T) {
 		c := &cage{di: di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 		})}
 		ecsMock.EXPECT().DescribeServices(gomock.Any(), gomock.Any()).Return(&ecs.DescribeServicesOutput{
 			Services: []ecstypes.Service{{

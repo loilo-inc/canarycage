@@ -20,6 +20,7 @@ import (
 func TestNewSimpleTask(t *testing.T) {
 	d := di.NewDomain(func(b *di.B) {
 		b.Set(key.Env, test.DefaultEnvars())
+		b.Set(key.Logger, test.NewLogger())
 	})
 	task := NewSimpleTask(d, &Input{})
 	v, ok := task.(*simpleTask)
@@ -41,6 +42,7 @@ func TestSimpleTask(t *testing.T) {
 		b.Set(key.EcsCli, mocker.Ecs)
 		b.Set(key.Ec2Cli, mocker.Ec2)
 		b.Set(key.AlbCli, mocker.Alb)
+		b.Set(key.Logger, test.NewLogger())
 		b.Set(key.Time, test.NewFakeTime())
 	})
 	stask := &simpleTask{
@@ -72,6 +74,7 @@ func TestSimpleTask_Wait(t *testing.T) {
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.Env, test.DefaultEnvars())
 					b.Set(key.EcsCli, ecsMock)
+					b.Set(key.Logger, test.NewLogger())
 				}),
 			},
 		}
@@ -96,6 +99,7 @@ func TestSimpleTask_Wait(t *testing.T) {
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.Env, env)
 					b.Set(key.EcsCli, ecsMock)
+					b.Set(key.Logger, test.NewLogger())
 					b.Set(key.Time, test.NewFakeTime())
 				}),
 			},
@@ -131,6 +135,7 @@ func TestSimpleTask_WaitForIdleDuration(t *testing.T) {
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.Env, envars)
 					b.Set(key.EcsCli, ecsMock)
+					b.Set(key.Logger, test.NewLogger())
 					b.Set(key.Time, timerMock)
 				}),
 			},

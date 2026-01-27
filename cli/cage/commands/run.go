@@ -3,10 +3,11 @@ package commands
 import (
 	"context"
 
-	"github.com/apex/log"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
 )
@@ -25,6 +26,7 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 			cageapp.TaskStoppedWaitFlag(&input.CanaryTaskStoppedWait),
 		},
 		Action: func(ctx *cli.Context) error {
+			l := c.di.Get(key.Logger).(logger.Logger)
 			dir, rest, err := RequireArgs(ctx, 3, 100)
 			if err != nil {
 				return err
@@ -52,7 +54,7 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 			}); err != nil {
 				return err
 			}
-			log.Infof("👍 task successfully executed")
+			l.Printf("👍 task successfully executed")
 			return nil
 		},
 	}

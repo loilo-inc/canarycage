@@ -3,7 +3,6 @@ package cage
 import (
 	"context"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/awsiface"
@@ -20,7 +19,7 @@ func (c *cage) Up(ctx context.Context) (*types.UpResult, error) {
 	}
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
-	log.Infof("checking existence of service '%s'", env.Service)
+	c.logger().Printf("checking existence of service '%s'", env.Service)
 	if o, err := ecsCli.DescribeServices(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &env.Cluster,
 		Services: []string{env.Service},
@@ -43,12 +42,12 @@ func (c *cage) Up(ctx context.Context) (*types.UpResult, error) {
 func (c *cage) createService(ctx context.Context, serviceDefinitionInput *ecs.CreateServiceInput) (*ecstypes.Service, error) {
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
-	log.Infof("creating service '%s' with task-definition '%s'...", *serviceDefinitionInput.ServiceName, *serviceDefinitionInput.TaskDefinition)
+	c.logger().Printf("creating service '%s' with task-definition '%s'...", *serviceDefinitionInput.ServiceName, *serviceDefinitionInput.TaskDefinition)
 	o, err := ecsCli.CreateService(ctx, serviceDefinitionInput)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create service '%s': %w", *serviceDefinitionInput.ServiceName, err)
 	}
-	log.Infof("waiting for service '%s' to be STABLE", *serviceDefinitionInput.ServiceName)
+	c.logger().Printf("waiting for service '%s' to be STABLE", *serviceDefinitionInput.ServiceName)
 	if err := ecs.NewServicesStableWaiter(ecsCli).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &env.Cluster,
 		Services: []string{*serviceDefinitionInput.ServiceName},

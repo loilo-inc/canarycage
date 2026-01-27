@@ -14,8 +14,10 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/apex/log"
 	"github.com/google/go-github/v62/github"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
+	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
 )
 
@@ -24,6 +26,7 @@ type Upgrader interface {
 }
 type upgrader struct {
 	currentVersion string
+	di             *di.D
 }
 
 type Input struct {
@@ -31,27 +34,27 @@ type Input struct {
 	TargetPath string
 }
 
-func NewUpgrader(currentVersion string) Upgrader {
-	return &upgrader{currentVersion: currentVersion}
+func NewUpgrader(di *di.D, currentVersion string) Upgrader {
+	return &upgrader{currentVersion: currentVersion, di: di}
 }
 
 func (u *upgrader) Upgrade(p *Input) error {
-	log.Infof("checking for updates...")
+	u.logger().Printf("checking for updates...")
 	latestRelease, err := u.FindLatestRelease(p.PreRelease)
 	if err != nil {
 		return err
 	}
-	log.Infof("latest release: %s", latestRelease.GetTagName())
+	u.logger().Printf("latest release: %s", latestRelease.GetTagName())
 	currVer, currVerErr := semver.NewVersion(u.currentVersion)
 	latestVer := semver.MustParse(latestRelease.GetTagName())
 	if currVerErr == nil {
 		if currVer.Equal(latestVer) || currVer.GreaterThan(latestVer) {
-			log.Info("no updates available")
+			u.logger().Printf("no updates available")
 			return nil
 		}
 	}
 	// ignore current version if it's not a valid semver
-	log.Infof("upgrading from %s to %s", u.currentVersion, latestRelease.GetTagName())
+	u.logger().Printf("upgrading from %s to %s", u.currentVersion, latestRelease.GetTagName())
 	var version = latestRelease.GetTagName()
 	var checksumAsset *github.ReleaseAsset
 	var binaryAsset *github.ReleaseAsset
@@ -68,17 +71,17 @@ func (u *upgrader) Upgrade(p *Input) error {
 	if checksumAsset == nil || binaryAsset == nil {
 		return xerrors.Errorf("failed to find assets for version %s", version)
 	}
-	log.Info("downloading checksums...")
+	u.logger().Printf("downloading checksums...")
 	checksum, err := parseChecksums(checksumAsset.GetBrowserDownloadURL(), binariAssetName)
 	if err != nil {
 		return err
 	}
-	log.Infof("downloading binary %s...", binaryAsset.GetName())
+	u.logger().Printf("downloading binary %s...", binaryAsset.GetName())
 	newCageFile, err := unzipArchive(binaryAsset.GetBrowserDownloadURL(), checksum)
 	if err != nil {
 		return err
 	}
-	log.Info("swapping binary...")
+	u.logger().Printf("swapping binary...")
 	targetPath := p.TargetPath
 	if targetPath == "" {
 		exec, err := os.Executable()
@@ -90,7 +93,7 @@ func (u *upgrader) Upgrade(p *Input) error {
 	if err := swapFiles(targetPath, newCageFile); err != nil {
 		return err
 	}
-	log.Infof("upgraded to %s", version)
+	u.logger().Printf("upgraded to %s", version)
 	return nil
 }
 
@@ -119,6 +122,10 @@ func (u *upgrader) FindLatestRelease(pre bool) (*github.RepositoryRelease, error
 		return nil, xerrors.Errorf("no releases found")
 	}
 	return latestRelease, nil
+}
+
+func (u *upgrader) logger() logger.Logger {
+	return u.di.Get(key.Logger).(logger.Logger)
 }
 
 func unzipArchive(

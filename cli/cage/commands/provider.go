@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -12,6 +13,7 @@ import (
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/timeout"
 	"github.com/loilo-inc/canarycage/types"
@@ -30,6 +32,7 @@ func ProvideCageCli(ctx context.Context, input *cageapp.CageCmdInput) (types.Cag
 		b.Set(key.Ec2Cli, ec2.NewFromConfig(conf))
 		b.Set(key.AlbCli, elasticloadbalancingv2.NewFromConfig(conf))
 		b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+		b.Set(key.Logger, logger.DefaultLogger(os.Stdout, os.Stderr))
 		b.Set(key.Time, &timeout.Time{})
 	})
 	cagecli := cage.NewCage(d)

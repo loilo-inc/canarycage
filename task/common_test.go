@@ -34,6 +34,7 @@ func TestCommon_Start(t *testing.T) {
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.Env, envars)
 					b.Set(key.EcsCli, ecsMock)
+					b.Set(key.Logger, test.NewLogger())
 				}),
 			}
 			err := cm.Start(context.TODO())
@@ -50,6 +51,7 @@ func TestCommon_Start(t *testing.T) {
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.Env, envars)
 					b.Set(key.EcsCli, ecsMock)
+					b.Set(key.Logger, test.NewLogger())
 				}),
 			}
 			err := cm.Start(context.TODO())
@@ -71,6 +73,7 @@ func TestCommon_Start(t *testing.T) {
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.Env, envars)
 					b.Set(key.EcsCli, ecsMock)
+					b.Set(key.Logger, test.NewLogger())
 				}),
 			}
 			err := cm.Start(context.TODO())
@@ -88,6 +91,7 @@ func TestCommon_Start(t *testing.T) {
 				di: di.NewDomain(func(b *di.B) {
 					b.Set(key.Env, envars)
 					b.Set(key.EcsCli, ecsMock)
+					b.Set(key.Logger, test.NewLogger())
 				}),
 			}
 			err := cm.Start(context.TODO())
@@ -106,6 +110,7 @@ func TestCommon_WaitForTaskRunning(t *testing.T) {
 			di: di.NewDomain(func(b *di.B) {
 				b.Set(key.Env, envars)
 				b.Set(key.EcsCli, ecsMock)
+				b.Set(key.Logger, test.NewLogger())
 			}),
 		}
 		cm.taskArn = aws.String("task-arn")
@@ -151,6 +156,7 @@ func TestCommon_WaitContainerHealthCheck(t *testing.T) {
 			di: di.NewDomain(func(b *di.B) {
 				b.Set(key.Env, envars)
 				b.Set(key.EcsCli, ecsMock)
+				b.Set(key.Logger, test.NewLogger())
 				b.Set(key.Time, timerMock)
 			}),
 		}
@@ -263,6 +269,7 @@ func TestCommon_StopTask(t *testing.T) {
 			di: di.NewDomain(func(b *di.B) {
 				b.Set(key.EcsCli, ecsMock)
 				b.Set(key.Env, env)
+				b.Set(key.Logger, test.NewLogger())
 			}),
 		}
 		cm.taskArn = aws.String("task-arn")

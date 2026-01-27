@@ -21,6 +21,7 @@ func TestCage_Up(t *testing.T) {
 		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 		}))
 		result, err := cagecli.Up(context.Background())
 		assert.Nil(t, err)
@@ -34,6 +35,7 @@ func TestCage_Up(t *testing.T) {
 		cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
 			b.Set(key.Env, env)
 			b.Set(key.EcsCli, ecsMock)
+			b.Set(key.Logger, test.NewLogger())
 		}))
 		result, err := cagecli.Up(context.Background())
 		assert.Nil(t, result)
