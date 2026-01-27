@@ -51,3 +51,15 @@ func (mr *MockPrinterMockRecorder) Print(result any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Print", reflect.TypeOf((*MockPrinter)(nil).Print), result)
 }
+
+// PrintJSON mocks base method.
+func (m *MockPrinter) PrintJSON(metadata *audit.Resource, scanResults []*audit.ScanResult) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "PrintJSON", metadata, scanResults)
+}
+
+// PrintJSON indicates an expected call of PrintJSON.
+func (mr *MockPrinterMockRecorder) PrintJSON(metadata, scanResults any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrintJSON", reflect.TypeOf((*MockPrinter)(nil).PrintJSON), metadata, scanResults)
+}
