@@ -32,7 +32,7 @@ func (a *command) Run(ctx context.Context) (err error) {
 	}
 	p := NewPrinter(a.di, a.input.NoColor, a.input.LogDetail)
 	if a.input.JSON {
-		metadata := &Target{
+		metadata := Target{
 			Region:  a.input.Region,
 			Cluster: a.input.Cluster,
 			Service: a.input.Service,

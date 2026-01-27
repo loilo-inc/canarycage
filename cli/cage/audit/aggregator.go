@@ -2,21 +2,23 @@ package audit
 
 import (
 	"fmt"
+	"sort"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/loilo-inc/canarycage/logger"
+	"github.com/loilo-inc/logos/v2/set"
 )
 
 type aggregater struct {
 	cves            map[string]CVE
-	cveToContainers map[string][]string
+	cveToContainers map[string]set.Set[string]
 	summaries       map[string][]*ScanResultSummary
 }
 
 func NewAggregater() *aggregater {
 	return &aggregater{
 		cves:            make(map[string]CVE),
-		cveToContainers: make(map[string][]string),
+		cveToContainers: make(map[string]set.Set[string]),
 		summaries:       make(map[string][]*ScanResultSummary)}
 }
 
@@ -40,8 +42,9 @@ func (a *aggregater) Add(r *ScanResult) {
 	for _, f := range r.Cves {
 		if _, exists := a.cves[f.Name]; !exists {
 			a.cves[f.Name] = f
+			a.cveToContainers[f.Name] = set.NewSet[string]()
 		}
-		a.cveToContainers[f.Name] = append(a.cveToContainers[f.Name], container)
+		a.cveToContainers[f.Name].Add(container)
 	}
 }
 
@@ -109,21 +112,27 @@ func (a *aggregater) TotalCVECount() int {
 }
 
 func (a *aggregater) GetVulnContainers(cveName string) []string {
-	containersSet := a.cveToContainers[cveName]
-	return containersSet
+	containersSet, ok := a.cveToContainers[cveName]
+	if !ok {
+		return nil
+	}
+	return containersSet.Values()
 }
 
-func (a *aggregater) Result() *Result {
+func (a *aggregater) Result() Result {
 	summary := a.SummarizeTotal()
-	var vulns []*Vuln
+	var vulns []Vuln
 	for _, cve := range a.cves {
-		vuln := &Vuln{
+		vuln := Vuln{
 			Containers: a.GetVulnContainers(cve.Name),
 			CVE:        cve,
 		}
 		vulns = append(vulns, vuln)
 	}
-	return &Result{Summary: summary, Vulns: vulns}
+	sort.Slice(vulns, func(i, j int) bool {
+		return vulns[i].CVE.Name < vulns[j].CVE.Name
+	})
+	return Result{Summary: summary, Vulns: vulns}
 }
 
 type severityPrinter struct {

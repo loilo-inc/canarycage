@@ -161,7 +161,7 @@ func TestPrinter_logVuln(t *testing.T) {
 	t.Run("returns early when no findings", func(t *testing.T) {
 		d, logger := setup(t)
 		printer := NewPrinter(d, true, false)
-		printer.logVuln(ecrtypes.FindingSeverityCritical, []*Vuln{})
+		printer.logVuln(ecrtypes.FindingSeverityCritical, []Vuln{})
 
 		if len(logger.Logs) != 0 {
 			t.Errorf("Expected no logs, got %d", len(logger.Logs))
@@ -172,7 +172,7 @@ func TestPrinter_logVuln(t *testing.T) {
 		d, logger := setup(t)
 		printer := NewPrinter(d, true, false)
 
-		findings := []*Vuln{
+		findings := []Vuln{
 			{
 				CVE: CVE{
 					Name:        "CVE-2023-0001",
@@ -200,7 +200,7 @@ func TestPrinter_logVuln(t *testing.T) {
 		d, logger := setup(t)
 		printer := NewPrinter(d, true, false)
 
-		findings := []*Vuln{
+		findings := []Vuln{
 			{
 				Containers: []string{"container-1", "container-2"},
 				CVE: CVE{
@@ -225,7 +225,7 @@ func TestPrinter_logVuln(t *testing.T) {
 		d, logger := setup(t)
 		printer := NewPrinter(d, true, false)
 
-		findings := []*Vuln{
+		findings := []Vuln{
 			{
 				Containers: []string{"container-1"},
 				CVE: CVE{
@@ -250,7 +250,7 @@ func TestPrinter_logVuln(t *testing.T) {
 		d, logger := setup(t)
 		printer := NewPrinter(d, true, true) // logDetail = true
 
-		findings := []*Vuln{
+		findings := []Vuln{
 			{
 				CVE: CVE{
 					Name:        "CVE-2023-0001",
@@ -278,7 +278,7 @@ func TestPrinter_logVuln(t *testing.T) {
 		d, logger := setup(t)
 		printer := NewPrinter(d, true, false) // logDetail = false
 
-		findings := []*Vuln{
+		findings := []Vuln{
 			{
 				CVE: CVE{
 					Name:        "CVE-2023-0001",
@@ -318,7 +318,7 @@ func TestPrinter_PrintJSON(t *testing.T) {
 		d, logger := setup(t)
 		printer := NewPrinter(d, true, false)
 
-		metadata := &Target{
+		metadata := Target{
 			Region:  "ap-northeast-1",
 			Cluster: "test-cluster",
 			Service: "test-service",
@@ -339,7 +339,7 @@ func TestPrinter_PrintJSON(t *testing.T) {
 		d, logger := setup(t)
 		printer := NewPrinter(d, true, false)
 
-		metadata := &Target{
+		metadata := Target{
 			Region:  "ap-northeast-1",
 			Cluster: "test-cluster",
 			Service: "test-service",

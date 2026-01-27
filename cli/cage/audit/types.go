@@ -117,8 +117,8 @@ func summaryScanResult(result *ScanResult) *ScanResultSummary {
 }
 
 type FinalResult struct {
-	*Target
-	*Result
+	Target
+	Result
 	ScannedAt string `json:"scanned_at"`
 }
 
@@ -130,7 +130,7 @@ type Target struct {
 
 type Result struct {
 	Summary *AggregateResult `json:"summary"`
-	Vulns   []*Vuln          `json:"vulns"`
+	Vulns   []Vuln           `json:"vulns"`
 }
 
 type Vuln struct {
@@ -147,20 +147,20 @@ type CVE struct {
 	Severity       ecrtypes.FindingSeverity `json:"severity"`
 }
 
-func (a *Result) CriticalCves() []*Vuln {
+func (a *Result) CriticalCves() []Vuln {
 	return a.filterCvesBySeverity(ecrtypes.FindingSeverityCritical)
 }
 
-func (a *Result) HighCves() []*Vuln {
+func (a *Result) HighCves() []Vuln {
 	return a.filterCvesBySeverity(ecrtypes.FindingSeverityHigh)
 }
 
-func (a *Result) MediumCves() []*Vuln {
+func (a *Result) MediumCves() []Vuln {
 	return a.filterCvesBySeverity(ecrtypes.FindingSeverityMedium)
 }
 
-func (a *Result) filterCvesBySeverity(severity ecrtypes.FindingSeverity) []*Vuln {
-	var vulns []*Vuln
+func (a *Result) filterCvesBySeverity(severity ecrtypes.FindingSeverity) []Vuln {
+	var vulns []Vuln
 	for _, v := range a.Vulns {
 		if v.CVE.Severity == severity {
 			vulns = append(vulns, v)

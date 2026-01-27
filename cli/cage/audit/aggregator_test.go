@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
+	"github.com/loilo-inc/logos/v2/set"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -198,9 +199,9 @@ func TestAggregateResult_SeverityCounts(t *testing.T) {
 func TestAggregater_GetVulnContainers(t *testing.T) {
 	t.Run("returns containers affected by CVE", func(t *testing.T) {
 		agg := NewAggregater()
-		agg.cveToContainers = map[string][]string{
-			"CVE-2021-1234": {"container1", "container2"},
-			"CVE-2021-5678": {"container3"},
+		agg.cveToContainers = map[string]set.Set[string]{
+			"CVE-2021-1234": set.NewSet("container1", "container2"),
+			"CVE-2021-5678": set.NewSet("container3"),
 		}
 
 		containers := agg.GetVulnContainers("CVE-2021-1234")
@@ -211,8 +212,8 @@ func TestAggregater_GetVulnContainers(t *testing.T) {
 
 	t.Run("returns nil for non-existent CVE", func(t *testing.T) {
 		agg := NewAggregater()
-		agg.cveToContainers = map[string][]string{
-			"CVE-2021-1234": {"container1"},
+		agg.cveToContainers = map[string]set.Set[string]{
+			"CVE-2021-1234": set.NewSet("container1"),
 		}
 
 		containers := agg.GetVulnContainers("CVE-9999-9999")
@@ -248,9 +249,9 @@ func TestAggregater_Result(t *testing.T) {
 				Severity: ecrtypes.FindingSeverityHigh,
 			},
 		}
-		agg.cveToContainers = map[string][]string{
-			"CVE-2021-1234": {"container1", "container2"},
-			"CVE-2021-5678": {"container3"},
+		agg.cveToContainers = map[string]set.Set[string]{
+			"CVE-2021-1234": set.NewSet("container1", "container2"),
+			"CVE-2021-5678": set.NewSet("container3"),
 		}
 
 		result := agg.Result()
@@ -263,14 +264,13 @@ func TestAggregater_Result(t *testing.T) {
 		assert.Equal(t, 2, len(result.Vulns))
 
 		// Find CVE-2021-1234 in results
-		var vuln1234 *Vuln
+		var vuln1234 Vuln
 		for _, v := range result.Vulns {
 			if v.CVE.Name == "CVE-2021-1234" {
 				vuln1234 = v
 				break
 			}
 		}
-		assert.NotNil(t, vuln1234)
 		assert.Equal(t, "CVE-2021-1234", vuln1234.CVE.Name)
 		assert.Equal(t, ecrtypes.FindingSeverityCritical, vuln1234.CVE.Severity)
 		assert.Equal(t, "Critical vulnerability", vuln1234.CVE.Description)
@@ -290,8 +290,8 @@ func TestAggregater_Result(t *testing.T) {
 				Severity: ecrtypes.FindingSeverityLow,
 			},
 		}
-		agg.cveToContainers = map[string][]string{
-			"CVE-2021-9999": {"container1"},
+		agg.cveToContainers = map[string]set.Set[string]{
+			"CVE-2021-9999": set.NewSet("container1"),
 		}
 
 		result := agg.Result()

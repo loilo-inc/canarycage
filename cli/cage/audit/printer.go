@@ -88,7 +88,7 @@ func (p *printer) Print(scanResults []*ScanResult) {
 	)
 }
 
-func (p *printer) PrintJSON(metadata *Target, scanResults []*ScanResult) {
+func (p *printer) PrintJSON(metadata Target, scanResults []*ScanResult) {
 	l := p.di.Get(key.Logger).(logger.Logger)
 	t := p.di.Get(key.Time).(types.Time)
 	agg := NewAggregater()
@@ -108,7 +108,7 @@ func (p *printer) PrintJSON(metadata *Target, scanResults []*ScanResult) {
 	}
 }
 
-func (p *printer) logVuln(severity ecrtypes.FindingSeverity, vulns []*Vuln) {
+func (p *printer) logVuln(severity ecrtypes.FindingSeverity, vulns []Vuln) {
 	if len(vulns) == 0 {
 		return
 	}

@@ -228,14 +228,14 @@ func TestResult_CriticalCves(t *testing.T) {
 		{
 			name: "no vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{},
+				Vulns: []Vuln{},
 			},
 			want: 0,
 		},
 		{
 			name: "only critical vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{
+				Vulns: []Vuln{
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
 				},
@@ -245,7 +245,7 @@ func TestResult_CriticalCves(t *testing.T) {
 		{
 			name: "mixed severity vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{
+				Vulns: []Vuln{
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
@@ -256,7 +256,7 @@ func TestResult_CriticalCves(t *testing.T) {
 		{
 			name: "no critical vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{
+				Vulns: []Vuln{
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
 				},
@@ -282,14 +282,14 @@ func TestResult_HighCves(t *testing.T) {
 		{
 			name: "no vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{},
+				Vulns: []Vuln{},
 			},
 			want: 0,
 		},
 		{
 			name: "only high vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{
+				Vulns: []Vuln{
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
@@ -300,7 +300,7 @@ func TestResult_HighCves(t *testing.T) {
 		{
 			name: "mixed severity vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{
+				Vulns: []Vuln{
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
@@ -312,7 +312,7 @@ func TestResult_HighCves(t *testing.T) {
 		{
 			name: "no high vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{
+				Vulns: []Vuln{
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
 				},
@@ -338,14 +338,14 @@ func TestResult_MediumCves(t *testing.T) {
 		{
 			name: "no vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{},
+				Vulns: []Vuln{},
 			},
 			want: 0,
 		},
 		{
 			name: "only medium vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{
+				Vulns: []Vuln{
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
 				},
 			},
@@ -354,7 +354,7 @@ func TestResult_MediumCves(t *testing.T) {
 		{
 			name: "mixed severity vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{
+				Vulns: []Vuln{
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
@@ -367,7 +367,7 @@ func TestResult_MediumCves(t *testing.T) {
 		{
 			name: "no medium vulnerabilities",
 			result: &Result{
-				Vulns: []*Vuln{
+				Vulns: []Vuln{
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
 					{CVE: CVE{Severity: ecrtypes.FindingSeverityLow}},
 				},
