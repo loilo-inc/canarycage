@@ -24,10 +24,10 @@ func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.R
 		} else {
 			l.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. CHECK ECS CONSOLE NOW!", e.Service)
 		}
-		return nil, err
+	} else {
+		l.Infof("🎉service roll out has completed successfully!🎉")
 	}
-	l.Infof("🎉service roll out has completed successfully!🎉")
-	return result, nil
+	return result, err
 }
 
 func (c *cage) doRollOut(ctx context.Context, input *types.RollOutInput) (*types.RollOutResult, error) {
