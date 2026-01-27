@@ -80,9 +80,7 @@ func Test_summaryScanResult(t *testing.T) {
 					Repository:    "test-repo",
 					Tag:           "latest",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{},
-				},
+				Cves: []CVE{},
 			},
 			want: &ScanResultSummary{
 				ContainerName: "test-container",
@@ -101,11 +99,9 @@ func Test_summaryScanResult(t *testing.T) {
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{
-						{Severity: ecrtypes.FindingSeverityCritical},
-						{Severity: ecrtypes.FindingSeverityHigh},
-					},
+				Cves: []CVE{
+					{Severity: ecrtypes.FindingSeverityCritical},
+					{Severity: ecrtypes.FindingSeverityHigh},
 				},
 			},
 			want: &ScanResultSummary{
@@ -124,11 +120,9 @@ func Test_summaryScanResult(t *testing.T) {
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{
-						{Severity: ecrtypes.FindingSeverityHigh},
-						{Severity: ecrtypes.FindingSeverityHigh},
-					},
+				Cves: []CVE{
+					{Severity: ecrtypes.FindingSeverityHigh},
+					{Severity: ecrtypes.FindingSeverityHigh},
 				},
 			},
 			want: &ScanResultSummary{
@@ -147,11 +141,9 @@ func Test_summaryScanResult(t *testing.T) {
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{
-						{Severity: ecrtypes.FindingSeverityMedium},
-						{Severity: ecrtypes.FindingSeverityLow},
-					},
+				Cves: []CVE{
+					{Severity: ecrtypes.FindingSeverityMedium},
+					{Severity: ecrtypes.FindingSeverityLow},
 				},
 			},
 			want: &ScanResultSummary{
@@ -170,11 +162,9 @@ func Test_summaryScanResult(t *testing.T) {
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{
-						{Severity: ecrtypes.FindingSeverityLow},
-						{Severity: ecrtypes.FindingSeverityInformational},
-					},
+				Cves: []CVE{
+					{Severity: ecrtypes.FindingSeverityLow},
+					{Severity: ecrtypes.FindingSeverityInformational},
 				},
 			},
 			want: &ScanResultSummary{
@@ -193,15 +183,13 @@ func Test_summaryScanResult(t *testing.T) {
 				ImageInfo: ImageInfo{
 					ContainerName: "mixed-container",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{
-						{Severity: ecrtypes.FindingSeverityCritical},
-						{Severity: ecrtypes.FindingSeverityCritical},
-						{Severity: ecrtypes.FindingSeverityHigh},
-						{Severity: ecrtypes.FindingSeverityMedium},
-						{Severity: ecrtypes.FindingSeverityLow},
-						{Severity: ecrtypes.FindingSeverityInformational},
-					},
+				Cves: []CVE{
+					{Severity: ecrtypes.FindingSeverityCritical},
+					{Severity: ecrtypes.FindingSeverityCritical},
+					{Severity: ecrtypes.FindingSeverityHigh},
+					{Severity: ecrtypes.FindingSeverityMedium},
+					{Severity: ecrtypes.FindingSeverityLow},
+					{Severity: ecrtypes.FindingSeverityInformational},
 				},
 			},
 			want: &ScanResultSummary{

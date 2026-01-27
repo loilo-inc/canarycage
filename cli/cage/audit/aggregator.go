@@ -9,7 +9,7 @@ import (
 
 type aggregater struct {
 	cves            map[string]CVE
-	cveToSeverity   map[string]string
+	cveToSeverity   map[string]ecrtypes.FindingSeverity
 	cveToContainers map[string][]string
 	// container name to summaries
 	summaries map[string][]*ScanResultSummary
@@ -18,6 +18,7 @@ type aggregater struct {
 func NewAggregater() *aggregater {
 	return &aggregater{
 		cves:            make(map[string]CVE),
+		cveToSeverity:   make(map[string]ecrtypes.FindingSeverity),
 		cveToContainers: make(map[string][]string),
 		summaries:       make(map[string][]*ScanResultSummary)}
 }
@@ -42,7 +43,7 @@ func (a *aggregater) Add(r *ScanResult) {
 	for _, f := range r.Cves {
 		if _, exists := a.cves[f.Name]; !exists {
 			a.cves[f.Name] = f
-			a.cveToSeverity[f.Name] = string(f.Severity)
+			a.cveToSeverity[f.Name] = f.Severity
 			a.cveToContainers[f.Name] = append(a.cveToContainers[f.Name], container)
 		}
 	}
@@ -64,15 +65,15 @@ func (a *aggregater) SummarizeTotal() *AggregateResult {
 	for cve := range a.cves {
 		severity := a.cveToSeverity[cve]
 		switch severity {
-		case string(ecrtypes.FindingSeverityCritical):
+		case ecrtypes.FindingSeverityCritical:
 			result.CriticalCount++
-		case string(ecrtypes.FindingSeverityHigh):
+		case ecrtypes.FindingSeverityHigh:
 			result.HighCount++
-		case string(ecrtypes.FindingSeverityMedium):
+		case ecrtypes.FindingSeverityMedium:
 			result.MediumCount++
-		case string(ecrtypes.FindingSeverityLow):
+		case ecrtypes.FindingSeverityLow:
 			result.LowCount++
-		case string(ecrtypes.FindingSeverityInformational):
+		case ecrtypes.FindingSeverityInformational:
 			result.InfoCount++
 		}
 	}
