@@ -54,7 +54,7 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 			}); err != nil {
 				return err
 			}
-			l.Printf("👍 task successfully executed")
+			l.Infof("👍 task successfully executed")
 			return nil
 		},
 	}

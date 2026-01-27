@@ -44,7 +44,6 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 			cageapp.ServiceStableWaitFlag(&input.ServiceStableWait),
 		},
 		Action: func(ctx *cli.Context) error {
-			l := c.di.Get(key.Logger).(logger.Logger)
 			dir, _, err := RequireArgs(ctx, 1, 1)
 			if err != nil {
 				return err
@@ -59,6 +58,7 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 					return err
 				}
 			}
+			l := di.Get(key.Logger).(logger.Logger)
 			result, err := cagecli.RollOut(context.Background(), &types.RollOutInput{UpdateService: updateServiceConf})
 			if err != nil {
 				if !result.ServiceUpdated {
@@ -68,7 +68,7 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 				}
 				return err
 			}
-			l.Printf("🎉service roll out has completed successfully!🎉")
+			l.Infof("🎉service roll out has completed successfully!🎉")
 			return nil
 		},
 	}

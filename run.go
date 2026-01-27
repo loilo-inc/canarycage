@@ -50,16 +50,16 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 	// NOTE: https://github.com/loilo-inc/canarycage/issues/93
 	// wait for the task to be running
 	time.Sleep(2 * time.Second)
-
-	c.logger().Printf("waiting for task '%s' to start...", *taskArn)
+	l := c.logger()
+	l.Infof("waiting for task '%s' to start...", *taskArn)
 	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
 	}, env.GetTaskRunningWait()); err != nil {
 		return nil, xerrors.Errorf("task failed to start: %w", err)
 	}
-	c.logger().Printf("task '%s' is running", *taskArn)
-	c.logger().Printf("waiting for task '%s' to stop...", *taskArn)
+	l.Infof("task '%s' is running", *taskArn)
+	l.Infof("waiting for task '%s' to stop...", *taskArn)
 	if result, err := ecs.NewTasksStoppedWaiter(ecsCli).WaitForOutput(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},

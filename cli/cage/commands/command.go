@@ -2,31 +2,23 @@ package commands
 
 import (
 	"context"
-	"os"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/env"
-	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/types"
-	"github.com/loilo-inc/logos/di"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 )
 
 type CageCommands struct {
 	cageCliProvider cageapp.CageCmdProvider
-	di              *di.D
 }
 
 func NewCageCommands(
 	cageCliProvider cageapp.CageCmdProvider,
 ) *CageCommands {
-	d := di.NewDomain(func(b *di.B) {
-		b.Set(key.Logger, logger.DefaultLogger(os.Stdout, os.Stderr))
-	})
-	cmds := &CageCommands{cageCliProvider: cageCliProvider, di: d}
+	cmds := &CageCommands{cageCliProvider: cageCliProvider}
 	return cmds
 }
 

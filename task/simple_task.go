@@ -40,7 +40,7 @@ func (c *simpleTask) waitForIdleDuration(ctx context.Context) error {
 	l := c.logger()
 	env := c.di.Get(key.Env).(*env.Envars)
 	timer := c.di.Get(key.Time).(types.Time)
-	l.Printf("wait %d seconds for canary task to be stable...", env.CanaryTaskIdleDuration)
+	l.Infof("wait %d seconds for canary task to be stable...", env.CanaryTaskIdleDuration)
 	rest := env.GetCanaryTaskIdleWait()
 	waitPeriod := 15 * time.Second
 	for rest > 0 {
@@ -53,7 +53,7 @@ func (c *simpleTask) waitForIdleDuration(ctx context.Context) error {
 		case <-timer.NewTimer(waitPeriod).C:
 			rest -= waitPeriod
 		}
-		l.Printf("still waiting...; %d seconds left", rest)
+		l.Infof("still waiting...; %d seconds left", rest)
 	}
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
 	o, err := ecsCli.DescribeTasks(ctx, &ecs.DescribeTasksInput{

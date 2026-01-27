@@ -35,7 +35,7 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (last
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
 	l := c.logger()
 	if input.UpdateService {
-		l.Printf("--updateService flag is set. use provided service configurations for canary test instead of current service")
+		l.Infof("--updateService flag is set. use provided service configurations for canary test instead of current service")
 	}
 	canaryTasks, startCanaryTaskErr := c.startCanaryTasks(ctx, input)
 	// ensure canary task stopped after rolling out either success or failure
@@ -52,13 +52,13 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (last
 		l.Errorf("😨 failed to start canary task due to: %w", startCanaryTaskErr)
 		return startCanaryTaskErr
 	}
-	l.Printf("executing canary tasks...")
+	l.Infof("executing canary tasks...")
 	if err := canaryTasks.Exec(ctx); err != nil {
 		l.Errorf("😨 failed to exec canary tasks: %s", err)
 		return err
 	}
-	l.Printf("canary tasks have been executed successfully!")
-	l.Printf(
+	l.Infof("canary tasks have been executed successfully!")
+	l.Infof(
 		"updating the task definition of '%s' into '%s:%d'...",
 		env.Service, *c.td.Family, c.td.Revision,
 	)
@@ -80,7 +80,7 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (last
 		return err
 	}
 	c.serviceUpdated = true
-	l.Printf("waiting for service '%s' to be stable...", env.Service)
+	l.Infof("waiting for service '%s' to be stable...", env.Service)
 	if err := ecs.NewServicesStableWaiter(ecsCli).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &env.Cluster,
 		Services: []string{env.Service},
@@ -88,8 +88,8 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (last
 		l.Errorf("😨 failed to wait for service to be stable: %s", err)
 		return err
 	}
-	l.Printf("🥴 service '%s' has become to be stable!", env.Service)
-	l.Printf(
+	l.Infof("🥴 service '%s' has become to be stable!", env.Service)
+	l.Infof(
 		"🐥 service '%s' successfully rolled out to '%s:%d'!",
 		env.Service, *c.td.Family, c.td.Revision,
 	)

@@ -16,11 +16,11 @@ import (
 )
 
 func TestAuditCommandRun(t *testing.T) {
-	setup := func(t *testing.T) (*mock_audit.MockScanner, *test.MockLogger) {
+	setup := func(t *testing.T) (*mock_audit.MockScanner, *test.MockPrinter) {
 		t.Helper()
 		ctrl := gomock.NewController(t)
 		mockScanner := mock_audit.NewMockScanner(ctrl)
-		mockLogger := &test.MockLogger{}
+		mockLogger := &test.MockPrinter{}
 		return mockScanner, mockLogger
 	}
 	t.Run("should return error from scanner", func(t *testing.T) {

@@ -19,7 +19,8 @@ func (c *cage) Up(ctx context.Context) (*types.UpResult, error) {
 	}
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
-	c.logger().Printf("checking existence of service '%s'", env.Service)
+	l := c.logger()
+	l.Infof("checking existence of service '%s'", env.Service)
 	if o, err := ecsCli.DescribeServices(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &env.Cluster,
 		Services: []string{env.Service},
@@ -42,12 +43,13 @@ func (c *cage) Up(ctx context.Context) (*types.UpResult, error) {
 func (c *cage) createService(ctx context.Context, serviceDefinitionInput *ecs.CreateServiceInput) (*ecstypes.Service, error) {
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
-	c.logger().Printf("creating service '%s' with task-definition '%s'...", *serviceDefinitionInput.ServiceName, *serviceDefinitionInput.TaskDefinition)
+	l := c.logger()
+	l.Infof("creating service '%s' with task-definition '%s'...", *serviceDefinitionInput.ServiceName, *serviceDefinitionInput.TaskDefinition)
 	o, err := ecsCli.CreateService(ctx, serviceDefinitionInput)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create service '%s': %w", *serviceDefinitionInput.ServiceName, err)
 	}
-	c.logger().Printf("waiting for service '%s' to be STABLE", *serviceDefinitionInput.ServiceName)
+	l.Infof("waiting for service '%s' to be STABLE", *serviceDefinitionInput.ServiceName)
 	if err := ecs.NewServicesStableWaiter(ecsCli).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &env.Cluster,
 		Services: []string{*serviceDefinitionInput.ServiceName},

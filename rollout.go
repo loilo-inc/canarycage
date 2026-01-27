@@ -40,7 +40,7 @@ func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.R
 			return result, xerrors.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'")
 		}
 	}
-	c.logger().Printf("ensuring next task definition...")
+	c.logger().Infof("ensuring next task definition...")
 	var nextTaskDefinition *ecstypes.TaskDefinition
 	if o, err := c.CreateNextTaskDefinition(ctx); err != nil {
 		return result, xerrors.Errorf("failed to register next task definition due to: %w", err)

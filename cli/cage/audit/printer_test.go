@@ -38,9 +38,9 @@ func makeScanResult(
 }
 
 func TestPrinter_Print(t *testing.T) {
-	setup := func(t *testing.T) (*di.D, *test.MockLogger) {
+	setup := func(t *testing.T) (*di.D, *test.MockPrinter) {
 		t.Helper()
-		l := &test.MockLogger{}
+		l := &test.MockPrinter{}
 		d := di.NewDomain(func(b *di.B) {
 			b.Set(key.Logger, l)
 			b.Set(key.Time, test.NewNeverTimer())
@@ -149,9 +149,9 @@ func TestPrinter_Print(t *testing.T) {
 }
 
 func TestPrinter_logVuln(t *testing.T) {
-	setup := func(t *testing.T) (*di.D, *test.MockLogger) {
+	setup := func(t *testing.T) (*di.D, *test.MockPrinter) {
 		t.Helper()
-		l := &test.MockLogger{}
+		l := &test.MockPrinter{}
 		d := di.NewDomain(func(b *di.B) {
 			b.Set(key.Logger, l)
 			b.Set(key.Time, test.NewNeverTimer())
@@ -304,9 +304,9 @@ func TestPrinter_logVuln(t *testing.T) {
 }
 
 func TestPrinter_PrintJSON(t *testing.T) {
-	setup := func(t *testing.T) (*di.D, *test.MockLogger) {
+	setup := func(t *testing.T) (*di.D, *test.MockPrinter) {
 		t.Helper()
-		l := &test.MockLogger{}
+		l := &test.MockPrinter{}
 		d := di.NewDomain(func(b *di.B) {
 			b.Set(key.Logger, l)
 			b.Set(key.Time, test.NewNeverTimer())
