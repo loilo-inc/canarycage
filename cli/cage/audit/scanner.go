@@ -16,6 +16,8 @@ type Scanner interface {
 	Scan(ctx context.Context, cluster string, service string) ([]*ScanResult, error)
 }
 
+var _ Scanner = (*scanner)(nil)
+
 func NewScanner(ecs awsiface.EcsClient, ecr awsiface.EcrClient) Scanner {
 	return &scanner{ecs: ecs, ecr: ecr}
 }

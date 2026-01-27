@@ -20,8 +20,10 @@ type printer struct {
 
 type Printer interface {
 	Print(result []*ScanResult)
-	PrintJSON(metadata *Target, scanResults []*ScanResult)
+	PrintJSON(metadata Target, scanResults []*ScanResult)
 }
+
+var _ Printer = (*printer)(nil)
 
 func NewPrinter(di *di.D, noColor, logDetail bool) *printer {
 	return &printer{

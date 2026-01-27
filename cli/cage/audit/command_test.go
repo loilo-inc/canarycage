@@ -91,6 +91,7 @@ func TestAuditCommandRun(t *testing.T) {
 		)
 
 		cmd := audit.NewCommand(mockDI, &cageapp.AuditCmdInput{
+			Region:  "ap-northeast-1",
 			Cluster: "cluster",
 			Service: "service",
 			JSON:    true,
@@ -105,6 +106,7 @@ func TestAuditCommandRun(t *testing.T) {
 		var finalResult audit.FinalResult
 		err = json.Unmarshal([]byte(jsonOutput), &finalResult)
 		assert.NoError(err)
+		assert.Equal("ap-northeast-1", finalResult.Target.Region)
 		assert.Equal("cluster", finalResult.Target.Cluster)
 		assert.Equal("service", finalResult.Target.Service)
 		assert.Equal(0, finalResult.Result.Summary.CriticalCount)
