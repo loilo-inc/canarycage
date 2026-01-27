@@ -50,13 +50,13 @@ func (a *aggregater) Add(r *ScanResult) {
 }
 
 type AggregateResult struct {
-	CriticalCount   int
-	HighCount       int
-	MediumCount     int
-	LowCount        int
-	InfoCount       int
-	TotalCount      int
-	HighestSeverity ecrtypes.FindingSeverity
+	CriticalCount   int                      `json:"critical_count"`
+	HighCount       int                      `json:"high_count"`
+	MediumCount     int                      `json:"medium_count"`
+	LowCount        int                      `json:"low_count"`
+	InfoCount       int                      `json:"info_count"`
+	TotalCount      int                      `json:"total_count"`
+	HighestSeverity ecrtypes.FindingSeverity `json:"highest_severity"`
 }
 
 func (a *aggregater) SummarizeTotal() *AggregateResult {
