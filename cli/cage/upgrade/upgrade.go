@@ -15,46 +15,43 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v62/github"
+	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/logger"
+	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
 	"golang.org/x/xerrors"
 )
 
-type Upgrader interface {
-	Upgrade(p *Input) error
-}
 type upgrader struct {
-	currentVersion string
-	di             *di.D
+	*cageapp.UpgradeCmdInput
+	di *di.D
 }
 
-type Input struct {
-	PreRelease bool
-	TargetPath string
+var _ types.Upgrade = (*upgrader)(nil)
+
+func NewUpgrader(di *di.D, input *cageapp.UpgradeCmdInput) types.Upgrade {
+	return &upgrader{UpgradeCmdInput: input, di: di}
 }
 
-func NewUpgrader(di *di.D, currentVersion string) Upgrader {
-	return &upgrader{currentVersion: currentVersion, di: di}
-}
-
-func (u *upgrader) Upgrade(p *Input) error {
-	u.logger().Printf("checking for updates...")
-	latestRelease, err := u.FindLatestRelease(p.PreRelease)
+func (u *upgrader) Upgrade(ctx context.Context) error {
+	l := u.logger()
+	l.Infof("checking for updates...")
+	latestRelease, err := u.FindLatestRelease(ctx, u.PreRelease)
 	if err != nil {
 		return err
 	}
-	u.logger().Printf("latest release: %s", latestRelease.GetTagName())
-	currVer, currVerErr := semver.NewVersion(u.currentVersion)
+	l.Infof("latest release: %s", latestRelease.GetTagName())
+	currVer, currVerErr := semver.NewVersion(u.CurrentVersion)
 	latestVer := semver.MustParse(latestRelease.GetTagName())
 	if currVerErr == nil {
 		if currVer.Equal(latestVer) || currVer.GreaterThan(latestVer) {
-			u.logger().Printf("no updates available")
+			l.Infof("no updates available")
 			return nil
 		}
 	}
 	// ignore current version if it's not a valid semver
-	u.logger().Printf("upgrading from %s to %s", u.currentVersion, latestRelease.GetTagName())
+	l.Infof("upgrading from %s to %s", u.CurrentVersion, latestRelease.GetTagName())
 	var version = latestRelease.GetTagName()
 	var checksumAsset *github.ReleaseAsset
 	var binaryAsset *github.ReleaseAsset
@@ -71,18 +68,18 @@ func (u *upgrader) Upgrade(p *Input) error {
 	if checksumAsset == nil || binaryAsset == nil {
 		return xerrors.Errorf("failed to find assets for version %s", version)
 	}
-	u.logger().Printf("downloading checksums...")
+	l.Infof("downloading checksums...")
 	checksum, err := parseChecksums(checksumAsset.GetBrowserDownloadURL(), binariAssetName)
 	if err != nil {
 		return err
 	}
-	u.logger().Printf("downloading binary %s...", binaryAsset.GetName())
+	l.Infof("downloading binary %s...", binaryAsset.GetName())
 	newCageFile, err := unzipArchive(binaryAsset.GetBrowserDownloadURL(), checksum)
 	if err != nil {
 		return err
 	}
-	u.logger().Printf("swapping binary...")
-	targetPath := p.TargetPath
+	l.Infof("swapping binary...")
+	targetPath := u.TargetPath
 	if targetPath == "" {
 		exec, err := os.Executable()
 		if err != nil {
@@ -93,12 +90,11 @@ func (u *upgrader) Upgrade(p *Input) error {
 	if err := swapFiles(targetPath, newCageFile); err != nil {
 		return err
 	}
-	u.logger().Printf("upgraded to %s", version)
+	l.Infof("upgraded to %s", version)
 	return nil
 }
 
-func (u *upgrader) FindLatestRelease(pre bool) (*github.RepositoryRelease, error) {
-	cont := context.Background()
+func (u *upgrader) FindLatestRelease(cont context.Context, pre bool) (*github.RepositoryRelease, error) {
 	client := github.NewClient(nil)
 	releases, _, err := client.Repositories.ListReleases(cont, "loilo-inc", "canarycage", nil)
 	if err != nil {

@@ -15,7 +15,6 @@ version:
 mocks: go.sum \
 	mocks/mock_awsiface/iface.go \
 	mocks/mock_types/iface.go \
-	mocks/mock_upgrade/upgrade.go \
 	mocks/mock_audit/scanner.go \
 	mocks/mock_audit/printer.go \
 	mocks/mock_task/task.go \
@@ -26,8 +25,6 @@ mocks/mock_awsiface/iface.go: awsiface/iface.go
 	$(MOCKGEN) -source=./awsiface/iface.go > mocks/mock_awsiface/iface.go
 mocks/mock_types/iface.go: types/iface.go
 	$(MOCKGEN) -source=./types/iface.go > mocks/mock_types/iface.go
-mocks/mock_upgrade/upgrade.go: cli/cage/upgrade/upgrade.go
-	$(MOCKGEN) -source=./cli/cage/upgrade/upgrade.go > mocks/mock_upgrade/upgrade.go
 mocks/mock_audit/scanner.go: cli/cage/audit/scanner.go
 	$(MOCKGEN) -source=./cli/cage/audit/scanner.go > mocks/mock_audit/scanner.go
 mocks/mock_audit/printer.go: cli/cage/audit/printer.go

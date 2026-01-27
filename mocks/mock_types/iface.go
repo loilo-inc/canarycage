@@ -125,6 +125,44 @@ func (mr *MockAuditMockRecorder) Run(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockAudit)(nil).Run), ctx)
 }
 
+// MockUpgrade is a mock of Upgrade interface.
+type MockUpgrade struct {
+	ctrl     *gomock.Controller
+	recorder *MockUpgradeMockRecorder
+	isgomock struct{}
+}
+
+// MockUpgradeMockRecorder is the mock recorder for MockUpgrade.
+type MockUpgradeMockRecorder struct {
+	mock *MockUpgrade
+}
+
+// NewMockUpgrade creates a new mock instance.
+func NewMockUpgrade(ctrl *gomock.Controller) *MockUpgrade {
+	mock := &MockUpgrade{ctrl: ctrl}
+	mock.recorder = &MockUpgradeMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockUpgrade) EXPECT() *MockUpgradeMockRecorder {
+	return m.recorder
+}
+
+// Upgrade mocks base method.
+func (m *MockUpgrade) Upgrade(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Upgrade", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Upgrade indicates an expected call of Upgrade.
+func (mr *MockUpgradeMockRecorder) Upgrade(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Upgrade", reflect.TypeOf((*MockUpgrade)(nil).Upgrade), ctx)
+}
+
 // MockTime is a mock of Time interface.
 type MockTime struct {
 	ctrl     *gomock.Controller

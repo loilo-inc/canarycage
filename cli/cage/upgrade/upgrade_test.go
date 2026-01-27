@@ -2,7 +2,6 @@ package upgrade_test
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -13,16 +12,17 @@ import (
 
 	"github.com/google/go-github/v62/github"
 	"github.com/jarcoal/httpmock"
+	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/upgrade"
 	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/logger"
+	"github.com/loilo-inc/canarycage/test"
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUpgrade(t *testing.T) {
 	logDI := di.NewDomain(func(b *di.B) {
-		b.Set(key.Logger, logger.DefaultLogger(io.Discard, io.Discard))
+		b.Set(key.Logger, test.NewLogger())
 	})
 	makeAsset := func(tag, name string) *github.ReleaseAsset {
 		return &github.ReleaseAsset{
@@ -109,9 +109,11 @@ func TestUpgrade(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
 		tmpDir := setupCurrent(t, "0.1.0")
-		u := upgrade.NewUpgrader(logDI, "0.1.0")
-		err := u.Upgrade(&upgrade.Input{
-			TargetPath: tmpDir + "/cage"})
+		u := upgrade.NewUpgrader(logDI, &cageapp.UpgradeCmdInput{
+			CurrentVersion: "0.1.0",
+			TargetPath:     tmpDir + "/cage",
+		})
+		err := u.Upgrade(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -120,20 +122,22 @@ func TestUpgrade(t *testing.T) {
 	t.Run("no updates", func(t *testing.T) {
 		registerResponses(t, "0.1.0")
 		tmpDir := setupCurrent(t, "0.1.0")
-		u := upgrade.NewUpgrader(logDI, "0.1.0")
-		err := u.Upgrade(&upgrade.Input{
-			TargetPath: tmpDir + "/cage",
+		u := upgrade.NewUpgrader(logDI, &cageapp.UpgradeCmdInput{
+			CurrentVersion: "0.1.0",
+			TargetPath:     tmpDir + "/cage",
 		})
+		err := u.Upgrade(t.Context())
 		assert.NoError(t, err)
 		assertUpgraded(t, tmpDir, "0.1.0")
 	})
 	t.Run("pre-release", func(t *testing.T) {
 		registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
 		tmpDir := setupCurrent(t, "0.1.0")
-		u := upgrade.NewUpgrader(logDI, "0.1.0")
-		err := u.Upgrade(&upgrade.Input{
-			PreRelease: true,
-			TargetPath: tmpDir + "/cage"})
+		u := upgrade.NewUpgrader(logDI, &cageapp.UpgradeCmdInput{
+			CurrentVersion: "0.1.0",
+			TargetPath:     tmpDir + "/cage",
+		})
+		err := u.Upgrade(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -142,9 +146,11 @@ func TestUpgrade(t *testing.T) {
 	t.Run("should upgrade if current version is not a valid semver", func(t *testing.T) {
 		registerResponses(t, "0.1.0", "0.2.0")
 		tmpDir := setupCurrent(t, "dev")
-		u := upgrade.NewUpgrader(logDI, "dev")
-		err := u.Upgrade(&upgrade.Input{
-			TargetPath: tmpDir + "/cage"})
+		u := upgrade.NewUpgrader(logDI, &cageapp.UpgradeCmdInput{
+			CurrentVersion: "dev",
+			TargetPath:     tmpDir + "/cage",
+		})
+		err := u.Upgrade(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -158,36 +164,38 @@ func TestUpgrade(t *testing.T) {
 			httpmock.NewJsonResponderOrPanic(200, makeReleases("0.1.0", "0.2.0")))
 		httpmock.RegisterResponder("GET", "https://localhost/0.2.0/canarycage_0.2.0_checksums.txt",
 			httpmock.NewStringResponder(200, "invalid"))
-		u := upgrade.NewUpgrader(logDI, "0.1.0")
-		err := u.Upgrade(&upgrade.Input{})
+		u := upgrade.NewUpgrader(logDI, &cageapp.UpgradeCmdInput{
+			CurrentVersion: "0.1.0",
+		})
+		err := u.Upgrade(t.Context())
 		assert.EqualError(t, err, "invalid checksum line: invalid")
 	})
 	t.Run("FindLatestRelease", func(t *testing.T) {
 		t.Run("should return latest release", func(t *testing.T) {
 			registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
 			u := upgrade.ExportedUpgrader{}
-			release, err := u.FindLatestRelease(false)
+			release, err := u.FindLatestRelease(t.Context(), false)
 			assert.NoError(t, err)
 			assert.Equal(t, "0.2.0", release.GetTagName())
 		})
 		t.Run("should return latest pre-release", func(t *testing.T) {
 			registerResponses(t, "0.1.0", "0.2.0", "0.2.1-rc1")
 			u := upgrade.ExportedUpgrader{}
-			release, err := u.FindLatestRelease(true)
+			release, err := u.FindLatestRelease(t.Context(), true)
 			assert.NoError(t, err)
 			assert.Equal(t, "0.2.1-rc1", release.GetTagName())
 		})
 		t.Run("should return nil if no releases", func(t *testing.T) {
 			registerResponses(t, "not-a-release")
 			u := &upgrade.ExportedUpgrader{}
-			release, err := u.FindLatestRelease(false)
+			release, err := u.FindLatestRelease(t.Context(), false)
 			assert.Nil(t, release)
 			assert.EqualError(t, err, "no releases found")
 		})
 		t.Run("should return nil if no releases with pre-release", func(t *testing.T) {
 			registerResponses(t, "0.1.0-rc1")
 			u := &upgrade.ExportedUpgrader{}
-			release, err := u.FindLatestRelease(false)
+			release, err := u.FindLatestRelease(t.Context(), true)
 			assert.Nil(t, release)
 			assert.EqualError(t, err, "no releases found")
 		})
@@ -197,7 +205,7 @@ func TestUpgrade(t *testing.T) {
 			httpmock.RegisterResponder("GET", "https://api.github.com/repos/loilo-inc/canarycage/releases",
 				httpmock.NewErrorResponder(fmt.Errorf("error")))
 			u := &upgrade.ExportedUpgrader{}
-			release, err := u.FindLatestRelease(false)
+			release, err := u.FindLatestRelease(t.Context(), false)
 			assert.Nil(t, release)
 			assert.ErrorContains(t, err, "failed to list releases")
 		})

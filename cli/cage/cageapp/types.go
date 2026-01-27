@@ -46,3 +46,22 @@ func NewAuditCmdInput(opts ...func(*AuditCmdInput)) *AuditCmdInput {
 	}
 	return input
 }
+
+type UpgradeCmdInput struct {
+	*App
+	PreRelease     bool
+	TargetPath     string
+	CurrentVersion string
+}
+
+func NewUpgradeCmdInput(opts ...func(*UpgradeCmdInput)) *UpgradeCmdInput {
+	{
+		input := &UpgradeCmdInput{App: &App{}}
+		for _, opt := range opts {
+			opt(input)
+		}
+		return input
+	}
+}
+
+type UpgradeCmdProvider = func(ctx context.Context, input *UpgradeCmdInput) (types.Upgrade, error)
