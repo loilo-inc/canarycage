@@ -11,7 +11,7 @@ type mockPrinter struct {
 	errMessages []string
 }
 
-func (m *mockPrinter) PrintOutf(format string, args ...any) {
+func (m *mockPrinter) Printf(format string, args ...any) {
 	m.outMessages = append(m.outMessages, format)
 }
 

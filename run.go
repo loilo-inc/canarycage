@@ -24,6 +24,17 @@ func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container 
 }
 
 func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult, error) {
+	result, err := c.doRun(ctx, input)
+	l := c.logger()
+	if err != nil {
+		l.Errorf("🤕 task execution failed: %v", err)
+		return nil, err
+	}
+	l.Infof("👍 task successfully executed")
+	return result, nil
+}
+
+func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResult, error) {
 	env := c.di.Get(key.Env).(*env.Envars)
 	if !containerExistsInDefinition(env.TaskDefinitionInput, input.Container) {
 		return nil, xerrors.Errorf("🚫 '%s' not found in container definitions", *input.Container)

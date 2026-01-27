@@ -39,7 +39,7 @@ func (l *prefixedLogger) printf(level string, format string, args ...any) {
 		msg += "\n"
 	}
 	prefix := fmt.Sprintf("%s  %s  ", l.now().Format("2006/01/02 15:04:05"), level)
-	l.p.PrintOutf(prefix + msg)
+	l.p.Printf(prefix + msg)
 }
 
 func (l *prefixedLogger) errorf(level string, format string, args ...any) {

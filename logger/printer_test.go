@@ -18,10 +18,10 @@ func TestNewPrinter(t *testing.T) {
 	// Verify the printer implements the interface
 	var _ Printer = p
 
-	// Test that PrintOutf writes to stdout
-	p.PrintOutf("test stdout")
+	// Test that Printf writes to stdout
+	p.Printf("test stdout")
 	if stdout.String() != "test stdout" {
-		t.Errorf("PrintOutf: got %q, want %q", stdout.String(), "test stdout")
+		t.Errorf("Printf: got %q, want %q", stdout.String(), "test stdout")
 	}
 
 	// Test that PrintErrf writes to stderr

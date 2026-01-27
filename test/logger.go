@@ -12,7 +12,7 @@ type MockPrinter struct {
 	Logs   []string
 }
 
-func (m *MockPrinter) PrintOutf(format string, args ...any) {
+func (m *MockPrinter) Printf(format string, args ...any) {
 	m.Stdout = append(m.Stdout, fmt.Sprintf(format, args...))
 	m.Logs = append(m.Logs, fmt.Sprintf(format, args...))
 }

@@ -8,12 +8,29 @@ import (
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/rollout"
 	"github.com/loilo-inc/canarycage/types"
 	"golang.org/x/xerrors"
 )
 
 func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.RollOutResult, error) {
+	result, err := c.doRollOut(context.Background(), input)
+	l := c.di.Get(key.Logger).(logger.Logger)
+	e := c.di.Get(key.Env).(*env.Envars)
+	if err != nil {
+		if !result.ServiceUpdated {
+			l.Errorf("🤕 failed to roll out new tasks but service '%s' is not changed", e.Service)
+		} else {
+			l.Errorf("😭 failed to roll out new tasks and service '%s' might be changed. CHECK ECS CONSOLE NOW!", e.Service)
+		}
+		return nil, err
+	}
+	l.Infof("🎉service roll out has completed successfully!🎉")
+	return result, nil
+}
+
+func (c *cage) doRollOut(ctx context.Context, input *types.RollOutInput) (*types.RollOutResult, error) {
 	result := &types.RollOutResult{}
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)

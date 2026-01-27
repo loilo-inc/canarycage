@@ -6,7 +6,7 @@ import (
 )
 
 type Printer interface {
-	PrintOutf(format string, args ...any)
+	Printf(format string, args ...any)
 	PrintErrf(format string, args ...any)
 }
 
@@ -21,7 +21,7 @@ func NewPrinter(stdout io.Writer, stderr io.Writer) Printer {
 	return &printer{stdout: stdout, stderr: stderr}
 }
 
-func (p *printer) PrintOutf(format string, args ...any) {
+func (p *printer) Printf(format string, args ...any) {
 	fmt.Fprintf(p.stdout, format, args...)
 }
 
