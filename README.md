@@ -16,7 +16,7 @@ A deployment tool for AWS ECS
 via `go install` (Recommended)
 
 ```bash
-$ go insntall github.com/loilo-inc/canarycage/cli/cage@latest
+$ go install github.com/loilo-inc/canarycage/cli/cage@latest
 $ cage upgrade
 ```
 
