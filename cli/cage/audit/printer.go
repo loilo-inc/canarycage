@@ -58,9 +58,9 @@ func (p *printer) Print(scanResults []*ScanResult) {
 		}
 	}
 	result := agg.Result()
-	p.logVuln("CRITICAL", result.CriticalCves())
-	p.logVuln("HIGH", result.HighCves())
-	p.logVuln("MEDIUM", result.MediumCves())
+	p.logVuln(ecrtypes.FindingSeverityCritical, result.CriticalCves())
+	p.logVuln(ecrtypes.FindingSeverityHigh, result.HighCves())
+	p.logVuln(ecrtypes.FindingSeverityMedium, result.MediumCves())
 	total := agg.TotalCVECount()
 	color := p.color
 	if total == 0 {
