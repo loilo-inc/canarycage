@@ -76,10 +76,8 @@ func TestNewAggregater(t *testing.T) {
 	agg := NewAggregater()
 	assert.NotNil(t, agg)
 	assert.NotNil(t, agg.cves)
-	assert.NotNil(t, agg.cveToSeverity)
 	assert.NotNil(t, agg.summaries)
 	assert.Equal(t, 0, len(agg.cves))
-	assert.Equal(t, 0, len(agg.cveToSeverity))
 	assert.Equal(t, 0, len(agg.summaries))
 }
 
@@ -148,14 +146,6 @@ func TestAggregater_SummarizeTotal(t *testing.T) {
 			"CVE-2021-4": {Name: "CVE-2021-4", Severity: ecrtypes.FindingSeverityLow},
 			"CVE-2021-5": {Name: "CVE-2021-5", Severity: ecrtypes.FindingSeverityInformational},
 		}
-		agg.cveToSeverity = map[string]ecrtypes.FindingSeverity{
-			"CVE-2021-1": ecrtypes.FindingSeverityCritical,
-			"CVE-2021-2": ecrtypes.FindingSeverityHigh,
-			"CVE-2021-3": ecrtypes.FindingSeverityMedium,
-			"CVE-2021-4": ecrtypes.FindingSeverityLow,
-			"CVE-2021-5": ecrtypes.FindingSeverityInformational,
-		}
-
 		result := agg.SummarizeTotal()
 		assert.Equal(t, 1, result.CriticalCount)
 		assert.Equal(t, 1, result.HighCount)
@@ -179,9 +169,6 @@ func TestAggregater_SummarizeTotal(t *testing.T) {
 				agg := NewAggregater()
 				agg.cves = map[string]CVE{
 					"CVE-2021-1": {Name: "CVE-2021-1", Severity: tt.severity},
-				}
-				agg.cveToSeverity = map[string]ecrtypes.FindingSeverity{
-					"CVE-2021-1": tt.severity,
 				}
 				result := agg.SummarizeTotal()
 				assert.Equal(t, tt.severity, result.HighestSeverity)
@@ -261,10 +248,6 @@ func TestAggregater_Result(t *testing.T) {
 				Severity: ecrtypes.FindingSeverityHigh,
 			},
 		}
-		agg.cveToSeverity = map[string]ecrtypes.FindingSeverity{
-			"CVE-2021-1234": ecrtypes.FindingSeverityCritical,
-			"CVE-2021-5678": ecrtypes.FindingSeverityHigh,
-		}
 		agg.cveToContainers = map[string][]string{
 			"CVE-2021-1234": {"container1", "container2"},
 			"CVE-2021-5678": {"container3"},
@@ -306,9 +289,6 @@ func TestAggregater_Result(t *testing.T) {
 				Name:     "CVE-2021-9999",
 				Severity: ecrtypes.FindingSeverityLow,
 			},
-		}
-		agg.cveToSeverity = map[string]ecrtypes.FindingSeverity{
-			"CVE-2021-9999": ecrtypes.FindingSeverityLow,
 		}
 		agg.cveToContainers = map[string][]string{
 			"CVE-2021-9999": {"container1"},

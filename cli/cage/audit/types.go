@@ -43,33 +43,40 @@ type ScanResultSummary struct {
 	ImageURI      string `json:"image_uri"`
 }
 
-func findingToCVE(finding ecrtypes.ImageScanFinding) CVE {
-	var packageName string = "unknown"
-	var packageVersion string = "unknown"
-	for _, attr := range finding.Attributes {
-		switch *attr.Key {
-		case "package_name":
-			packageName = *attr.Value
-		case "package_version":
-			packageVersion = *attr.Value
+func unwrapAttributes(attrs []ecrtypes.Attribute) map[string]string {
+	m := make(map[string]string)
+	for _, attr := range attrs {
+		if attr.Key != nil && attr.Value != nil {
+			m[*attr.Key] = *attr.Value
 		}
 	}
-	var uri string
-	var description string
+	return m
+}
+
+func findingToCVE(finding ecrtypes.ImageScanFinding) CVE {
+	cve := CVE{
+		Name:           "unknown",
+		PackageName:    "unknown",
+		PackageVersion: "unknown",
+		Severity:       finding.Severity,
+	}
+	if finding.Name != nil {
+		cve.Name = *finding.Name
+	}
+	attrs := unwrapAttributes(finding.Attributes)
+	if val, ok := attrs["package_name"]; ok {
+		cve.PackageName = val
+	}
+	if val, ok := attrs["package_version"]; ok {
+		cve.PackageVersion = val
+	}
 	if finding.Uri != nil {
-		uri = *finding.Uri
+		cve.Uri = *finding.Uri
 	}
 	if finding.Description != nil {
-		description = *finding.Description
+		cve.Description = *finding.Description
 	}
-	return CVE{
-		Name:           *finding.Name,
-		Severity:       finding.Severity,
-		Description:    description,
-		Uri:            uri,
-		PackageName:    packageName,
-		PackageVersion: packageVersion,
-	}
+	return cve
 }
 
 func summaryScanResult(result *ScanResult) *ScanResultSummary {
