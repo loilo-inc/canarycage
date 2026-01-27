@@ -402,3 +402,160 @@ func TestResult_MediumCves(t *testing.T) {
 		})
 	}
 }
+
+func Test_findingToCVE(t *testing.T) {
+	stringPtr := func(s string) *string { return &s }
+
+	tests := []struct {
+		name    string
+		finding ecrtypes.ImageScanFinding
+		want    CVE
+	}{
+		{
+			name: "complete finding with all fields",
+			finding: ecrtypes.ImageScanFinding{
+				Name:        stringPtr("CVE-2021-1234"),
+				Severity:    ecrtypes.FindingSeverityCritical,
+				Description: stringPtr("A critical security vulnerability"),
+				Uri:         stringPtr("https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-1234"),
+				Attributes: []ecrtypes.Attribute{
+					{Key: stringPtr("package_name"), Value: stringPtr("openssl")},
+					{Key: stringPtr("package_version"), Value: stringPtr("1.0.2k")},
+				},
+			},
+			want: CVE{
+				Name:           "CVE-2021-1234",
+				Severity:       ecrtypes.FindingSeverityCritical,
+				Description:    "A critical security vulnerability",
+				Uri:            "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-1234",
+				PackageName:    "openssl",
+				PackageVersion: "1.0.2k",
+			},
+		},
+		{
+			name: "finding with nil description and uri",
+			finding: ecrtypes.ImageScanFinding{
+				Name:        stringPtr("CVE-2022-5678"),
+				Severity:    ecrtypes.FindingSeverityHigh,
+				Description: nil,
+				Uri:         nil,
+				Attributes: []ecrtypes.Attribute{
+					{Key: stringPtr("package_name"), Value: stringPtr("curl")},
+					{Key: stringPtr("package_version"), Value: stringPtr("7.64.0")},
+				},
+			},
+			want: CVE{
+				Name:           "CVE-2022-5678",
+				Severity:       ecrtypes.FindingSeverityHigh,
+				Description:    "",
+				Uri:            "",
+				PackageName:    "curl",
+				PackageVersion: "7.64.0",
+			},
+		},
+		{
+			name: "finding without package attributes",
+			finding: ecrtypes.ImageScanFinding{
+				Name:        stringPtr("CVE-2023-9999"),
+				Severity:    ecrtypes.FindingSeverityMedium,
+				Description: stringPtr("Medium severity issue"),
+				Uri:         stringPtr("https://example.com/cve"),
+				Attributes:  []ecrtypes.Attribute{},
+			},
+			want: CVE{
+				Name:           "CVE-2023-9999",
+				Severity:       ecrtypes.FindingSeverityMedium,
+				Description:    "Medium severity issue",
+				Uri:            "https://example.com/cve",
+				PackageName:    "unknown",
+				PackageVersion: "unknown",
+			},
+		},
+		{
+			name: "finding with only package_name",
+			finding: ecrtypes.ImageScanFinding{
+				Name:        stringPtr("CVE-2020-1111"),
+				Severity:    ecrtypes.FindingSeverityLow,
+				Description: stringPtr("Low severity issue"),
+				Uri:         stringPtr("https://example.com"),
+				Attributes: []ecrtypes.Attribute{
+					{Key: stringPtr("package_name"), Value: stringPtr("nginx")},
+				},
+			},
+			want: CVE{
+				Name:           "CVE-2020-1111",
+				Severity:       ecrtypes.FindingSeverityLow,
+				Description:    "Low severity issue",
+				Uri:            "https://example.com",
+				PackageName:    "nginx",
+				PackageVersion: "unknown",
+			},
+		},
+		{
+			name: "finding with only package_version",
+			finding: ecrtypes.ImageScanFinding{
+				Name:        stringPtr("CVE-2019-2222"),
+				Severity:    ecrtypes.FindingSeverityInformational,
+				Description: stringPtr("Informational issue"),
+				Uri:         stringPtr("https://example.com"),
+				Attributes: []ecrtypes.Attribute{
+					{Key: stringPtr("package_version"), Value: stringPtr("2.4.6")},
+				},
+			},
+			want: CVE{
+				Name:           "CVE-2019-2222",
+				Severity:       ecrtypes.FindingSeverityInformational,
+				Description:    "Informational issue",
+				Uri:            "https://example.com",
+				PackageName:    "unknown",
+				PackageVersion: "2.4.6",
+			},
+		},
+		{
+			name: "finding with extra attributes",
+			finding: ecrtypes.ImageScanFinding{
+				Name:        stringPtr("CVE-2024-3333"),
+				Severity:    ecrtypes.FindingSeverityHigh,
+				Description: stringPtr("Test description"),
+				Uri:         stringPtr("https://test.com"),
+				Attributes: []ecrtypes.Attribute{
+					{Key: stringPtr("package_name"), Value: stringPtr("testpkg")},
+					{Key: stringPtr("package_version"), Value: stringPtr("1.2.3")},
+					{Key: stringPtr("other_field"), Value: stringPtr("ignored")},
+				},
+			},
+			want: CVE{
+				Name:           "CVE-2024-3333",
+				Severity:       ecrtypes.FindingSeverityHigh,
+				Description:    "Test description",
+				Uri:            "https://test.com",
+				PackageName:    "testpkg",
+				PackageVersion: "1.2.3",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findingToCVE(tt.finding)
+			if got.Name != tt.want.Name {
+				t.Errorf("Name = %v, want %v", got.Name, tt.want.Name)
+			}
+			if got.Severity != tt.want.Severity {
+				t.Errorf("Severity = %v, want %v", got.Severity, tt.want.Severity)
+			}
+			if got.Description != tt.want.Description {
+				t.Errorf("Description = %v, want %v", got.Description, tt.want.Description)
+			}
+			if got.Uri != tt.want.Uri {
+				t.Errorf("Uri = %v, want %v", got.Uri, tt.want.Uri)
+			}
+			if got.PackageName != tt.want.PackageName {
+				t.Errorf("PackageName = %v, want %v", got.PackageName, tt.want.PackageName)
+			}
+			if got.PackageVersion != tt.want.PackageVersion {
+				t.Errorf("PackageVersion = %v, want %v", got.PackageVersion, tt.want.PackageVersion)
+			}
+		})
+	}
+}

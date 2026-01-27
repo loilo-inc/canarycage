@@ -44,8 +44,8 @@ type ScanResultSummary struct {
 }
 
 func findingToCVE(finding ecrtypes.ImageScanFinding) CVE {
-	var packageName string
-	var packageVersion string
+	var packageName string = "unknown"
+	var packageVersion string = "unknown"
 	for _, attr := range finding.Attributes {
 		switch *attr.Key {
 		case "package_name":

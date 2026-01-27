@@ -15,7 +15,6 @@ func newTimer(_ time.Duration) *time.Timer {
 }
 
 type ImmediateTime struct {
-	never bool
 }
 
 var _ types.Time = (*ImmediateTime)(nil)

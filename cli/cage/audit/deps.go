@@ -25,10 +25,8 @@ func ProvideAuditCmd(ctx context.Context, input *cageapp.AuditCmdInput) (types.A
 		ecsCli := ecs.NewFromConfig(conf)
 		ecrCli := ecr.NewFromConfig(conf)
 		l := logger.DefaultLogger(os.Stdout, os.Stderr)
-		p := NewPrinter(b.Future(), input.NoColor, input.LogDetail)
 		b.Set(key.Scanner, NewScanner(ecsCli, ecrCli))
 		b.Set(key.Logger, l)
-		b.Set(key.Printer, p)
 		b.Set(key.Time, &timeout.Time{})
 	})
 	return NewCommand(d, input), nil
