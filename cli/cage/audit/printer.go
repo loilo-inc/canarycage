@@ -20,7 +20,7 @@ type printer struct {
 
 type Printer interface {
 	Print(result []*ScanResult)
-	PrintJSON(metadata *Resource, scanResults []*ScanResult)
+	PrintJSON(metadata *Target, scanResults []*ScanResult)
 }
 
 func NewPrinter(di *di.D, noColor, logDetail bool) *printer {
@@ -88,7 +88,7 @@ func (p *printer) Print(scanResults []*ScanResult) {
 	)
 }
 
-func (p *printer) PrintJSON(metadata *Resource, scanResults []*ScanResult) {
+func (p *printer) PrintJSON(metadata *Target, scanResults []*ScanResult) {
 	l := p.di.Get(key.Logger).(logger.Logger)
 	t := p.di.Get(key.Time).(types.Time)
 	agg := NewAggregater()
@@ -97,7 +97,7 @@ func (p *printer) PrintJSON(metadata *Resource, scanResults []*ScanResult) {
 	}
 	aggResult := agg.Result()
 	finalResult := &FinalResult{
-		Resource:  metadata,
+		Target:    metadata,
 		Result:    aggResult,
 		ScannedAt: t.Now().Format("2006-01-02T15:04:05Z07:00"),
 	}

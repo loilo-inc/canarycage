@@ -110,12 +110,12 @@ func summaryScanResult(result *ScanResult) *ScanResultSummary {
 }
 
 type FinalResult struct {
-	*Resource
+	*Target
 	*Result
 	ScannedAt string `json:"scanned_at"`
 }
 
-type Resource struct {
+type Target struct {
 	Region  string `json:"region"`
 	Cluster string `json:"cluster"`
 	Service string `json:"service"`

@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -299,5 +300,59 @@ func TestPrinter_logVuln(t *testing.T) {
 		if descFound {
 			t.Error("Expected no description in output when logDetail is false")
 		}
+	})
+}
+
+func TestPrinter_PrintJSON(t *testing.T) {
+	setup := func(t *testing.T) (*di.D, *test.MockLogger) {
+		t.Helper()
+		l := &test.MockLogger{}
+		d := di.NewDomain(func(b *di.B) {
+			b.Set(key.Logger, l)
+			b.Set(key.Time, test.NewNeverTimer())
+		})
+		return d, l
+	}
+
+	t.Run("prints valid JSON output", func(t *testing.T) {
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
+
+		metadata := &Target{
+			Region:  "ap-northeast-1",
+			Cluster: "test-cluster",
+			Service: "test-service",
+		}
+		result := makeScanResult(ecrtypes.FindingSeverityCritical)
+
+		printer.PrintJSON(metadata, result)
+
+		assert := assert.New(t)
+		assert.NotEmpty(logger.Stdout)
+
+		var parsed FinalResult
+		err := json.Unmarshal([]byte(logger.Stdout[0]), &parsed)
+		assert.NoError(err)
+	})
+
+	t.Run("handles empty scan results", func(t *testing.T) {
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
+
+		metadata := &Target{
+			Region:  "ap-northeast-1",
+			Cluster: "test-cluster",
+			Service: "test-service",
+		}
+		result := []*ScanResult{}
+
+		printer.PrintJSON(metadata, result)
+
+		assert := assert.New(t)
+		assert.NotEmpty(logger.Stdout)
+
+		var parsed FinalResult
+		err := json.Unmarshal([]byte(logger.Stdout[0]), &parsed)
+		assert.NoError(err)
 	})
 }

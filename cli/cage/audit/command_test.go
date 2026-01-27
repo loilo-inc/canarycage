@@ -105,8 +105,8 @@ func TestAuditCommandRun(t *testing.T) {
 		var finalResult audit.FinalResult
 		err = json.Unmarshal([]byte(jsonOutput), &finalResult)
 		assert.NoError(err)
-		assert.Equal("cluster", finalResult.Resource.Cluster)
-		assert.Equal("service", finalResult.Resource.Service)
+		assert.Equal("cluster", finalResult.Target.Cluster)
+		assert.Equal("service", finalResult.Target.Service)
 		assert.Equal(0, finalResult.Result.Summary.CriticalCount)
 		assert.Equal(0, finalResult.Result.Summary.HighCount)
 		assert.Equal(0, finalResult.Result.Summary.MediumCount)
