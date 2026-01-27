@@ -50,6 +50,11 @@ func scanImage(ctx context.Context, ecrTool EcrTool, info ImageInfo) *ScanResult
 	} else if findings, err := ecrTool.GetImageScanFindings(ctx, &info, imageID); err != nil {
 		return &ScanResult{ImageInfo: info, Err: err}
 	} else {
-		return &ScanResult{ImageInfo: info, ImageScanFindings: findings}
+		var cves []CVE
+		for _, f := range findings.Findings {
+			cve := findingToCVE(f)
+			cves = append(cves, cve)
+		}
+		return &ScanResult{ImageInfo: info, Cves: cves}
 	}
 }

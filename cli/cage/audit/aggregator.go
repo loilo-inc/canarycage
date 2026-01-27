@@ -8,7 +8,7 @@ import (
 )
 
 type aggregater struct {
-	cves            map[string]ecrtypes.ImageScanFinding
+	cves            map[string]CVE
 	cveToSeverity   map[string]string
 	cveToContainers map[string][]string
 	// container name to summaries
@@ -17,8 +17,7 @@ type aggregater struct {
 
 func NewAggregater() *aggregater {
 	return &aggregater{
-		cves:            make(map[string]ecrtypes.ImageScanFinding),
-		cveToSeverity:   make(map[string]string),
+		cves:            make(map[string]CVE),
 		cveToContainers: make(map[string][]string),
 		summaries:       make(map[string][]*ScanResultSummary)}
 }
@@ -31,7 +30,7 @@ func (a *aggregater) Add(r *ScanResult) {
 			Status:        "ERROR",
 		})
 		return
-	} else if r.ImageScanFindings == nil {
+	} else if len(r.Cves) == 0 {
 		a.summaries[container] = append(a.summaries[container], &ScanResultSummary{
 			ContainerName: container,
 			Status:        "N/A",
@@ -40,11 +39,11 @@ func (a *aggregater) Add(r *ScanResult) {
 	}
 	summary := summaryScanResult(r)
 	a.summaries[container] = append(a.summaries[container], summary)
-	for _, f := range r.ImageScanFindings.Findings {
-		if _, exists := a.cves[*f.Name]; !exists {
-			a.cves[*f.Name] = f
-			a.cveToSeverity[*f.Name] = string(f.Severity)
-			a.cveToContainers[*f.Name] = append(a.cveToContainers[*f.Name], container)
+	for _, f := range r.Cves {
+		if _, exists := a.cves[f.Name]; !exists {
+			a.cves[f.Name] = f
+			a.cveToSeverity[f.Name] = string(f.Severity)
+			a.cveToContainers[f.Name] = append(a.cveToContainers[f.Name], container)
 		}
 	}
 }
@@ -120,35 +119,10 @@ func (a *aggregater) GetVulnContainers(cveName string) []string {
 func (a *aggregater) Result() *Result {
 	summary := a.SummarizeTotal()
 	var vulns []*Vuln
-	for cveName, finding := range a.cves {
-		var packageName string
-		var packageVersion string
-		for _, attr := range finding.Attributes {
-			switch *attr.Key {
-			case "package_name":
-				packageName = *attr.Value
-			case "package_version":
-				packageVersion = *attr.Value
-			}
-		}
-		var uri string
-		var description string
-		if finding.Uri != nil {
-			uri = *finding.Uri
-		}
-		if finding.Description != nil {
-			description = *finding.Description
-		}
+	for _, cve := range a.cves {
 		vuln := &Vuln{
-			Containers: a.GetVulnContainers(cveName),
-			CVE: CVE{
-				Name:           cveName,
-				Severity:       finding.Severity,
-				Description:    description,
-				Uri:            uri,
-				PackageName:    packageName,
-				PackageVersion: packageVersion,
-			},
+			Containers: a.GetVulnContainers(cve.Name),
+			CVE:        cve,
 		}
 		vulns = append(vulns, vuln)
 	}

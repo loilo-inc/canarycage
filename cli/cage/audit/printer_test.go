@@ -308,3 +308,129 @@ func TestPrinter_logVuln(t *testing.T) {
 		}
 	})
 }
+func TestPrinter_PrintJSON(t *testing.T) {
+	setup := func(t *testing.T) (*di.D, *test.MockLogger) {
+		t.Helper()
+		l := &test.MockLogger{}
+		d := di.NewDomain(func(b *di.B) {
+			b.Set(key.Logger, l)
+			b.Set(key.Time, test.NewNeverTimer())
+		})
+		return d, l
+	}
+
+	t.Run("prints valid JSON output", func(t *testing.T) {
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
+
+		metadata := &Resource{
+			Type: "deployment",
+			Name: "test-deployment",
+		}
+		result := makeScanResult(ecrtypes.FindingSeverityCritical)
+		
+		printer.PrintJSON(metadata, result)
+
+		assert := assert.New(t)
+		assert.NotEmpty(logger.Logs)
+		
+		// Last log should contain JSON output
+		jsonOutput := logger.Logs[len(logger.Logs)-1]
+		assert.Contains(jsonOutput, "\"resource\"")
+		assert.Contains(jsonOutput, "\"result\"")
+		assert.Contains(jsonOutput, "\"scannedAt\"")
+	})
+
+	t.Run("includes resource metadata in output", func(t *testing.T) {
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
+
+		metadata := &Resource{
+			Type: "statefulset",
+			Name: "my-statefulset",
+		}
+		result := makeScanResult()
+		
+		printer.PrintJSON(metadata, result)
+
+		jsonOutput := logger.Logs[len(logger.Logs)-1]
+		assert := assert.New(t)
+		assert.Contains(jsonOutput, "\"type\": \"statefulset\"")
+		assert.Contains(jsonOutput, "\"name\": \"my-statefulset\"")
+	})
+
+	t.Run("includes scannedAt timestamp", func(t *testing.T) {
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
+
+		metadata := &Resource{
+			Type: "deployment",
+			Name: "test",
+		}
+		result := makeScanResult()
+		
+		printer.PrintJSON(metadata, result)
+
+		jsonOutput := logger.Logs[len(logger.Logs)-1]
+		assert.Contains(t, jsonOutput, "\"scannedAt\"")
+	})
+
+	t.Run("includes aggregated results", func(t *testing.T) {
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
+
+		metadata := &Resource{
+			Type: "deployment",
+			Name: "test",
+		}
+		result := makeScanResult(
+			ecrtypes.FindingSeverityCritical,
+			ecrtypes.FindingSeverityHigh,
+		)
+		
+		printer.PrintJSON(metadata, result)
+
+		jsonOutput := logger.Logs[len(logger.Logs)-1]
+		assert := assert.New(t)
+		assert.Contains(jsonOutput, "CVE-2023-0001")
+		assert.Contains(jsonOutput, "CVE-2023-0002")
+	})
+
+	t.Run("handles empty scan results", func(t *testing.T) {
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
+
+		metadata := &Resource{
+			Type: "deployment",
+			Name: "test",
+		}
+		result := makeScanResult()
+		
+		printer.PrintJSON(metadata, result)
+
+		assert := assert.New(t)
+		assert.NotEmpty(logger.Logs)
+		jsonOutput := logger.Logs[len(logger.Logs)-1]
+		assert.Contains(jsonOutput, "\"resource\"")
+	})
+
+	t.Run("formats JSON with indentation", func(t *testing.T) {
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
+
+		metadata := &Resource{
+			Type: "deployment",
+			Name: "test",
+		}
+		result := makeScanResult()
+		
+		printer.PrintJSON(metadata, result)
+
+		jsonOutput := logger.Logs[len(logger.Logs)-1]
+		// Check for indentation (should have newlines and spaces)
+		assert := assert.New(t)
+		assert.Contains(jsonOutput, "\n")
+		assert.True(strings.Contains(jsonOutput, "  "), "Expected indented JSON")
+	})
+}
+

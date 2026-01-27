@@ -28,8 +28,8 @@ func (i *ImageInfo) registryHasECRSuffix() bool {
 
 type ScanResult struct {
 	ImageInfo
-	ImageScanFindings *ecrtypes.ImageScanFindings
-	Err               error
+	Cves []CVE
+	Err  error
 }
 
 type ScanResultSummary struct {
@@ -43,11 +43,40 @@ type ScanResultSummary struct {
 	ImageURI      string `json:"image_uri"`
 }
 
+func findingToCVE(finding ecrtypes.ImageScanFinding) CVE {
+	var packageName string
+	var packageVersion string
+	for _, attr := range finding.Attributes {
+		switch *attr.Key {
+		case "package_name":
+			packageName = *attr.Value
+		case "package_version":
+			packageVersion = *attr.Value
+		}
+	}
+	var uri string
+	var description string
+	if finding.Uri != nil {
+		uri = *finding.Uri
+	}
+	if finding.Description != nil {
+		description = *finding.Description
+	}
+	return CVE{
+		Name:           *finding.Name,
+		Severity:       finding.Severity,
+		Description:    description,
+		Uri:            uri,
+		PackageName:    packageName,
+		PackageVersion: packageVersion,
+	}
+}
+
 func summaryScanResult(result *ScanResult) *ScanResultSummary {
 	var status = "OK"
 	var critical, high, medium, low, info int32
-	findings := result.ImageScanFindings
-	for _, f := range findings.Findings {
+	cves := result.Cves
+	for _, f := range cves {
 		switch f.Severity {
 		case "CRITICAL":
 			critical++
@@ -61,7 +90,7 @@ func summaryScanResult(result *ScanResult) *ScanResultSummary {
 			info++
 		}
 	}
-	if len(result.ImageScanFindings.Findings) == 0 {
+	if len(result.Cves) == 0 {
 		status = "NONE"
 	} else if critical > 0 || high > 0 {
 		status = "VULNERABLE"
