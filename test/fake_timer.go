@@ -14,28 +14,36 @@ func newTimer(_ time.Duration) *time.Timer {
 	return &time.Timer{C: ch}
 }
 
-type timeImpl struct {
+type ImmediateTime struct {
 	never bool
 }
 
-func (t *timeImpl) Now() time.Time {
+var _ types.Time = (*ImmediateTime)(nil)
+
+func (t *ImmediateTime) Now() time.Time {
 	return time.Now()
 }
-func (t *timeImpl) NewTimer(d time.Duration) *time.Timer {
+func (t *ImmediateTime) NewTimer(d time.Duration) *time.Timer {
 	return newTimer(d)
 }
 
 func NewFakeTime() types.Time {
-	return &timeImpl{}
+	return &ImmediateTime{}
 }
 
-type neverTimer struct{}
+type NeverTime struct{}
 
-func (t *neverTimer) NewTimer(d time.Duration) *time.Timer {
+var _ types.Time = (*NeverTime)(nil)
+
+func (t *NeverTime) NewTimer(d time.Duration) *time.Timer {
 	ch := make(chan time.Time)
 	return &time.Timer{C: ch}
 }
 
-func NewFakeNeverTimer() types.Time {
-	return &neverTimer{}
+func (t *NeverTime) Now() time.Time {
+	return time.Time{}
+}
+
+func NewNeverTimer() types.Time {
+	return &NeverTime{}
 }

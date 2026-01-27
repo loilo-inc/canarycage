@@ -243,3 +243,174 @@ func Test_summaryScanResult(t *testing.T) {
 		})
 	}
 }
+
+func TestResult_CriticalCves(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *Result
+		want   int
+	}{
+		{
+			name: "no vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{},
+			},
+			want: 0,
+		},
+		{
+			name: "only critical vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+				},
+			},
+			want: 2,
+		},
+		{
+			name: "mixed severity vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+				},
+			},
+			want: 1,
+		},
+		{
+			name: "no critical vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+				},
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.result.CriticalCves()
+			if len(got) != tt.want {
+				t.Errorf("Result.CriticalCves() returned %d vulnerabilities, want %d", len(got), tt.want)
+			}
+		})
+	}
+}
+
+func TestResult_HighCves(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *Result
+		want   int
+	}{
+		{
+			name: "no vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{},
+			},
+			want: 0,
+		},
+		{
+			name: "only high vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+				},
+			},
+			want: 3,
+		},
+		{
+			name: "mixed severity vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+				},
+			},
+			want: 2,
+		},
+		{
+			name: "no high vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+				},
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.result.HighCves()
+			if len(got) != tt.want {
+				t.Errorf("Result.HighCves() returned %d vulnerabilities, want %d", len(got), tt.want)
+			}
+		})
+	}
+}
+
+func TestResult_MediumCves(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *Result
+		want   int
+	}{
+		{
+			name: "no vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{},
+			},
+			want: 0,
+		},
+		{
+			name: "only medium vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+				},
+			},
+			want: 1,
+		},
+		{
+			name: "mixed severity vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityLow}},
+				},
+			},
+			want: 2,
+		},
+		{
+			name: "no medium vulnerabilities",
+			result: &Result{
+				Vulns: []*Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityLow}},
+				},
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.result.MediumCves()
+			if len(got) != tt.want {
+				t.Errorf("Result.MediumCves() returned %d vulnerabilities, want %d", len(got), tt.want)
+			}
+		})
+	}
+}

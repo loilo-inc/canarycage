@@ -50,12 +50,12 @@ func (a *aggregater) Add(r *ScanResult) {
 }
 
 type AggregateResult struct {
-	CriticalCount   int32
-	HighCount       int32
-	MediumCount     int32
-	LowCount        int32
-	InfoCount       int32
-	TotalCount      int32
+	CriticalCount   int
+	HighCount       int
+	MediumCount     int
+	LowCount        int
+	InfoCount       int
+	TotalCount      int
 	HighestSeverity ecrtypes.FindingSeverity
 }
 
@@ -89,7 +89,7 @@ func (a *aggregater) SummarizeTotal() *AggregateResult {
 		highest = ecrtypes.FindingSeverityInformational
 	}
 	result.HighestSeverity = highest
-	result.TotalCount = int32(len(a.cves))
+	result.TotalCount = len(a.cves)
 	return result
 }
 
@@ -100,11 +100,11 @@ type SeverityCount struct {
 
 func (a *AggregateResult) SeverityCounts() []SeverityCount {
 	return []SeverityCount{
-		{Severity: ecrtypes.FindingSeverityInformational, Count: int(a.InfoCount)},
-		{Severity: ecrtypes.FindingSeverityLow, Count: int(a.LowCount)},
-		{Severity: ecrtypes.FindingSeverityMedium, Count: int(a.MediumCount)},
-		{Severity: ecrtypes.FindingSeverityHigh, Count: int(a.HighCount)},
-		{Severity: ecrtypes.FindingSeverityCritical, Count: int(a.CriticalCount)},
+		{Severity: ecrtypes.FindingSeverityInformational, Count: a.InfoCount},
+		{Severity: ecrtypes.FindingSeverityLow, Count: a.LowCount},
+		{Severity: ecrtypes.FindingSeverityMedium, Count: a.MediumCount},
+		{Severity: ecrtypes.FindingSeverityHigh, Count: a.HighCount},
+		{Severity: ecrtypes.FindingSeverityCritical, Count: a.CriticalCount},
 	}
 }
 
@@ -112,31 +112,47 @@ func (a *aggregater) TotalCVECount() int {
 	return len(a.cves)
 }
 
-func (a *aggregater) CriticalCves() []ecrtypes.ImageScanFinding {
-	return a.filterCvesBySeverity(ecrtypes.FindingSeverityCritical)
-}
-
-func (a *aggregater) HighCves() []ecrtypes.ImageScanFinding {
-	return a.filterCvesBySeverity(ecrtypes.FindingSeverityHigh)
-}
-
-func (a *aggregater) MediumCves() []ecrtypes.ImageScanFinding {
-	return a.filterCvesBySeverity(ecrtypes.FindingSeverityMedium)
-}
-
-func (a *aggregater) filterCvesBySeverity(severity ecrtypes.FindingSeverity) []ecrtypes.ImageScanFinding {
-	var cves []ecrtypes.ImageScanFinding
-	for cve, sev := range a.cveToSeverity {
-		if sev == string(severity) {
-			cves = append(cves, a.cves[cve])
-		}
-	}
-	return cves
-}
-
 func (a *aggregater) GetVulnContainers(cveName string) []string {
 	containersSet := a.cveToContainers[cveName]
 	return containersSet
+}
+
+func (a *aggregater) Result() *Result {
+	summary := a.SummarizeTotal()
+	var vulns []*Vuln
+	for cveName, finding := range a.cves {
+		var packageName string
+		var packageVersion string
+		for _, attr := range finding.Attributes {
+			switch *attr.Key {
+			case "package_name":
+				packageName = *attr.Value
+			case "package_version":
+				packageVersion = *attr.Value
+			}
+		}
+		var uri string
+		var description string
+		if finding.Uri != nil {
+			uri = *finding.Uri
+		}
+		if finding.Description != nil {
+			description = *finding.Description
+		}
+		vuln := &Vuln{
+			Containers: a.GetVulnContainers(cveName),
+			CVE: CVE{
+				Name:           cveName,
+				Severity:       finding.Severity,
+				Description:    description,
+				Uri:            uri,
+				PackageName:    packageName,
+				PackageVersion: packageVersion,
+			},
+		}
+		vulns = append(vulns, vuln)
+	}
+	return &Result{Summary: summary, Vulns: vulns}
 }
 
 type severityPrinter struct {

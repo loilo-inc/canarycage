@@ -33,14 +33,14 @@ type ScanResult struct {
 }
 
 type ScanResultSummary struct {
-	ContainerName string
-	Status        string
-	CriticalCount int32
-	HighCount     int32
-	MediumCount   int32
-	LowCount      int32
-	InfoCount     int32
-	ImageURI      string
+	ContainerName string `json:"container_name"`
+	Status        string `json:"status"`
+	CriticalCount int32  `json:"critical_count"`
+	HighCount     int32  `json:"high_count"`
+	MediumCount   int32  `json:"medium_count"`
+	LowCount      int32  `json:"low_count"`
+	InfoCount     int32  `json:"info_count"`
+	ImageURI      string `json:"image_uri"`
 }
 
 func summaryScanResult(result *ScanResult) *ScanResultSummary {
@@ -78,4 +78,57 @@ func summaryScanResult(result *ScanResult) *ScanResultSummary {
 		InfoCount:     info,
 		ImageURI:      result.formatImageLabel(),
 	}
+}
+
+type FinalResult struct {
+	*Resource
+	*Result
+	ScannedAt string `json:"scanned_at"`
+}
+
+type Resource struct {
+	Region  string `json:"region"`
+	Cluster string `json:"cluster"`
+	Service string `json:"service"`
+}
+
+type Result struct {
+	Summary *AggregateResult `json:"summary"`
+	Vulns   []*Vuln          `json:"vulns"`
+}
+
+type Vuln struct {
+	CVE        CVE      `json:"cve"`
+	Containers []string `json:"containers"`
+}
+
+type CVE struct {
+	Name           string                   `json:"name"`
+	Description    string                   `json:"description"`
+	PackageName    string                   `json:"package_name"`
+	PackageVersion string                   `json:"package_version"`
+	Uri            string                   `json:"uri"`
+	Severity       ecrtypes.FindingSeverity `json:"severity"`
+}
+
+func (a *Result) CriticalCves() []*Vuln {
+	return a.filterCvesBySeverity(ecrtypes.FindingSeverityCritical)
+}
+
+func (a *Result) HighCves() []*Vuln {
+	return a.filterCvesBySeverity(ecrtypes.FindingSeverityHigh)
+}
+
+func (a *Result) MediumCves() []*Vuln {
+	return a.filterCvesBySeverity(ecrtypes.FindingSeverityMedium)
+}
+
+func (a *Result) filterCvesBySeverity(severity ecrtypes.FindingSeverity) []*Vuln {
+	var vulns []*Vuln
+	for _, v := range a.Vulns {
+		if v.CVE.Severity == severity {
+			vulns = append(vulns, v)
+		}
+	}
+	return vulns
 }

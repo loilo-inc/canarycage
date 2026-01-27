@@ -2,19 +2,16 @@ package audit
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/test"
+	"github.com/loilo-inc/logos/di"
+	"github.com/stretchr/testify/assert"
 )
-
-type mockLogger struct {
-	logs []string
-}
-
-func (m *mockLogger) Printf(format string, args ...any) {
-	m.logs = append(m.logs, fmt.Sprintf(format, args...))
-}
 
 func makeScanResult(
 	list ...ecrtypes.FindingSeverity) []*ScanResult {
@@ -27,13 +24,13 @@ func makeScanResult(
 				Tag:           "latest",
 			},
 			ImageScanFindings: &ecrtypes.ImageScanFindings{
-				Findings: makeFindings(list),
+				Findings: makeVuln(list),
 			},
 		},
 	}
 }
 
-func makeFindings(severities []ecrtypes.FindingSeverity) []ecrtypes.ImageScanFinding {
+func makeVuln(severities []ecrtypes.FindingSeverity) []ecrtypes.ImageScanFinding {
 	findings := make([]ecrtypes.ImageScanFinding, len(severities))
 	for i, sev := range severities {
 		findings[i] = ecrtypes.ImageScanFinding{
@@ -47,16 +44,25 @@ func makeFindings(severities []ecrtypes.FindingSeverity) []ecrtypes.ImageScanFin
 }
 
 func TestPrinter_Print(t *testing.T) {
+	setup := func(t *testing.T) (*di.D, *test.MockLogger) {
+		t.Helper()
+		l := &test.MockLogger{}
+		d := di.NewDomain(func(b *di.B) {
+			b.Set(key.Logger, l)
+			b.Set(key.Time, test.NewNeverTimer())
+		})
+		return d, l
+	}
 	t.Run("prints no CVEs message when no findings", func(t *testing.T) {
-		logger := &mockLogger{}
-		printer := NewPrinter(logger, true, false)
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
 
 		result := makeScanResult()
 		printer.Print(result)
 
 		// Check that "No CVEs found" message is present
 		found := false
-		for _, log := range logger.logs {
+		for _, log := range logger.Logs {
 			if log == "No CVEs found\n" {
 				found = true
 				break
@@ -68,28 +74,28 @@ func TestPrinter_Print(t *testing.T) {
 	})
 
 	t.Run("prints table header", func(t *testing.T) {
-		logger := &mockLogger{}
-		printer := NewPrinter(logger, true, false)
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
 
 		result := makeScanResult(ecrtypes.FindingSeverityCritical)
 		printer.Print(result)
 
 		// Check that header contains expected columns
-		if len(logger.logs) == 0 {
+		if len(logger.Logs) == 0 {
 			t.Fatal("Expected logs to be generated")
 		}
-		header := logger.logs[0]
+		header := logger.Logs[0]
 		expectedCols := []string{"CONTAINER", "STATUS", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "IMAGE"}
 		for _, col := range expectedCols {
-			if !containsString(header, col) {
+			if !strings.Contains(header, col) {
 				t.Errorf("Header missing column: %s", col)
 			}
 		}
 	})
 
 	t.Run("prints findings by severity", func(t *testing.T) {
-		logger := &mockLogger{}
-		printer := NewPrinter(logger, true, false)
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
 
 		result := makeScanResult(
 			ecrtypes.FindingSeverityCritical,
@@ -102,14 +108,14 @@ func TestPrinter_Print(t *testing.T) {
 		criticalFound := false
 		highFound := false
 		mediumFound := false
-		for _, log := range logger.logs {
-			if containsString(log, "CRITICAL") && containsString(log, "===") {
+		for _, log := range logger.Logs {
+			if strings.Contains(log, "CRITICAL") && strings.Contains(log, "===") {
 				criticalFound = true
 			}
-			if containsString(log, "HIGH") && containsString(log, "===") {
+			if strings.Contains(log, "HIGH") && strings.Contains(log, "===") {
 				highFound = true
 			}
-			if containsString(log, "MEDIUM") && containsString(log, "===") {
+			if strings.Contains(log, "MEDIUM") && strings.Contains(log, "===") {
 				mediumFound = true
 			}
 		}
@@ -125,8 +131,8 @@ func TestPrinter_Print(t *testing.T) {
 	})
 
 	t.Run("prints total summary with counts", func(t *testing.T) {
-		logger := &mockLogger{}
-		printer := NewPrinter(logger, true, false)
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
 
 		result := makeScanResult(
 			ecrtypes.FindingSeverityCritical,
@@ -136,8 +142,8 @@ func TestPrinter_Print(t *testing.T) {
 
 		// Check for total line
 		totalFound := false
-		for _, log := range logger.logs {
-			if containsString(log, "Total:") {
+		for _, log := range logger.Logs {
+			if strings.Contains(log, "Total:") {
 				totalFound = true
 				break
 			}
@@ -148,38 +154,45 @@ func TestPrinter_Print(t *testing.T) {
 	})
 }
 
-func TestPrinter_logImageScanFindings(t *testing.T) {
+func TestPrinter_logVuln(t *testing.T) {
+	setup := func(t *testing.T) (*di.D, *test.MockLogger) {
+		t.Helper()
+		l := &test.MockLogger{}
+		d := di.NewDomain(func(b *di.B) {
+			b.Set(key.Logger, l)
+			b.Set(key.Time, test.NewNeverTimer())
+		})
+		return d, l
+	}
 	t.Run("returns early when no findings", func(t *testing.T) {
-		logger := &mockLogger{}
-		printer := NewPrinter(logger, true, false)
-		agg := NewAggregater()
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
+		printer.logVuln(ecrtypes.FindingSeverityCritical, []*Vuln{})
 
-		printer.logImageScanFindings(ecrtypes.FindingSeverityCritical, []ecrtypes.ImageScanFinding{}, agg)
-
-		if len(logger.logs) != 0 {
-			t.Errorf("Expected no logs, got %d", len(logger.logs))
+		if len(logger.Logs) != 0 {
+			t.Errorf("Expected no logs, got %d", len(logger.Logs))
 		}
 	})
 
 	t.Run("prints severity header", func(t *testing.T) {
-		logger := &mockLogger{}
-		printer := NewPrinter(logger, true, false)
-		agg := NewAggregater()
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
 
-		findings := []ecrtypes.ImageScanFinding{
+		findings := []*Vuln{
 			{
-				Name:        aws.String("CVE-2023-0001"),
-				Uri:         aws.String("http://example.com"),
-				Description: aws.String("Test description"),
-				Attributes:  []ecrtypes.Attribute{},
+				CVE: CVE{
+					Name:        "CVE-2023-0001",
+					Uri:         "http://example.com",
+					Description: "Test description",
+				},
 			},
 		}
 
-		printer.logImageScanFindings(ecrtypes.FindingSeverityCritical, findings, agg)
+		printer.logVuln(ecrtypes.FindingSeverityCritical, findings)
 
 		headerFound := false
-		for _, log := range logger.logs {
-			if containsString(log, "CRITICAL") && containsString(log, "===") {
+		for _, log := range logger.Logs {
+			if strings.Contains(log, "CRITICAL") && strings.Contains(log, "===") {
 				headerFound = true
 				break
 			}
@@ -190,117 +203,74 @@ func TestPrinter_logImageScanFindings(t *testing.T) {
 	})
 
 	t.Run("prints CVE name and URI", func(t *testing.T) {
-		logger := &mockLogger{}
-		printer := NewPrinter(logger, true, false)
-		agg := NewAggregater()
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
 
-		findings := []ecrtypes.ImageScanFinding{
+		findings := []*Vuln{
 			{
-				Name:        aws.String("CVE-2023-0001"),
-				Uri:         aws.String("http://example.com/cve"),
-				Description: aws.String("Test description"),
-				Attributes:  []ecrtypes.Attribute{},
-			},
-		}
-
-		printer.logImageScanFindings(ecrtypes.FindingSeverityHigh, findings, agg)
-
-		cveFound := false
-		uriFound := false
-		for _, log := range logger.logs {
-			if containsString(log, "CVE-2023-0001") {
-				cveFound = true
-			}
-			if containsString(log, "http://example.com/cve") {
-				uriFound = true
-			}
-		}
-		if !cveFound {
-			t.Error("Expected CVE name in output")
-		}
-		if !uriFound {
-			t.Error("Expected CVE URI in output")
-		}
-	})
-
-	t.Run("extracts package name and version from attributes", func(t *testing.T) {
-		logger := &mockLogger{}
-		printer := NewPrinter(logger, true, false)
-		agg := NewAggregater()
-
-		findings := []ecrtypes.ImageScanFinding{
-			{
-				Name:        aws.String("CVE-2023-0001"),
-				Uri:         aws.String("http://example.com"),
-				Description: aws.String("Test description"),
-				Attributes: []ecrtypes.Attribute{
-					{Key: aws.String("package_name"), Value: aws.String("test-package")},
-					{Key: aws.String("package_version"), Value: aws.String("1.2.3")},
+				Containers: []string{"container-1", "container-2"},
+				CVE: CVE{
+					Name:           "CVE-2023-0001",
+					Uri:            "http://example.com",
+					Description:    "Test description",
+					PackageName:    "test-package",
+					PackageVersion: "1.2.3",
 				},
 			},
 		}
 
-		printer.logImageScanFindings(ecrtypes.FindingSeverityMedium, findings, agg)
+		printer.logVuln(ecrtypes.FindingSeverityMedium, findings)
 
-		packageFound := false
-		for _, log := range logger.logs {
-			if containsString(log, "test-package::1.2.3") {
-				packageFound = true
-				break
-			}
-		}
-		if !packageFound {
-			t.Error("Expected package name and version in output")
-		}
+		assert := assert.New(t)
+		assert.Contains(logger.Logs[0], "=== MEDIUM ===")
+		assert.Contains(logger.Stdout[1], "- CVE-2023-0001 container-1, container-2 \n")
+		assert.Contains(logger.Stdout[2], "test-package::1.2.3 (http://example.com)\n")
 	})
 
 	t.Run("uses unknown for missing package info", func(t *testing.T) {
-		logger := &mockLogger{}
-		printer := NewPrinter(logger, true, false)
-		agg := NewAggregater()
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false)
 
-		findings := []ecrtypes.ImageScanFinding{
+		findings := []*Vuln{
 			{
-				Name:        aws.String("CVE-2023-0001"),
-				Uri:         aws.String("http://example.com"),
-				Description: aws.String("Test description"),
-				Attributes:  []ecrtypes.Attribute{},
+				Containers: []string{"container-1"},
+				CVE: CVE{
+					Name:           "CVE-2023-0001",
+					Uri:            "http://example.com",
+					Description:    "Test description",
+					PackageName:    "unknown",
+					PackageVersion: "unknown",
+				},
 			},
 		}
 
-		printer.logImageScanFindings(ecrtypes.FindingSeverityLow, findings, agg)
+		printer.logVuln(ecrtypes.FindingSeverityLow, findings)
 
-		unknownFound := false
-		for _, log := range logger.logs {
-			if containsString(log, "unknown::unknown") {
-				unknownFound = true
-				break
-			}
-		}
-		if !unknownFound {
-			t.Error("Expected unknown::unknown for missing package info")
-		}
+		assert := assert.New(t)
+		assert.Contains(logger.Logs[0], "=== LOW ===")
+		assert.Contains(logger.Logs[1], "- CVE-2023-0001 container-1 \n")
+		assert.Contains(logger.Logs[2], "unknown::unknown (http://example.com)\n")
 	})
 
 	t.Run("prints description when logDetail is true", func(t *testing.T) {
-		logger := &mockLogger{}
-		printer := NewPrinter(logger, true, true) // logDetail = true
-		agg := NewAggregater()
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, true) // logDetail = true
 
-		findings := []ecrtypes.ImageScanFinding{
+		findings := []*Vuln{
 			{
-				Name:        aws.String("CVE-2023-0001"),
-				Uri:         aws.String("http://example.com"),
-				Description: aws.String("Detailed vulnerability description"),
-				Attributes:  []ecrtypes.Attribute{},
+				CVE: CVE{
+					Name:        "CVE-2023-0001",
+					Uri:         "http://example.com",
+					Description: "Detailed vulnerability description",
+				},
 			},
 		}
 
-		printer.logImageScanFindings(ecrtypes.FindingSeverityHigh, findings, agg)
+		printer.logVuln(ecrtypes.FindingSeverityHigh, findings)
 
 		descFound := false
-		for _, log := range logger.logs {
-			if containsString(log, "Detailed vulnerability description") {
+		for _, log := range logger.Logs {
+			if strings.Contains(log, "Detailed vulnerability description") {
 				descFound = true
 				break
 			}
@@ -311,24 +281,24 @@ func TestPrinter_logImageScanFindings(t *testing.T) {
 	})
 
 	t.Run("does not print description when logDetail is false", func(t *testing.T) {
-		logger := &mockLogger{}
-		printer := NewPrinter(logger, true, false) // logDetail = false
-		agg := NewAggregater()
+		d, logger := setup(t)
+		printer := NewPrinter(d, true, false) // logDetail = false
 
-		findings := []ecrtypes.ImageScanFinding{
+		findings := []*Vuln{
 			{
-				Name:        aws.String("CVE-2023-0001"),
-				Uri:         aws.String("http://example.com"),
-				Description: aws.String("Detailed vulnerability description"),
-				Attributes:  []ecrtypes.Attribute{},
+				CVE: CVE{
+					Name:        "CVE-2023-0001",
+					Uri:         "http://example.com",
+					Description: "Detailed vulnerability description",
+				},
 			},
 		}
 
-		printer.logImageScanFindings(ecrtypes.FindingSeverityHigh, findings, agg)
+		printer.logVuln(ecrtypes.FindingSeverityHigh, findings)
 
 		descFound := false
-		for _, log := range logger.logs {
-			if containsString(log, "Detailed vulnerability description") {
+		for _, log := range logger.Logs {
+			if strings.Contains(log, "Detailed vulnerability description") {
 				descFound = true
 				break
 			}
@@ -337,17 +307,4 @@ func TestPrinter_logImageScanFindings(t *testing.T) {
 			t.Error("Expected no description in output when logDetail is false")
 		}
 	})
-}
-
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && stringContains(s, substr))
-}
-
-func stringContains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

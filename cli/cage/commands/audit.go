@@ -25,6 +25,12 @@ func Audit(app *cageapp.App, provider cageapp.AuditCmdProvider) *cli.Command {
 				Value:       false,
 				Destination: &input.LogDetail,
 			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output the audit result in JSON format",
+				Value:       false,
+				Destination: &input.JSON,
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			dir, _, err := RequireArgs(ctx, 0, 1)
