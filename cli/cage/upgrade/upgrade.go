@@ -37,7 +37,7 @@ func NewUpgrader(di *di.D, input *cageapp.UpgradeCmdInput) types.Upgrade {
 func (u *upgrader) Upgrade(ctx context.Context) error {
 	l := u.logger()
 	l.Infof("checking for updates...")
-	latestRelease, err := u.FindLatestRelease(ctx, u.PreRelease)
+	latestRelease, err := findLatestRelease(ctx, u.PreRelease)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func (u *upgrader) Upgrade(ctx context.Context) error {
 	return nil
 }
 
-func (u *upgrader) FindLatestRelease(cont context.Context, pre bool) (*github.RepositoryRelease, error) {
+func findLatestRelease(cont context.Context, pre bool) (*github.RepositoryRelease, error) {
 	client := github.NewClient(nil)
 	releases, _, err := client.Repositories.ListReleases(cont, "loilo-inc", "canarycage", nil)
 	if err != nil {
