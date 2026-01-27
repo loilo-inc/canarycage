@@ -143,7 +143,14 @@ func TestScanImage(t *testing.T) {
 	})
 
 	t.Run("success returns findings", func(t *testing.T) {
-		findings := &ecrtypes.ImageScanFindings{}
+		findings := &ecrtypes.ImageScanFindings{
+			Findings: []ecrtypes.ImageScanFinding{
+				{
+					Name:     aws.String("CVE-2021-1234"),
+					Severity: ecrtypes.FindingSeverityHigh,
+				},
+			},
+		}
 		tool := &stubEcrTool{
 			imageID:  &ecrtypes.ImageIdentifier{ImageTag: aws.String("v1")},
 			findings: findings,
@@ -152,6 +159,8 @@ func TestScanImage(t *testing.T) {
 		result := scanImage(ctx, tool, ImageInfo{Repository: "repo"})
 
 		assert.NoError(t, result.Err)
-		assert.Equal(t, findings, result.ImageScanFindings)
+		assert.Len(t, result.Cves, 1)
+		assert.Equal(t, "CVE-2021-1234", result.Cves[0].Name)
+		assert.Equal(t, ecrtypes.FindingSeverityHigh, result.Cves[0].Severity)
 	})
 }

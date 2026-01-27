@@ -34,6 +34,7 @@ type AuditCmdInput struct {
 	Cluster   string
 	Service   string
 	LogDetail bool
+	JSON      bool
 }
 
 type AuditCmdProvider = func(ctx context.Context, input *AuditCmdInput) (types.Audit, error)

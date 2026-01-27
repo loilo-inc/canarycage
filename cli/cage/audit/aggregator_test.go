@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
+	"github.com/loilo-inc/logos/v2/set"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -76,10 +77,8 @@ func TestNewAggregater(t *testing.T) {
 	agg := NewAggregater()
 	assert.NotNil(t, agg)
 	assert.NotNil(t, agg.cves)
-	assert.NotNil(t, agg.cveToSeverity)
 	assert.NotNil(t, agg.summaries)
 	assert.Equal(t, 0, len(agg.cves))
-	assert.Equal(t, 0, len(agg.cveToSeverity))
 	assert.Equal(t, 0, len(agg.summaries))
 }
 
@@ -99,10 +98,8 @@ func TestAggregater_Add(t *testing.T) {
 			wantCVECount: 0,
 		},
 		{
-			name: "add result with nil findings",
-			scanResult: &ScanResult{
-				ImageScanFindings: nil,
-			},
+			name:         "add result with nil findings",
+			scanResult:   &ScanResult{},
 			wantStatus:   "N/A",
 			wantCVECount: 0,
 		},
@@ -112,16 +109,14 @@ func TestAggregater_Add(t *testing.T) {
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{
-						{
-							Name:     stringPtr("CVE-2021-1234"),
-							Severity: ecrtypes.FindingSeverityCritical,
-						},
-						{
-							Name:     stringPtr("CVE-2021-5678"),
-							Severity: ecrtypes.FindingSeverityHigh,
-						},
+				Cves: []CVE{
+					{
+						Name:     "CVE-2021-1234",
+						Severity: ecrtypes.FindingSeverityCritical,
+					},
+					{
+						Name:     "CVE-2021-5678",
+						Severity: ecrtypes.FindingSeverityHigh,
 					},
 				},
 			},
@@ -145,28 +140,20 @@ func TestAggregater_Add(t *testing.T) {
 func TestAggregater_SummarizeTotal(t *testing.T) {
 	t.Run("should summarize total counts and highest severity", func(t *testing.T) {
 		agg := NewAggregater()
-		agg.cves = map[string]ecrtypes.ImageScanFinding{
-			"CVE-2021-1": {Name: stringPtr("CVE-2021-1"), Severity: ecrtypes.FindingSeverityCritical},
-			"CVE-2021-2": {Name: stringPtr("CVE-2021-2"), Severity: ecrtypes.FindingSeverityHigh},
-			"CVE-2021-3": {Name: stringPtr("CVE-2021-3"), Severity: ecrtypes.FindingSeverityMedium},
-			"CVE-2021-4": {Name: stringPtr("CVE-2021-4"), Severity: ecrtypes.FindingSeverityLow},
-			"CVE-2021-5": {Name: stringPtr("CVE-2021-5"), Severity: ecrtypes.FindingSeverityInformational},
+		agg.cves = map[string]CVE{
+			"CVE-2021-1": {Name: "CVE-2021-1", Severity: ecrtypes.FindingSeverityCritical},
+			"CVE-2021-2": {Name: "CVE-2021-2", Severity: ecrtypes.FindingSeverityHigh},
+			"CVE-2021-3": {Name: "CVE-2021-3", Severity: ecrtypes.FindingSeverityMedium},
+			"CVE-2021-4": {Name: "CVE-2021-4", Severity: ecrtypes.FindingSeverityLow},
+			"CVE-2021-5": {Name: "CVE-2021-5", Severity: ecrtypes.FindingSeverityInformational},
 		}
-		agg.cveToSeverity = map[string]string{
-			"CVE-2021-1": string(ecrtypes.FindingSeverityCritical),
-			"CVE-2021-2": string(ecrtypes.FindingSeverityHigh),
-			"CVE-2021-3": string(ecrtypes.FindingSeverityMedium),
-			"CVE-2021-4": string(ecrtypes.FindingSeverityLow),
-			"CVE-2021-5": string(ecrtypes.FindingSeverityInformational),
-		}
-
 		result := agg.SummarizeTotal()
-		assert.Equal(t, int32(1), result.CriticalCount)
-		assert.Equal(t, int32(1), result.HighCount)
-		assert.Equal(t, int32(1), result.MediumCount)
-		assert.Equal(t, int32(1), result.LowCount)
-		assert.Equal(t, int32(1), result.InfoCount)
-		assert.Equal(t, int32(5), result.TotalCount)
+		assert.Equal(t, 1, result.CriticalCount)
+		assert.Equal(t, 1, result.HighCount)
+		assert.Equal(t, 1, result.MediumCount)
+		assert.Equal(t, 1, result.LowCount)
+		assert.Equal(t, 1, result.InfoCount)
+		assert.Equal(t, 5, result.TotalCount)
 		assert.Equal(t, ecrtypes.FindingSeverityCritical, result.HighestSeverity)
 	})
 	t.Run("highest", func(t *testing.T) {
@@ -181,40 +168,14 @@ func TestAggregater_SummarizeTotal(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(string(tt.severity), func(t *testing.T) {
 				agg := NewAggregater()
-				agg.cves = map[string]ecrtypes.ImageScanFinding{
-					"CVE-2021-1": {Name: stringPtr("CVE-2021-1"), Severity: tt.severity},
-				}
-				agg.cveToSeverity = map[string]string{
-					"CVE-2021-1": string(tt.severity),
+				agg.cves = map[string]CVE{
+					"CVE-2021-1": {Name: "CVE-2021-1", Severity: tt.severity},
 				}
 				result := agg.SummarizeTotal()
 				assert.Equal(t, tt.severity, result.HighestSeverity)
 			})
 		}
 	})
-}
-
-func TestAggregater_FilterCvesBySeverity(t *testing.T) {
-	agg := NewAggregater()
-	agg.cves = map[string]ecrtypes.ImageScanFinding{
-		"CVE-2021-1": {Name: stringPtr("CVE-2021-1"), Severity: ecrtypes.FindingSeverityCritical},
-		"CVE-2021-2": {Name: stringPtr("CVE-2021-2"), Severity: ecrtypes.FindingSeverityHigh},
-		"CVE-2021-3": {Name: stringPtr("CVE-2021-3"), Severity: ecrtypes.FindingSeverityCritical},
-	}
-	agg.cveToSeverity = map[string]string{
-		"CVE-2021-1": string(ecrtypes.FindingSeverityCritical),
-		"CVE-2021-2": string(ecrtypes.FindingSeverityHigh),
-		"CVE-2021-3": string(ecrtypes.FindingSeverityCritical),
-	}
-
-	critical := agg.CriticalCves()
-	assert.Equal(t, 2, len(critical))
-
-	high := agg.HighCves()
-	assert.Equal(t, 1, len(high))
-
-	medium := agg.MediumCves()
-	assert.Equal(t, 0, len(medium))
 }
 
 func TestAggregateResult_SeverityCounts(t *testing.T) {
@@ -238,9 +199,9 @@ func TestAggregateResult_SeverityCounts(t *testing.T) {
 func TestAggregater_GetVulnContainers(t *testing.T) {
 	t.Run("returns containers affected by CVE", func(t *testing.T) {
 		agg := NewAggregater()
-		agg.cveToContainers = map[string][]string{
-			"CVE-2021-1234": {"container1", "container2"},
-			"CVE-2021-5678": {"container3"},
+		agg.cveToContainers = map[string]set.Set[string]{
+			"CVE-2021-1234": set.NewSet("container1", "container2"),
+			"CVE-2021-5678": set.NewSet("container3"),
 		}
 
 		containers := agg.GetVulnContainers("CVE-2021-1234")
@@ -251,8 +212,8 @@ func TestAggregater_GetVulnContainers(t *testing.T) {
 
 	t.Run("returns nil for non-existent CVE", func(t *testing.T) {
 		agg := NewAggregater()
-		agg.cveToContainers = map[string][]string{
-			"CVE-2021-1234": {"container1"},
+		agg.cveToContainers = map[string]set.Set[string]{
+			"CVE-2021-1234": set.NewSet("container1"),
 		}
 
 		containers := agg.GetVulnContainers("CVE-9999-9999")
@@ -260,6 +221,88 @@ func TestAggregater_GetVulnContainers(t *testing.T) {
 	})
 }
 
-func stringPtr(s string) *string {
-	return &s
+func TestAggregater_Result(t *testing.T) {
+	t.Run("returns empty result when no CVEs", func(t *testing.T) {
+		agg := NewAggregater()
+
+		result := agg.Result()
+
+		assert.NotNil(t, result)
+		assert.NotNil(t, result.Summary)
+		assert.Equal(t, 0, result.Summary.TotalCount)
+		assert.Equal(t, 0, len(result.Vulns))
+	})
+
+	t.Run("returns result with vulnerabilities", func(t *testing.T) {
+		agg := NewAggregater()
+		agg.cves = map[string]CVE{
+			"CVE-2021-1234": {
+				Name:           "CVE-2021-1234",
+				Severity:       ecrtypes.FindingSeverityCritical,
+				Description:    "Critical vulnerability",
+				Uri:            "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-1234",
+				PackageName:    "openssl",
+				PackageVersion: "1.0.0",
+			},
+			"CVE-2021-5678": {
+				Name:     "CVE-2021-5678",
+				Severity: ecrtypes.FindingSeverityHigh,
+			},
+		}
+		agg.cveToContainers = map[string]set.Set[string]{
+			"CVE-2021-1234": set.NewSet("container1", "container2"),
+			"CVE-2021-5678": set.NewSet("container3"),
+		}
+
+		result := agg.Result()
+
+		assert.NotNil(t, result)
+		assert.NotNil(t, result.Summary)
+		assert.Equal(t, 2, result.Summary.TotalCount)
+		assert.Equal(t, 1, result.Summary.CriticalCount)
+		assert.Equal(t, 1, result.Summary.HighCount)
+		assert.Equal(t, 2, len(result.Vulns))
+
+		// Find CVE-2021-1234 in results
+		var vuln1234 Vuln
+		for _, v := range result.Vulns {
+			if v.CVE.Name == "CVE-2021-1234" {
+				vuln1234 = v
+				break
+			}
+		}
+		assert.Equal(t, "CVE-2021-1234", vuln1234.CVE.Name)
+		assert.Equal(t, ecrtypes.FindingSeverityCritical, vuln1234.CVE.Severity)
+		assert.Equal(t, "Critical vulnerability", vuln1234.CVE.Description)
+		assert.Equal(t, "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-1234", vuln1234.CVE.Uri)
+		assert.Equal(t, "openssl", vuln1234.CVE.PackageName)
+		assert.Equal(t, "1.0.0", vuln1234.CVE.PackageVersion)
+		assert.Equal(t, 2, len(vuln1234.Containers))
+		assert.Contains(t, vuln1234.Containers, "container1")
+		assert.Contains(t, vuln1234.Containers, "container2")
+	})
+
+	t.Run("handles CVE with minimal information", func(t *testing.T) {
+		agg := NewAggregater()
+		agg.cves = map[string]CVE{
+			"CVE-2021-9999": {
+				Name:     "CVE-2021-9999",
+				Severity: ecrtypes.FindingSeverityLow,
+			},
+		}
+		agg.cveToContainers = map[string]set.Set[string]{
+			"CVE-2021-9999": set.NewSet("container1"),
+		}
+
+		result := agg.Result()
+
+		assert.NotNil(t, result)
+		assert.Equal(t, 1, len(result.Vulns))
+		assert.Equal(t, "CVE-2021-9999", result.Vulns[0].CVE.Name)
+		assert.Equal(t, ecrtypes.FindingSeverityLow, result.Vulns[0].CVE.Severity)
+		assert.Equal(t, "", result.Vulns[0].CVE.Description)
+		assert.Equal(t, "", result.Vulns[0].CVE.Uri)
+		assert.Equal(t, "", result.Vulns[0].CVE.PackageName)
+		assert.Equal(t, "", result.Vulns[0].CVE.PackageVersion)
+	})
 }

@@ -21,8 +21,7 @@ mocks: go.sum \
 	mocks/mock_task/task.go \
 	mocks/mock_taskset/taskset.go \
 	mocks/mock_task/factory.go \
-	mocks/mock_rollout/executor.go \
-	mocks/mock_logger/logger.go
+	mocks/mock_rollout/executor.go
 mocks/mock_awsiface/iface.go: awsiface/iface.go
 	$(MOCKGEN) -source=./awsiface/iface.go > mocks/mock_awsiface/iface.go
 mocks/mock_types/iface.go: types/iface.go
@@ -41,6 +40,4 @@ mocks/mock_task/factory.go: task/factory.go
 	$(MOCKGEN) -source=./task/factory.go > mocks/mock_task/factory.go
 mocks/mock_rollout/executor.go: rollout/executor.go
 	$(MOCKGEN) -source=./rollout/executor.go > mocks/mock_rollout/executor.go
-mocks/mock_logger/logger.go: logger/logger.go
-	$(MOCKGEN) -source=./logger/logger.go > mocks/mock_logger/logger.go
 .PHONY: mocks

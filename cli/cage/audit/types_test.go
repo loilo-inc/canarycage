@@ -3,6 +3,8 @@ package audit
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 )
 
@@ -59,12 +61,11 @@ func TestImageInfo_IsECRImage(t *testing.T) {
 			i := ImageInfo{
 				Registry: tt.registry,
 			}
-			if got := i.IsECRImage(); got != tt.want {
-				t.Errorf("ImageInfo.IsECRImage() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, i.IsECRImage())
 		})
 	}
 }
+
 func Test_summaryScanResult(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -80,9 +81,7 @@ func Test_summaryScanResult(t *testing.T) {
 					Repository:    "test-repo",
 					Tag:           "latest",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{},
-				},
+				Cves: []CVE{},
 			},
 			want: &ScanResultSummary{
 				ContainerName: "test-container",
@@ -101,11 +100,9 @@ func Test_summaryScanResult(t *testing.T) {
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{
-						{Severity: ecrtypes.FindingSeverityCritical},
-						{Severity: ecrtypes.FindingSeverityHigh},
-					},
+				Cves: []CVE{
+					{Severity: ecrtypes.FindingSeverityCritical},
+					{Severity: ecrtypes.FindingSeverityHigh},
 				},
 			},
 			want: &ScanResultSummary{
@@ -124,11 +121,9 @@ func Test_summaryScanResult(t *testing.T) {
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{
-						{Severity: ecrtypes.FindingSeverityHigh},
-						{Severity: ecrtypes.FindingSeverityHigh},
-					},
+				Cves: []CVE{
+					{Severity: ecrtypes.FindingSeverityHigh},
+					{Severity: ecrtypes.FindingSeverityHigh},
 				},
 			},
 			want: &ScanResultSummary{
@@ -147,11 +142,9 @@ func Test_summaryScanResult(t *testing.T) {
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{
-						{Severity: ecrtypes.FindingSeverityMedium},
-						{Severity: ecrtypes.FindingSeverityLow},
-					},
+				Cves: []CVE{
+					{Severity: ecrtypes.FindingSeverityMedium},
+					{Severity: ecrtypes.FindingSeverityLow},
 				},
 			},
 			want: &ScanResultSummary{
@@ -170,11 +163,9 @@ func Test_summaryScanResult(t *testing.T) {
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{
-						{Severity: ecrtypes.FindingSeverityLow},
-						{Severity: ecrtypes.FindingSeverityInformational},
-					},
+				Cves: []CVE{
+					{Severity: ecrtypes.FindingSeverityLow},
+					{Severity: ecrtypes.FindingSeverityInformational},
 				},
 			},
 			want: &ScanResultSummary{
@@ -193,15 +184,13 @@ func Test_summaryScanResult(t *testing.T) {
 				ImageInfo: ImageInfo{
 					ContainerName: "mixed-container",
 				},
-				ImageScanFindings: &ecrtypes.ImageScanFindings{
-					Findings: []ecrtypes.ImageScanFinding{
-						{Severity: ecrtypes.FindingSeverityCritical},
-						{Severity: ecrtypes.FindingSeverityCritical},
-						{Severity: ecrtypes.FindingSeverityHigh},
-						{Severity: ecrtypes.FindingSeverityMedium},
-						{Severity: ecrtypes.FindingSeverityLow},
-						{Severity: ecrtypes.FindingSeverityInformational},
-					},
+				Cves: []CVE{
+					{Severity: ecrtypes.FindingSeverityCritical},
+					{Severity: ecrtypes.FindingSeverityCritical},
+					{Severity: ecrtypes.FindingSeverityHigh},
+					{Severity: ecrtypes.FindingSeverityMedium},
+					{Severity: ecrtypes.FindingSeverityLow},
+					{Severity: ecrtypes.FindingSeverityInformational},
 				},
 			},
 			want: &ScanResultSummary{
@@ -219,27 +208,266 @@ func Test_summaryScanResult(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := summaryScanResult(tt.result)
-			if got.ContainerName != tt.want.ContainerName {
-				t.Errorf("ContainerName = %v, want %v", got.ContainerName, tt.want.ContainerName)
-			}
-			if got.Status != tt.want.Status {
-				t.Errorf("Status = %v, want %v", got.Status, tt.want.Status)
-			}
-			if got.CriticalCount != tt.want.CriticalCount {
-				t.Errorf("CriticalCount = %v, want %v", got.CriticalCount, tt.want.CriticalCount)
-			}
-			if got.HighCount != tt.want.HighCount {
-				t.Errorf("HighCount = %v, want %v", got.HighCount, tt.want.HighCount)
-			}
-			if got.MediumCount != tt.want.MediumCount {
-				t.Errorf("MediumCount = %v, want %v", got.MediumCount, tt.want.MediumCount)
-			}
-			if got.LowCount != tt.want.LowCount {
-				t.Errorf("LowCount = %v, want %v", got.LowCount, tt.want.LowCount)
-			}
-			if got.InfoCount != tt.want.InfoCount {
-				t.Errorf("InfoCount = %v, want %v", got.InfoCount, tt.want.InfoCount)
-			}
+			assert.Equal(t, tt.want.ContainerName, got.ContainerName)
+			assert.Equal(t, tt.want.Status, got.Status)
+			assert.Equal(t, tt.want.CriticalCount, got.CriticalCount)
+			assert.Equal(t, tt.want.HighCount, got.HighCount)
+			assert.Equal(t, tt.want.MediumCount, got.MediumCount)
+			assert.Equal(t, tt.want.LowCount, got.LowCount)
+			assert.Equal(t, tt.want.InfoCount, got.InfoCount)
 		})
 	}
+}
+
+func TestResult_CriticalCves(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *Result
+		want   int
+	}{
+		{
+			name: "no vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{},
+			},
+			want: 0,
+		},
+		{
+			name: "only critical vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+				},
+			},
+			want: 2,
+		},
+		{
+			name: "mixed severity vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+				},
+			},
+			want: 1,
+		},
+		{
+			name: "no critical vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+				},
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.result.CriticalCves()
+			assert.Len(t, got, tt.want)
+		})
+	}
+}
+
+func TestResult_HighCves(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *Result
+		want   int
+	}{
+		{
+			name: "no vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{},
+			},
+			want: 0,
+		},
+		{
+			name: "only high vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+				},
+			},
+			want: 3,
+		},
+		{
+			name: "mixed severity vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+				},
+			},
+			want: 2,
+		},
+		{
+			name: "no high vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+				},
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.result.HighCves()
+			assert.Len(t, got, tt.want)
+		})
+	}
+}
+
+func TestResult_MediumCves(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *Result
+		want   int
+	}{
+		{
+			name: "no vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{},
+			},
+			want: 0,
+		},
+		{
+			name: "only medium vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+				},
+			},
+			want: 1,
+		},
+		{
+			name: "mixed severity vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityHigh}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityMedium}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityLow}},
+				},
+			},
+			want: 2,
+		},
+		{
+			name: "no medium vulnerabilities",
+			result: &Result{
+				Vulns: []Vuln{
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityCritical}},
+					{CVE: CVE{Severity: ecrtypes.FindingSeverityLow}},
+				},
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.result.MediumCves()
+			assert.Len(t, got, tt.want)
+		})
+	}
+}
+func Test_unwrapAttributes(t *testing.T) {
+	tests := []struct {
+		name  string
+		attrs []ecrtypes.Attribute
+		want  map[string]string
+	}{
+		{
+			name:  "empty attributes",
+			attrs: []ecrtypes.Attribute{},
+			want:  map[string]string{},
+		},
+		{
+			name: "valid attributes",
+			attrs: []ecrtypes.Attribute{
+				{Key: stringPtr("package_name"), Value: stringPtr("curl")},
+				{Key: stringPtr("package_version"), Value: stringPtr("7.68.0")},
+			},
+			want: map[string]string{
+				"package_name":    "curl",
+				"package_version": "7.68.0",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := unwrapAttributes(tt.attrs)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+func Test_findingToCVE(t *testing.T) {
+	tests := []struct {
+		name    string
+		finding ecrtypes.ImageScanFinding
+		want    CVE
+	}{
+		{
+			name: "complete finding with all fields",
+			finding: ecrtypes.ImageScanFinding{
+				Name:        stringPtr("CVE-2021-12345"),
+				Severity:    ecrtypes.FindingSeverityCritical,
+				Uri:         stringPtr("https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-12345"),
+				Description: stringPtr("Critical vulnerability in package"),
+				Attributes: []ecrtypes.Attribute{
+					{Key: stringPtr("package_name"), Value: stringPtr("curl")},
+					{Key: stringPtr("package_version"), Value: stringPtr("7.68.0-1ubuntu2.7")},
+				},
+			},
+			want: CVE{
+				Name:           "CVE-2021-12345",
+				PackageName:    "curl",
+				PackageVersion: "7.68.0-1ubuntu2.7",
+				Uri:            "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-12345",
+				Description:    "Critical vulnerability in package",
+				Severity:       ecrtypes.FindingSeverityCritical,
+			},
+		},
+		{
+			name: "finding with missing fields",
+			finding: ecrtypes.ImageScanFinding{
+				Name:     nil,
+				Severity: ecrtypes.FindingSeverityHigh,
+				Attributes: []ecrtypes.Attribute{
+					{Key: stringPtr("other_field"), Value: stringPtr("value")},
+				},
+			},
+			want: CVE{
+				Name:           "unknown",
+				PackageName:    "unknown",
+				PackageVersion: "unknown",
+				Uri:            "",
+				Description:    "",
+				Severity:       ecrtypes.FindingSeverityHigh,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findingToCVE(tt.finding)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+func stringPtr(s string) *string {
+	return &s
 }

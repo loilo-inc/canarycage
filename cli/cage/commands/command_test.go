@@ -2,59 +2,144 @@ package commands
 
 import (
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
-	"github.com/loilo-inc/canarycage/mocks/mock_types"
-	"github.com/loilo-inc/canarycage/test"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
+type fakeCage struct{}
+
+func (f *fakeCage) Up(context.Context) (*types.UpResult, error) {
+	return nil, nil
+}
+
+func (f *fakeCage) Run(context.Context, *types.RunInput) (*types.RunResult, error) {
+	return nil, nil
+}
+
+func (f *fakeCage) RollOut(context.Context, *types.RollOutInput) (*types.RollOutResult, error) {
+	return nil, nil
+}
+
 func TestSetupCage(t *testing.T) {
-	t.Run("basic", func(t *testing.T) {
+	t.Run("loads definitions and returns cage", func(t *testing.T) {
 		input := cageapp.NewCageCmdInput(nil)
 		input.Region = "us-west-2"
-		cageCli := mock_types.NewMockCage(gomock.NewController(t))
-		cmd := NewCageCommands(func(ctx context.Context, envars *cageapp.CageCmdInput) (types.Cage, error) {
-			return cageCli, nil
+
+		expected := &fakeCage{}
+		var providerCalled bool
+		cmds := NewCageCommands(func(ctx context.Context, got *cageapp.CageCmdInput) (types.Cage, error) {
+			providerCalled = true
+			assert.Same(t, input, got)
+			assert.Equal(t, "cluster", got.Cluster)
+			assert.Equal(t, "service", got.Service)
+			assert.NotNil(t, got.ServiceDefinitionInput)
+			assert.NotNil(t, got.TaskDefinitionInput)
+			return expected, nil
 		})
-		v, err := cmd.setupCage(input, "../../../fixtures")
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert.Equal(t, v, cageCli)
-		assert.Equal(t, input.Service, "service")
-		assert.Equal(t, input.Cluster, "cluster")
-		assert.NotNil(t, input.ServiceDefinitionInput)
-		assert.NotNil(t, input.TaskDefinitionInput)
+
+		cagecli, err := cmds.setupCage(input, "../../../fixtures")
+		assert.NoError(t, err)
+		assert.True(t, providerCalled)
+		assert.Same(t, expected, cagecli)
 	})
-	t.Run("should skip load task definition if --taskDefinitionArn provided", func(t *testing.T) {
+
+	t.Run("skips task definition when arn is provided", func(t *testing.T) {
 		input := cageapp.NewCageCmdInput(nil)
 		input.Region = "us-west-2"
-		input.TaskDefinitionArn = "arn"
-		cageCli := mock_types.NewMockCage(gomock.NewController(t))
-		cmd := NewCageCommands(func(ctx context.Context, input *cageapp.CageCmdInput) (types.Cage, error) {
-			return cageCli, nil
-		})
-		v, err := cmd.setupCage(input, "../../../fixtures")
+		input.TaskDefinitionArn = "arn://task"
+
+		dir := t.TempDir()
+		serviceJSON, err := os.ReadFile("../../../fixtures/service.json")
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("failed to read fixture: %s", err)
 		}
-		assert.Equal(t, v, cageCli)
-		assert.Equal(t, input.Service, "service")
-		assert.Equal(t, input.Cluster, "cluster")
-		assert.NotNil(t, input.ServiceDefinitionInput)
-		assert.Nil(t, input.TaskDefinitionInput)
+		if err := os.WriteFile(filepath.Join(dir, "service.json"), serviceJSON, 0o644); err != nil {
+			t.Fatalf("failed to write service.json: %s", err)
+		}
+
+		expected := &fakeCage{}
+		cmds := NewCageCommands(func(ctx context.Context, got *cageapp.CageCmdInput) (types.Cage, error) {
+			assert.Equal(t, "cluster", got.Cluster)
+			assert.Equal(t, "service", got.Service)
+			assert.NotNil(t, got.ServiceDefinitionInput)
+			assert.Nil(t, got.TaskDefinitionInput)
+			return expected, nil
+		})
+
+		cagecli, err := cmds.setupCage(input, dir)
+		assert.NoError(t, err)
+		assert.Same(t, expected, cagecli)
 	})
-	t.Run("should error if error returned from NewCage", func(t *testing.T) {
+
+	t.Run("returns error when service definition is missing", func(t *testing.T) {
 		input := cageapp.NewCageCmdInput(nil)
 		input.Region = "us-west-2"
-		cmd := NewCageCommands(func(ctx context.Context, input *cageapp.CageCmdInput) (types.Cage, error) {
-			return nil, test.Err
+		input.TaskDefinitionArn = "arn://task"
+
+		dir := t.TempDir()
+		cmds := NewCageCommands(func(context.Context, *cageapp.CageCmdInput) (types.Cage, error) {
+			t.Fatal("provider should not be called when service.json is missing")
+			return nil, nil
 		})
-		_, err := cmd.setupCage(input, "../../../fixtures")
-		assert.EqualError(t, err, "error")
+
+		_, err := cmds.setupCage(input, dir)
+		assert.EqualError(t, err, "no 'service.json' found in "+dir)
+	})
+
+	t.Run("returns error when task definition is missing", func(t *testing.T) {
+		input := cageapp.NewCageCmdInput(nil)
+		input.Region = "us-west-2"
+
+		dir := t.TempDir()
+		serviceJSON, err := os.ReadFile("../../../fixtures/service.json")
+		if err != nil {
+			t.Fatalf("failed to read fixture: %s", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "service.json"), serviceJSON, 0o644); err != nil {
+			t.Fatalf("failed to write service.json: %s", err)
+		}
+
+		cmds := NewCageCommands(func(context.Context, *cageapp.CageCmdInput) (types.Cage, error) {
+			t.Fatal("provider should not be called when task-definition.json is missing")
+			return nil, nil
+		})
+
+		_, err = cmds.setupCage(input, dir)
+		assert.EqualError(t, err, "no 'task-definition.json' found in "+dir)
+	})
+
+	t.Run("returns error when required envars are missing", func(t *testing.T) {
+		input := cageapp.NewCageCmdInput(nil)
+		input.TaskDefinitionArn = "arn://task"
+
+		cmds := NewCageCommands(func(context.Context, *cageapp.CageCmdInput) (types.Cage, error) {
+			t.Fatal("provider should not be called when envars are invalid")
+			return nil, nil
+		})
+
+		_, err := cmds.setupCage(input, "../../../fixtures")
+		assert.EqualError(t, err, "--region [CAGE_REGION] is required")
+	})
+
+	t.Run("propagates provider error", func(t *testing.T) {
+		input := cageapp.NewCageCmdInput(nil)
+		input.Region = "us-west-2"
+		input.TaskDefinitionArn = "arn://task"
+
+		expectedErr := errors.New("provider error")
+		cmds := NewCageCommands(func(ctx context.Context, got *cageapp.CageCmdInput) (types.Cage, error) {
+			assert.Equal(t, "cluster", got.Cluster)
+			assert.Equal(t, "service", got.Service)
+			return nil, expectedErr
+		})
+
+		_, err := cmds.setupCage(input, "../../../fixtures")
+		assert.EqualError(t, err, "provider error")
 	})
 }

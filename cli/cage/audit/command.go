@@ -25,20 +25,29 @@ func NewCommand(di *di.D, input *cageapp.AuditCmdInput) *command {
 	}
 }
 
-func (a *command) Run(ctx context.Context) error {
+func (a *command) Run(ctx context.Context) (err error) {
 	results, err := a.doScan(ctx)
 	if err != nil {
 		return err
 	}
-	p := a.di.Get(key.Printer).(Printer)
-	p.Print(results)
+	p := NewPrinter(a.di, a.input.NoColor, a.input.LogDetail)
+	if a.input.JSON {
+		metadata := Target{
+			Region:  a.input.Region,
+			Cluster: a.input.Cluster,
+			Service: a.input.Service,
+		}
+		p.PrintJSON(metadata, results)
+	} else {
+		p.Print(results)
+	}
 	return nil
 }
 
 func (a *command) doScan(ctx context.Context) (results []*ScanResult, err error) {
 	l := a.di.Get(key.Logger).(logger.Logger)
 	t := a.di.Get(key.Time).(types.Time)
-	defer l.Printf("\r")
+	defer l.Errorf("\r")
 	waiter := make(chan struct{}, 1)
 	spinner := logger.NewSpinner()
 	go func() {
@@ -55,7 +64,7 @@ func (a *command) doScan(ctx context.Context) (results []*ScanResult, err error)
 		case <-waiter:
 			return
 		case <-timer.C:
-			l.Printf("\r%s", spinner.Next())
+			l.Errorf("\r%s", spinner.Next())
 		}
 	}
 }

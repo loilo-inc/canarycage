@@ -24,11 +24,9 @@ func ProvideAuditCmd(ctx context.Context, input *cageapp.AuditCmdInput) (types.A
 	d := di.NewDomain(func(b *di.B) {
 		ecsCli := ecs.NewFromConfig(conf)
 		ecrCli := ecr.NewFromConfig(conf)
-		l := logger.DefaultLogger(os.Stdout)
-		p := NewPrinter(l, input.NoColor, input.LogDetail)
+		l := logger.DefaultLogger(os.Stdout, os.Stderr)
 		b.Set(key.Scanner, NewScanner(ecsCli, ecrCli))
 		b.Set(key.Logger, l)
-		b.Set(key.Printer, p)
 		b.Set(key.Time, &timeout.Time{})
 	})
 	return NewCommand(d, input), nil
