@@ -1,8 +1,6 @@
 package commands
 
 import (
-	"context"
-
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
 	"github.com/urfave/cli/v2"
@@ -38,7 +36,7 @@ func (c *CageCommands) Up(input *cageapp.CageCmdInput) *cli.Command {
 					return err
 				}
 			}
-			_, err = cagecli.Up(context.Background())
+			_, err = cagecli.Up(ctx.Context)
 			return err
 		},
 	}

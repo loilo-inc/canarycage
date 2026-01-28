@@ -45,9 +45,9 @@ func (a *command) Run(ctx context.Context) (err error) {
 }
 
 func (a *command) doScan(ctx context.Context) (results []*ScanResult, err error) {
-	l := a.di.Get(key.Logger).(logger.Logger)
+	l := a.di.Get(key.Printer).(logger.Printer)
 	t := a.di.Get(key.Time).(types.Time)
-	defer l.Errorf("\r")
+	defer l.PrintErrf("\r")
 	waiter := make(chan struct{}, 1)
 	spinner := logger.NewSpinner()
 	go func() {
@@ -64,7 +64,7 @@ func (a *command) doScan(ctx context.Context) (results []*ScanResult, err error)
 		case <-waiter:
 			return
 		case <-timer.C:
-			l.Errorf("\r%s", spinner.Next())
+			l.PrintErrf("\r%s", spinner.Next())
 		}
 	}
 }

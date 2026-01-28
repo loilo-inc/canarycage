@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -25,6 +24,17 @@ func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container 
 }
 
 func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult, error) {
+	result, err := c.doRun(ctx, input)
+	l := c.logger()
+	if err != nil {
+		l.Errorf("🤕 task execution failed: %v", err)
+		return nil, err
+	}
+	l.Infof("👍 task successfully executed")
+	return result, nil
+}
+
+func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResult, error) {
 	env := c.di.Get(key.Env).(*env.Envars)
 	if !containerExistsInDefinition(env.TaskDefinitionInput, input.Container) {
 		return nil, xerrors.Errorf("🚫 '%s' not found in container definitions", *input.Container)
@@ -51,16 +61,16 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 	// NOTE: https://github.com/loilo-inc/canarycage/issues/93
 	// wait for the task to be running
 	time.Sleep(2 * time.Second)
-
-	log.Infof("waiting for task '%s' to start...", *taskArn)
+	l := c.logger()
+	l.Infof("waiting for task '%s' to start...", *taskArn)
 	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
 	}, env.GetTaskRunningWait()); err != nil {
 		return nil, xerrors.Errorf("task failed to start: %w", err)
 	}
-	log.Infof("task '%s' is running", *taskArn)
-	log.Infof("waiting for task '%s' to stop...", *taskArn)
+	l.Infof("task '%s' is running", *taskArn)
+	l.Infof("waiting for task '%s' to stop...", *taskArn)
 	if result, err := ecs.NewTasksStoppedWaiter(ecsCli).WaitForOutput(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},

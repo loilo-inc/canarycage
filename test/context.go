@@ -6,6 +6,8 @@ import (
 
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/awsiface"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/logos/di"
 )
 
 type commons struct {
@@ -14,6 +16,7 @@ type commons struct {
 	TaskDefinitions *TaskDefinitionRepository
 	TargetGroups    map[string]*TargetGroup
 	mux             sync.Mutex
+	di              *di.D
 }
 
 type MockContext struct {
@@ -24,6 +27,9 @@ type MockContext struct {
 }
 
 func NewMockContext() *MockContext {
+	d := di.NewDomain(func(b *di.B) {
+		b.Set(key.Logger, NewLogger())
+	})
 	cm := &commons{
 		Services: make(map[string]*ecstypes.Service),
 		Tasks:    make(map[string]*ecstypes.Task),
@@ -31,6 +37,7 @@ func NewMockContext() *MockContext {
 			families: make(map[string]*TaskDefinitionFamily),
 		},
 		TargetGroups: make(map[string]*TargetGroup),
+		di:           d,
 	}
 	return &MockContext{
 		commons: cm,

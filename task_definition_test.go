@@ -27,6 +27,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 			di: di.NewDomain(func(b *di.B) {
 				b.Set(key.Env, env)
 				b.Set(key.EcsCli, ecsMock)
+				b.Set(key.Logger, test.NewLogger())
 			})}
 		ecsMock.EXPECT().DescribeTaskDefinition(gomock.Any(), gomock.Any()).Return(&ecs.DescribeTaskDefinitionOutput{
 			TaskDefinition: &ecstypes.TaskDefinition{},
@@ -45,6 +46,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 			di: di.NewDomain(func(b *di.B) {
 				b.Set(key.Env, env)
 				b.Set(key.EcsCli, ecsMock)
+				b.Set(key.Logger, test.NewLogger())
 			})}
 		ecsMock.EXPECT().DescribeTaskDefinition(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("error"))
 		td, err := c.CreateNextTaskDefinition(context.Background())
@@ -59,6 +61,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 			di: di.NewDomain(func(b *di.B) {
 				b.Set(key.Env, env)
 				b.Set(key.EcsCli, ecsMock)
+				b.Set(key.Logger, test.NewLogger())
 			})}
 		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).Return(&ecs.RegisterTaskDefinitionOutput{
 			TaskDefinition: &ecstypes.TaskDefinition{
@@ -78,6 +81,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 			di: di.NewDomain(func(b *di.B) {
 				b.Set(key.Env, env)
 				b.Set(key.EcsCli, ecsMock)
+				b.Set(key.Logger, test.NewLogger())
 			})}
 		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("error"))
 		td, err := c.CreateNextTaskDefinition(context.Background())

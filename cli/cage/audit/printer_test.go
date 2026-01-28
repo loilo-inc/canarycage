@@ -38,17 +38,17 @@ func makeScanResult(
 }
 
 func TestPrinter_Print(t *testing.T) {
-	setup := func(t *testing.T) (*di.D, *test.MockLogger) {
+	setup := func(t *testing.T) (*di.D, *test.MockPrinter) {
 		t.Helper()
-		l := &test.MockLogger{}
+		p := &test.MockPrinter{}
 		d := di.NewDomain(func(b *di.B) {
-			b.Set(key.Logger, l)
+			b.Set(key.Printer, p)
 			b.Set(key.Time, test.NewNeverTimer())
 		})
-		return d, l
+		return d, p
 	}
 	t.Run("prints no CVEs message when no findings", func(t *testing.T) {
-		d, logger := setup(t)
+		d, p := setup(t)
 		printer := NewPrinter(d, true, false)
 
 		result := makeScanResult()
@@ -56,7 +56,7 @@ func TestPrinter_Print(t *testing.T) {
 
 		// Check that "No CVEs found" message is present
 		found := false
-		for _, log := range logger.Logs {
+		for _, log := range p.Logs {
 			if log == "No CVEs found\n" {
 				found = true
 				break
@@ -68,17 +68,17 @@ func TestPrinter_Print(t *testing.T) {
 	})
 
 	t.Run("prints table header", func(t *testing.T) {
-		d, logger := setup(t)
+		d, p := setup(t)
 		printer := NewPrinter(d, true, false)
 
 		result := makeScanResult(ecrtypes.FindingSeverityCritical)
 		printer.Print(result)
 
 		// Check that header contains expected columns
-		if len(logger.Logs) == 0 {
+		if len(p.Logs) == 0 {
 			t.Fatal("Expected logs to be generated")
 		}
-		header := logger.Logs[0]
+		header := p.Logs[0]
 		expectedCols := []string{"CONTAINER", "STATUS", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "IMAGE"}
 		for _, col := range expectedCols {
 			if !strings.Contains(header, col) {
@@ -88,7 +88,7 @@ func TestPrinter_Print(t *testing.T) {
 	})
 
 	t.Run("prints findings by severity", func(t *testing.T) {
-		d, logger := setup(t)
+		d, p := setup(t)
 		printer := NewPrinter(d, true, false)
 
 		result := makeScanResult(
@@ -102,7 +102,7 @@ func TestPrinter_Print(t *testing.T) {
 		criticalFound := false
 		highFound := false
 		mediumFound := false
-		for _, log := range logger.Logs {
+		for _, log := range p.Logs {
 			if strings.Contains(log, "CRITICAL") && strings.Contains(log, "===") {
 				criticalFound = true
 			}
@@ -125,7 +125,7 @@ func TestPrinter_Print(t *testing.T) {
 	})
 
 	t.Run("prints total summary with counts", func(t *testing.T) {
-		d, logger := setup(t)
+		d, p := setup(t)
 		printer := NewPrinter(d, true, false)
 
 		result := makeScanResult(
@@ -136,7 +136,7 @@ func TestPrinter_Print(t *testing.T) {
 
 		// Check for total line
 		totalFound := false
-		for _, log := range logger.Logs {
+		for _, log := range p.Logs {
 			if strings.Contains(log, "Total:") {
 				totalFound = true
 				break
@@ -149,22 +149,22 @@ func TestPrinter_Print(t *testing.T) {
 }
 
 func TestPrinter_logVuln(t *testing.T) {
-	setup := func(t *testing.T) (*di.D, *test.MockLogger) {
+	setup := func(t *testing.T) (*di.D, *test.MockPrinter) {
 		t.Helper()
-		l := &test.MockLogger{}
+		p := &test.MockPrinter{}
 		d := di.NewDomain(func(b *di.B) {
-			b.Set(key.Logger, l)
+			b.Set(key.Printer, p)
 			b.Set(key.Time, test.NewNeverTimer())
 		})
-		return d, l
+		return d, p
 	}
 	t.Run("returns early when no findings", func(t *testing.T) {
-		d, logger := setup(t)
+		d, p := setup(t)
 		printer := NewPrinter(d, true, false)
 		printer.logVuln(ecrtypes.FindingSeverityCritical, []Vuln{})
 
-		if len(logger.Logs) != 0 {
-			t.Errorf("Expected no logs, got %d", len(logger.Logs))
+		if len(p.Logs) != 0 {
+			t.Errorf("Expected no logs, got %d", len(p.Logs))
 		}
 	})
 
@@ -222,7 +222,7 @@ func TestPrinter_logVuln(t *testing.T) {
 	})
 
 	t.Run("uses unknown for missing package info", func(t *testing.T) {
-		d, logger := setup(t)
+		d, p := setup(t)
 		printer := NewPrinter(d, true, false)
 
 		findings := []Vuln{
@@ -241,13 +241,13 @@ func TestPrinter_logVuln(t *testing.T) {
 		printer.logVuln(ecrtypes.FindingSeverityLow, findings)
 
 		assert := assert.New(t)
-		assert.Contains(logger.Logs[0], "=== LOW ===")
-		assert.Contains(logger.Logs[1], "- CVE-2023-0001 container-1 \n")
-		assert.Contains(logger.Logs[2], "unknown::unknown (http://example.com)\n")
+		assert.Contains(p.Logs[0], "=== LOW ===")
+		assert.Contains(p.Logs[1], "- CVE-2023-0001 container-1 \n")
+		assert.Contains(p.Logs[2], "unknown::unknown (http://example.com)\n")
 	})
 
 	t.Run("prints description when logDetail is true", func(t *testing.T) {
-		d, logger := setup(t)
+		d, p := setup(t)
 		printer := NewPrinter(d, true, true) // logDetail = true
 
 		findings := []Vuln{
@@ -263,7 +263,7 @@ func TestPrinter_logVuln(t *testing.T) {
 		printer.logVuln(ecrtypes.FindingSeverityHigh, findings)
 
 		descFound := false
-		for _, log := range logger.Logs {
+		for _, log := range p.Logs {
 			if strings.Contains(log, "Detailed vulnerability description") {
 				descFound = true
 				break
@@ -304,18 +304,18 @@ func TestPrinter_logVuln(t *testing.T) {
 }
 
 func TestPrinter_PrintJSON(t *testing.T) {
-	setup := func(t *testing.T) (*di.D, *test.MockLogger) {
+	setup := func(t *testing.T) (*di.D, *test.MockPrinter) {
 		t.Helper()
-		l := &test.MockLogger{}
+		p := &test.MockPrinter{}
 		d := di.NewDomain(func(b *di.B) {
-			b.Set(key.Logger, l)
+			b.Set(key.Printer, p)
 			b.Set(key.Time, test.NewNeverTimer())
 		})
-		return d, l
+		return d, p
 	}
 
 	t.Run("prints valid JSON output", func(t *testing.T) {
-		d, logger := setup(t)
+		d, p := setup(t)
 		printer := NewPrinter(d, true, false)
 
 		metadata := Target{
@@ -328,15 +328,15 @@ func TestPrinter_PrintJSON(t *testing.T) {
 		printer.PrintJSON(metadata, result)
 
 		assert := assert.New(t)
-		assert.NotEmpty(logger.Stdout)
+		assert.NotEmpty(p.Stdout)
 
 		var parsed FinalResult
-		err := json.Unmarshal([]byte(logger.Stdout[0]), &parsed)
+		err := json.Unmarshal([]byte(p.Stdout[0]), &parsed)
 		assert.NoError(err)
 	})
 
 	t.Run("handles empty scan results", func(t *testing.T) {
-		d, logger := setup(t)
+		d, p := setup(t)
 		printer := NewPrinter(d, true, false)
 
 		metadata := Target{
@@ -349,10 +349,10 @@ func TestPrinter_PrintJSON(t *testing.T) {
 		printer.PrintJSON(metadata, result)
 
 		assert := assert.New(t)
-		assert.NotEmpty(logger.Stdout)
+		assert.NotEmpty(p.Stdout)
 
 		var parsed FinalResult
-		err := json.Unmarshal([]byte(logger.Stdout[0]), &parsed)
+		err := json.Unmarshal([]byte(p.Stdout[0]), &parsed)
 		assert.NoError(err)
 	})
 }

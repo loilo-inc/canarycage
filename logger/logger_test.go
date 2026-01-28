@@ -1,45 +1,117 @@
-package logger_test
+package logger
 
 import (
-	"bytes"
+	"fmt"
+	"strings"
 	"testing"
-
-	"github.com/loilo-inc/canarycage/logger"
-	"github.com/stretchr/testify/assert"
+	"time"
 )
 
+type mockPrinter struct {
+	outMessages []string
+	errMessages []string
+}
+
+func (m *mockPrinter) Printf(format string, args ...any) {
+	m.outMessages = append(m.outMessages, fmt.Sprintf(format, args...))
+}
+
+func (m *mockPrinter) PrintErrf(format string, args ...any) {
+	m.errMessages = append(m.errMessages, fmt.Sprintf(format, args...))
+}
+
 func TestDefaultLogger(t *testing.T) {
-	t.Run("Printf writes to stdout", func(t *testing.T) {
-		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
-		log := logger.DefaultLogger(stdout, stderr)
+	p := &mockPrinter{}
+	logger := DefaultLogger(p)
+	if logger == nil {
+		t.Fatal("DefaultLogger returned nil")
+	}
+}
 
-		log.Printf("test message: %s\n", "hello")
+func TestPrefixedLogger_Infof(t *testing.T) {
+	p := &mockPrinter{}
+	fixedTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	logger := &prefixedLogger{
+		p:   p,
+		now: func() time.Time { return fixedTime },
+	}
 
-		assert.Equal(t, "test message: hello\n", stdout.String())
-		assert.Equal(t, "", stderr.String())
-	})
+	logger.Infof("test message")
 
-	t.Run("Errorf writes to stderr", func(t *testing.T) {
-		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
-		log := logger.DefaultLogger(stdout, stderr)
+	if len(p.outMessages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(p.outMessages))
+	}
+	expected := "2024/01/01 12:00:00  info  test message\n"
+	if p.outMessages[0] != expected {
+		t.Errorf("expected %q, got %q", expected, p.outMessages[0])
+	}
+}
 
-		log.Errorf("error message: %d\n", 42)
+func TestPrefixedLogger_Debugf(t *testing.T) {
+	p := &mockPrinter{}
+	fixedTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	logger := &prefixedLogger{
+		p:   p,
+		now: func() time.Time { return fixedTime },
+	}
 
-		assert.Equal(t, "", stdout.String())
-		assert.Equal(t, "error message: 42\n", stderr.String())
-	})
+	logger.Debugf("debug info")
 
-	t.Run("Printf and Errorf write to separate streams", func(t *testing.T) {
-		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
-		log := logger.DefaultLogger(stdout, stderr)
+	if len(p.outMessages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(p.outMessages))
+	}
+	expected := "2024/01/01 12:00:00  debug  debug info\n"
+	if p.outMessages[0] != expected {
+		t.Errorf("expected %q, got %q", expected, p.outMessages[0])
+	}
+}
 
-		log.Printf("info\n")
-		log.Errorf("error\n")
+func TestPrefixedLogger_Errorf(t *testing.T) {
+	p := &mockPrinter{}
+	fixedTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	logger := &prefixedLogger{
+		p:   p,
+		now: func() time.Time { return fixedTime },
+	}
 
-		assert.Equal(t, "info\n", stdout.String())
-		assert.Equal(t, "error\n", stderr.String())
-	})
+	logger.Errorf("error occurred")
+
+	if len(p.errMessages) != 1 {
+		t.Fatalf("expected 1 error message, got %d", len(p.errMessages))
+	}
+	expected := "2024/01/01 12:00:00  error  error occurred\n"
+	if p.errMessages[0] != expected {
+		t.Errorf("expected %q, got %q", expected, p.errMessages[0])
+	}
+}
+
+func TestPrefixedLogger_WithFormatArgs(t *testing.T) {
+	p := &mockPrinter{}
+	fixedTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	logger := &prefixedLogger{
+		p:   p,
+		now: func() time.Time { return fixedTime },
+	}
+
+	logger.Infof("user %s logged in with id %d", "alice", 123)
+
+	expected := "2024/01/01 12:00:00  info  user alice logged in with id 123\n"
+	if p.outMessages[0] != expected {
+		t.Errorf("expected %q, got %q", expected, p.outMessages[0])
+	}
+}
+
+func TestPrefixedLogger_MessageWithNewline(t *testing.T) {
+	p := &mockPrinter{}
+	fixedTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	logger := &prefixedLogger{
+		p:   p,
+		now: func() time.Time { return fixedTime },
+	}
+
+	logger.Infof("message with newline\n")
+
+	if strings.Count(p.outMessages[0], "\n") != 1 {
+		t.Errorf("expected single newline, got: %q", p.outMessages[0])
+	}
 }

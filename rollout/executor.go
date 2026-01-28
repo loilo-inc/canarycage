@@ -3,12 +3,12 @@ package rollout
 import (
 	"context"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/awsiface"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/task"
 	"github.com/loilo-inc/canarycage/taskset"
 	"github.com/loilo-inc/canarycage/types"
@@ -33,8 +33,9 @@ func NewExecutor(di *di.D, td *ecstypes.TaskDefinition) Executor {
 func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (lastErr error) {
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
+	l := c.logger()
 	if input.UpdateService {
-		log.Info("--updateService flag is set. use provided service configurations for canary test instead of current service")
+		l.Infof("--updateService flag is set. use provided service configurations for canary test instead of current service")
 	}
 	canaryTasks, startCanaryTaskErr := c.startCanaryTasks(ctx, input)
 	// ensure canary task stopped after rolling out either success or failure
@@ -43,21 +44,21 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (last
 		if canaryTasks == nil {
 			return
 		} else if err := canaryTasks.Cleanup(ctx); err != nil {
-			log.Errorf("failed to cleanup canary tasks due to: %s", err)
+			l.Errorf("failed to cleanup canary tasks due to: %s", err)
 			lastErr = err
 		}
 	}()
 	if startCanaryTaskErr != nil {
-		log.Errorf("😨 failed to start canary task due to: %w", startCanaryTaskErr)
+		l.Errorf("😨 failed to start canary task due to: %w", startCanaryTaskErr)
 		return startCanaryTaskErr
 	}
-	log.Infof("executing canary tasks...")
+	l.Infof("executing canary tasks...")
 	if err := canaryTasks.Exec(ctx); err != nil {
-		log.Errorf("😨 failed to exec canary tasks: %s", err)
+		l.Errorf("😨 failed to exec canary tasks: %s", err)
 		return err
 	}
-	log.Infof("canary tasks have been executed successfully!")
-	log.Infof(
+	l.Infof("canary tasks have been executed successfully!")
+	l.Infof(
 		"updating the task definition of '%s' into '%s:%d'...",
 		env.Service, *c.td.Family, c.td.Revision,
 	)
@@ -75,20 +76,20 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (last
 		updateInput.VolumeConfigurations = env.ServiceDefinitionInput.VolumeConfigurations
 	}
 	if _, err := ecsCli.UpdateService(ctx, updateInput); err != nil {
-		log.Errorf("😨 failed to update service: %s", err)
+		l.Errorf("😨 failed to update service: %s", err)
 		return err
 	}
 	c.serviceUpdated = true
-	log.Infof("waiting for service '%s' to be stable...", env.Service)
+	l.Infof("waiting for service '%s' to be stable...", env.Service)
 	if err := ecs.NewServicesStableWaiter(ecsCli).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &env.Cluster,
 		Services: []string{env.Service},
 	}, env.GetServiceStableWait()); err != nil {
-		log.Errorf("😨 failed to wait for service to be stable: %s", err)
+		l.Errorf("😨 failed to wait for service to be stable: %s", err)
 		return err
 	}
-	log.Infof("🥴 service '%s' has become to be stable!", env.Service)
-	log.Infof(
+	l.Infof("🥴 service '%s' has become to be stable!", env.Service)
+	l.Infof(
 		"🐥 service '%s' successfully rolled out to '%s:%d'!",
 		env.Service, *c.td.Family, c.td.Revision,
 	)
@@ -97,6 +98,10 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (last
 
 func (c *executor) ServiceUpdated() bool {
 	return c.serviceUpdated
+}
+
+func (c *executor) logger() logger.Logger {
+	return c.di.Get(key.Logger).(logger.Logger)
 }
 
 func (c *executor) startCanaryTasks(

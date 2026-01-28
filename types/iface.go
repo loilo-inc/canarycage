@@ -17,6 +17,10 @@ type Audit interface {
 	Run(ctx context.Context) error
 }
 
+type Upgrade interface {
+	Upgrade(ctx context.Context) error
+}
+
 type Time interface {
 	Now() time.Time
 	NewTimer(time.Duration) *time.Timer

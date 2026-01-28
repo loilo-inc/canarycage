@@ -1,9 +1,6 @@
 package commands
 
 import (
-	"context"
-
-	"github.com/apex/log"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
@@ -41,7 +38,7 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 			}
 			container := rest[0]
 			commands := rest[1:]
-			if _, err := cagecli.Run(context.Background(), &types.RunInput{
+			_, err = cagecli.Run(ctx.Context, &types.RunInput{
 				Container: &container,
 				Overrides: &ecstypes.TaskOverride{
 					ContainerOverrides: []ecstypes.ContainerOverride{
@@ -49,11 +46,8 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 							Name: &container},
 					},
 				},
-			}); err != nil {
-				return err
-			}
-			log.Infof("👍 task successfully executed")
-			return nil
+			})
+			return err
 		},
 	}
 }

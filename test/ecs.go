@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/google/uuid"
+	"github.com/loilo-inc/canarycage/key"
+	"github.com/loilo-inc/canarycage/logger"
 )
 
 type EcsServer struct {
@@ -51,7 +52,7 @@ func (ctx *EcsServer) CreateService(c context.Context, input *ecs.CreateServiceI
 	ctx.mux.Lock()
 	ctx.Services[*input.ServiceName] = ret
 	ctx.mux.Unlock()
-	log.Debugf("%s: running=%d, desired=%d", *input.ServiceName, ret.RunningCount, *input.DesiredCount)
+	ctx.di.Get(key.Logger).(logger.Logger).Debugf("%s: running=%d, desired=%d", *input.ServiceName, ret.RunningCount, *input.DesiredCount)
 	for i := 0; i < int(*input.DesiredCount); i++ {
 		if _, err := ctx.StartTask(c, &ecs.StartTaskInput{
 			Cluster:              input.Cluster,
@@ -59,13 +60,13 @@ func (ctx *EcsServer) CreateService(c context.Context, input *ecs.CreateServiceI
 			NetworkConfiguration: input.NetworkConfiguration,
 			TaskDefinition:       input.TaskDefinition,
 		}); err != nil {
-			log.Fatalf("failed to start task: %v", err)
+			return nil, fmt.Errorf("failed to start task: %w", err)
 		}
 	}
 	ctx.mux.Lock()
 	ctx.Services[*input.ServiceName].RunningCount = *input.DesiredCount
 	ctx.mux.Unlock()
-	log.Debugf("%s: running=%d", *input.ServiceName, ret.RunningCount)
+	ctx.di.Get(key.Logger).(logger.Logger).Debugf("%s: running=%d", *input.ServiceName, ret.RunningCount)
 	return &ecs.CreateServiceOutput{
 		Service: ret,
 	}, nil
@@ -84,7 +85,7 @@ func (ctx *EcsServer) UpdateService(c context.Context, input *ecs.UpdateServiceI
 		nextDesiredCount = *input.DesiredCount
 	}
 	if diff := nextDesiredCount - s.DesiredCount; diff > 0 {
-		log.Debugf("diff=%d", diff)
+		ctx.di.Get(key.Logger).(logger.Logger).Debugf("diff=%d", diff)
 		// scale
 		for i := 0; i < int(diff); i++ {
 			ctx.StartTask(c, &ecs.StartTaskInput{
@@ -246,7 +247,7 @@ func (ctx *EcsServer) RunTask(c context.Context, input *ecs.RunTaskInput, _ ...f
 func (ctx *EcsServer) StopTask(_ context.Context, input *ecs.StopTaskInput, _ ...func(options *ecs.Options)) (*ecs.StopTaskOutput, error) {
 	ctx.mux.Lock()
 	defer ctx.mux.Unlock()
-	log.Debugf("stop: %s", *input.Task)
+	ctx.di.Get(key.Logger).(logger.Logger).Debugf("stop: %s", *input.Task)
 	ret, ok := ctx.Tasks[*input.Task]
 	if !ok {
 		return nil, fmt.Errorf("task not found: %s", *input.Task)

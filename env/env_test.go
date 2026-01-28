@@ -4,7 +4,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/stretchr/testify/assert"
@@ -134,6 +133,6 @@ func TestReadFileAndApplyEnvars(t *testing.T) {
 FUGA=fugafuga
 fugafuga=hogehoge`
 	if s != e {
-		log.Fatalf("e: %s, a: %s", e, s)
+		t.Fatalf("e: %s, a: %s", e, s)
 	}
 }

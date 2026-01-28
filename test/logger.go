@@ -6,19 +6,28 @@ import (
 	"github.com/loilo-inc/canarycage/logger"
 )
 
-type MockLogger struct {
+type MockPrinter struct {
 	Stdout []string
 	Stderr []string
 	Logs   []string
 }
 
-func (m *MockLogger) Printf(format string, args ...any) {
+func (m *MockPrinter) Printf(format string, args ...any) {
 	m.Stdout = append(m.Stdout, fmt.Sprintf(format, args...))
 	m.Logs = append(m.Logs, fmt.Sprintf(format, args...))
 }
-func (m *MockLogger) Errorf(format string, args ...any) {
+
+func (m *MockPrinter) PrintErrf(format string, args ...any) {
 	m.Stderr = append(m.Stderr, fmt.Sprintf(format, args...))
 	m.Logs = append(m.Logs, fmt.Sprintf(format, args...))
 }
 
-var _ logger.Logger = (*MockLogger)(nil)
+var _ logger.Printer = (*MockPrinter)(nil)
+
+func NewMockPrinter() *MockPrinter {
+	return &MockPrinter{}
+}
+
+func NewLogger() logger.Logger {
+	return logger.DefaultLogger(NewMockPrinter())
+}

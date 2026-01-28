@@ -24,6 +24,10 @@ func main() {
 	configCmdInput := func(input *cageapp.CageCmdInput) {
 		input.App = appConf
 	}
+	upgradeCmdInput := func(input *cageapp.UpgradeCmdInput) {
+		input.App = appConf
+		input.CurrentVersion = version
+	}
 	app := cli.NewApp()
 	app.Name = "canarycage"
 	app.HelpName = "cage"
@@ -35,7 +39,7 @@ func main() {
 		cmds.Up(cageapp.NewCageCmdInput(os.Stdin, configCmdInput)),
 		cmds.RollOut(cageapp.NewCageCmdInput(os.Stdin, configCmdInput)),
 		cmds.Run(cageapp.NewCageCmdInput(os.Stdin, configCmdInput)),
-		commands.Upgrade(upgrade.NewUpgrader(version)),
+		commands.Upgrade(cageapp.NewUpgradeCmdInput(upgradeCmdInput), upgrade.ProvideUpgradeDI),
 		commands.Audit(appConf, audit.ProvideAuditCmd),
 	}
 	app.Flags = []cli.Flag{
