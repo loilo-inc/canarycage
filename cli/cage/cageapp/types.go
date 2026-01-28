@@ -55,13 +55,12 @@ type UpgradeCmdInput struct {
 }
 
 func NewUpgradeCmdInput(opts ...func(*UpgradeCmdInput)) *UpgradeCmdInput {
-	{
-		input := &UpgradeCmdInput{App: &App{}}
-		for _, opt := range opts {
-			opt(input)
-		}
-		return input
+	input := &UpgradeCmdInput{App: &App{}}
+	for _, opt := range opts {
+		opt(input)
 	}
+	return input
+
 }
 
 type UpgradeCmdProvider = func(ctx context.Context, input *UpgradeCmdInput) (types.Upgrade, error)

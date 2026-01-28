@@ -1,8 +1,6 @@
 package commands
 
 import (
-	"context"
-
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/cli/cage/prompt"
 	"github.com/loilo-inc/canarycage/env"
@@ -56,7 +54,7 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 					return err
 				}
 			}
-			_, err = cagecli.RollOut(context.Background(), &types.RollOutInput{UpdateService: updateServiceConf})
+			_, err = cagecli.RollOut(ctx.Context, &types.RollOutInput{UpdateService: updateServiceConf})
 			return err
 		},
 	}
