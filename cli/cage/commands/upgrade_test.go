@@ -40,4 +40,14 @@ func TestUpgrade(t *testing.T) {
 		err := app.Run([]string{"cage", "upgrade", "--pre-release"})
 		assert.NoError(t, err)
 	})
+	t.Run("should return error when provider fails", func(t *testing.T) {
+		app := cli.NewApp()
+		app.Commands = []*cli.Command{
+			commands.Upgrade(&cageapp.UpgradeCmdInput{}, func(_Ctx context.Context, _Input *cageapp.UpgradeCmdInput) (types.Upgrade, error) {
+				return nil, assert.AnError
+			}),
+		}
+		err := app.Run([]string{"cage", "upgrade"})
+		assert.Equal(t, assert.AnError, err)
+	})
 }
