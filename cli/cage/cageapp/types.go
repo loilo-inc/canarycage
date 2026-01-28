@@ -60,7 +60,6 @@ func NewUpgradeCmdInput(opts ...func(*UpgradeCmdInput)) *UpgradeCmdInput {
 		opt(input)
 	}
 	return input
-
 }
 
 type UpgradeCmdProvider = func(ctx context.Context, input *UpgradeCmdInput) (types.Upgrade, error)

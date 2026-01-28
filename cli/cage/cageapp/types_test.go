@@ -26,10 +26,10 @@ func TestNewAuditCmdInput(t *testing.T) {
 }
 
 func TestNewUpgradeCmdInput(t *testing.T) {
-	input := NewAuditCmdInput(func(a *AuditCmdInput) {
-		a.Region = "us-west-2"
+	input := NewUpgradeCmdInput(func(a *UpgradeCmdInput) {
+		a.NoColor = true
 	})
 	assert := assert.New(t)
 	assert.NotNil(input.App)
-	assert.Equal("us-west-2", input.Region)
+	assert.Equal(true, input.NoColor)
 }

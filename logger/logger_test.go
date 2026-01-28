@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -12,11 +13,11 @@ type mockPrinter struct {
 }
 
 func (m *mockPrinter) Printf(format string, args ...any) {
-	m.outMessages = append(m.outMessages, format)
+	m.outMessages = append(m.outMessages, fmt.Sprintf(format, args...))
 }
 
 func (m *mockPrinter) PrintErrf(format string, args ...any) {
-	m.errMessages = append(m.errMessages, format)
+	m.errMessages = append(m.errMessages, fmt.Sprintf(format, args...))
 }
 
 func TestDefaultLogger(t *testing.T) {
