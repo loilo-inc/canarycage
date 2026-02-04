@@ -101,10 +101,25 @@ func TestUpgrade(t *testing.T) {
 		}
 		assertUpgraded(t, tmpDir, "0.2.0")
 	})
+	t.Run("should error if no assets found", func(t *testing.T) {
+		httpmock.Activate(t)
+		httpmock.RegisterResponder("GET", "https://api.github.com/repos/loilo-inc/canarycage/releases",
+			httpmock.NewJsonResponderOrPanic(200, []*github.RepositoryRelease{
+				{
+					TagName: github.String("0.2.0"),
+					Assets: []*github.ReleaseAsset{
+						{Name: github.String("some_other_file.txt")},
+					},
+				},
+			}))
+		u := NewUpgrader(logDI, &cageapp.UpgradeCmdInput{
+			CurrentVersion: "0.1.0",
+		})
+		err := u.Upgrade(t.Context())
+		assert.EqualError(t, err, "failed to find assets for version 0.2.0")
+	})
 	t.Run("parse checksum error", func(t *testing.T) {
-		httpmock.Activate()
-		defer httpmock.DeactivateAndReset()
-
+		httpmock.Activate(t)
 		httpmock.RegisterResponder("GET", "https://api.github.com/repos/loilo-inc/canarycage/releases",
 			httpmock.NewJsonResponderOrPanic(200, makeReleases("0.1.0", "0.2.0")))
 		httpmock.RegisterResponder("GET", "https://localhost/0.2.0/canarycage_0.2.0_checksums.txt",
@@ -185,8 +200,7 @@ func Test_findLatestRelease(t *testing.T) {
 		assert.EqualError(t, err, "no releases found")
 	})
 	t.Run("should return error if ListReleases failed", func(t *testing.T) {
-		httpmock.Activate()
-		defer httpmock.DeactivateAndReset()
+		httpmock.Activate(t)
 		httpmock.RegisterResponder("GET", "https://api.github.com/repos/loilo-inc/canarycage/releases",
 			httpmock.NewErrorResponder(fmt.Errorf("error")))
 		release, err := findLatestRelease(t.Context(), false)
@@ -223,10 +237,7 @@ func makeReleases(tags ...string) []*github.RepositoryRelease {
 func registerResponses(
 	t *testing.T,
 	candidates ...string) {
-
-	httpmock.Activate()
-	t.Cleanup(httpmock.DeactivateAndReset)
-
+	httpmock.Activate(t)
 	respond := func(req *http.Request) (*http.Response, error) {
 		f, err := os.Open("testdata" + req.URL.Path)
 		if err != nil {
