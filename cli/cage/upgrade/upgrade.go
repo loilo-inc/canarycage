@@ -53,23 +53,12 @@ func (u *upgrader) Upgrade(ctx context.Context) error {
 	// ignore current version if it's not a valid semver
 	l.Infof("upgrading from %s to %s", u.CurrentVersion, latestRelease.GetTagName())
 	var version = latestRelease.GetTagName()
-	var checksumAsset *github.ReleaseAsset
-	var binaryAsset *github.ReleaseAsset
-	checksumAssetName := fmt.Sprintf("canarycage_%s_checksums.txt", version)
-	binariAssetName := fmt.Sprintf("canarycage_%s_%s.zip", runtime.GOOS, runtime.GOARCH)
-	for _, asset := range latestRelease.Assets {
-		if asset.GetName() == checksumAssetName {
-			checksumAsset = asset
-		}
-		if asset.GetName() == binariAssetName {
-			binaryAsset = asset
-		}
-	}
-	if checksumAsset == nil || binaryAsset == nil {
-		return xerrors.Errorf("failed to find assets for version %s", version)
+	checksumAsset, binaryAsset, err := findAssets(latestRelease)
+	if err != nil {
+		return err
 	}
 	l.Infof("downloading checksums...")
-	checksum, err := parseChecksums(checksumAsset.GetBrowserDownloadURL(), binariAssetName)
+	checksum, err := parseChecksums(checksumAsset.GetBrowserDownloadURL(), binaryAsset.GetName())
 	if err != nil {
 		return err
 	}
@@ -92,6 +81,25 @@ func (u *upgrader) Upgrade(ctx context.Context) error {
 	}
 	l.Infof("upgraded to %s", version)
 	return nil
+}
+
+func findAssets(release *github.RepositoryRelease) (checksumAsset *github.ReleaseAsset, binaryAsset *github.ReleaseAsset, err error) {
+	var checksumAssetName string
+	var binaryAssetName string
+	checksumAssetName = fmt.Sprintf("canarycage_%s_checksums.txt", strings.TrimPrefix(release.GetTagName(), "v"))
+	binaryAssetName = fmt.Sprintf("canarycage_%s_%s.zip", runtime.GOOS, runtime.GOARCH)
+	for _, asset := range release.Assets {
+		if asset.GetName() == checksumAssetName {
+			checksumAsset = asset
+		}
+		if asset.GetName() == binaryAssetName {
+			binaryAsset = asset
+		}
+	}
+	if checksumAsset == nil || binaryAsset == nil {
+		return nil, nil, xerrors.Errorf("failed to find assets for version %s", release.GetTagName())
+	}
+	return checksumAsset, binaryAsset, nil
 }
 
 func findLatestRelease(cont context.Context, pre bool) (*github.RepositoryRelease, error) {

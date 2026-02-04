@@ -115,6 +115,47 @@ func TestUpgrade(t *testing.T) {
 		err := u.Upgrade(t.Context())
 		assert.EqualError(t, err, "invalid checksum line: invalid")
 	})
+}
+
+func Test_findAssets(t *testing.T) {
+	t.Run("should return assets", func(t *testing.T) {
+		release := &github.RepositoryRelease{
+			TagName: github.String("0.2.0"),
+			Assets: []*github.ReleaseAsset{
+				makeAsset("0.2.0", "canarycage_0.2.0_checksums.txt"),
+				makeAsset("0.2.0", binaryAssetName),
+			},
+		}
+		checksumAsset, binaryAsset, err := findAssets(release)
+		assert.NoError(t, err)
+		assert.Equal(t, "canarycage_0.2.0_checksums.txt", checksumAsset.GetName())
+		assert.Equal(t, binaryAssetName, binaryAsset.GetName())
+	})
+	t.Run("should trim v from tag name", func(t *testing.T) {
+		release := &github.RepositoryRelease{
+			TagName: github.String("v0.2.0"),
+			Assets: []*github.ReleaseAsset{
+				makeAsset("v0.2.0", "canarycage_0.2.0_checksums.txt"),
+				makeAsset("v0.2.0", binaryAssetName),
+			},
+		}
+		checksumAsset, binaryAsset, err := findAssets(release)
+		assert.NoError(t, err)
+		assert.Equal(t, "canarycage_0.2.0_checksums.txt", checksumAsset.GetName())
+		assert.Equal(t, binaryAssetName, binaryAsset.GetName())
+	})
+	t.Run("should return error if assets not found", func(t *testing.T) {
+		release := &github.RepositoryRelease{
+			TagName: github.String("0.2.0"),
+			Assets: []*github.ReleaseAsset{
+				makeAsset("0.2.0", "some_other_file.txt"),
+			},
+		}
+		checksumAsset, binaryAsset, err := findAssets(release)
+		assert.Nil(t, checksumAsset)
+		assert.Nil(t, binaryAsset)
+		assert.EqualError(t, err, "failed to find assets for version 0.2.0")
+	})
 
 }
 
