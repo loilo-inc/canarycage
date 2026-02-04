@@ -84,10 +84,9 @@ func (u *upgrader) Upgrade(ctx context.Context) error {
 }
 
 func findAssets(release *github.RepositoryRelease) (checksumAsset *github.ReleaseAsset, binaryAsset *github.ReleaseAsset, err error) {
-	var checksumAssetName string
-	var binaryAssetName string
-	checksumAssetName = fmt.Sprintf("canarycage_%s_checksums.txt", strings.TrimPrefix(release.GetTagName(), "v"))
-	binaryAssetName = fmt.Sprintf("canarycage_%s_%s.zip", runtime.GOOS, runtime.GOARCH)
+	version := strings.TrimPrefix(release.GetTagName(), "v")
+	checksumAssetName := fmt.Sprintf("canarycage_%s_checksums.txt", version)
+	binaryAssetName := fmt.Sprintf("canarycage_%s_%s.zip", runtime.GOOS, runtime.GOARCH)
 	for _, asset := range release.Assets {
 		if asset.GetName() == checksumAssetName {
 			checksumAsset = asset
