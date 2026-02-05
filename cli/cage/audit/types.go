@@ -33,31 +33,31 @@ type ScanResult struct {
 	Err  error
 }
 
-type ScanStaus string
+type ScanStatus string
 
 const (
-	ScanStatusOK         ScanStaus = "OK"
-	ScanStatusWarning    ScanStaus = "WARNING"
-	ScanStatusVulnerable ScanStaus = "VULNERABLE"
-	ScanStatusError      ScanStaus = "ERROR"
-	ScanStatusNA         ScanStaus = "N/A"
+	ScanStatusOK         ScanStatus = "OK"
+	ScanStatusWarning    ScanStatus = "WARNING"
+	ScanStatusVulnerable ScanStatus = "VULNERABLE"
+	ScanStatusError      ScanStatus = "ERROR"
+	ScanStatusNA         ScanStatus = "N/A"
 )
 
 func (r ScanResult) Summary() ScanResultSummary {
-	var status ScanStaus = ScanStatusOK
+	var status ScanStatus = ScanStatusOK
 	var critical, high, medium, low, info int32
 	cves := r.Cves
 	for _, f := range cves {
 		switch f.Severity {
-		case "CRITICAL":
+		case ecrtypes.FindingSeverityCritical:
 			critical++
-		case "HIGH":
+		case ecrtypes.FindingSeverityHigh:
 			high++
-		case "MEDIUM":
+		case ecrtypes.FindingSeverityMedium:
 			medium++
-		case "LOW":
+		case ecrtypes.FindingSeverityLow:
 			low++
-		case "INFORMATIONAL":
+		case ecrtypes.FindingSeverityInformational:
 			info++
 		}
 	}
@@ -83,14 +83,14 @@ func (r ScanResult) Summary() ScanResultSummary {
 }
 
 type ScanResultSummary struct {
-	ContainerName string    `json:"container_name"`
-	Status        ScanStaus `json:"status"`
-	CriticalCount int32     `json:"critical_count"`
-	HighCount     int32     `json:"high_count"`
-	MediumCount   int32     `json:"medium_count"`
-	LowCount      int32     `json:"low_count"`
-	InfoCount     int32     `json:"info_count"`
-	ImageURI      string    `json:"image_uri"`
+	ContainerName string     `json:"container_name"`
+	Status        ScanStatus `json:"status"`
+	CriticalCount int32      `json:"critical_count"`
+	HighCount     int32      `json:"high_count"`
+	MediumCount   int32      `json:"medium_count"`
+	LowCount      int32      `json:"low_count"`
+	InfoCount     int32      `json:"info_count"`
+	ImageURI      string     `json:"image_uri"`
 }
 
 func unwrapAttributes(attrs []ecrtypes.Attribute) map[string]string {
