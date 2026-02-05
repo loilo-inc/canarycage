@@ -22,6 +22,8 @@ jobs:
       - run: go build github.com/loilo-inc/canarycage/cli/cage
       - run: go test ./... -coverprofile=coverage.txt -covermode=count
       - uses: codecov/codecov-action@v5
+        # skip if pr from dependabot, as it doesn't have access to secrets
+        if: github.actor != 'dependabot[bot]'
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
