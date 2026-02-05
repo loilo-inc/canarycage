@@ -11,6 +11,7 @@ import (
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -177,6 +178,26 @@ func TestScanImage(t *testing.T) {
 		result := scanImage(ctx, stub, imageInfo)
 
 		assert.Equal(t, scanErr, result.Err)
+		assert.Equal(t, imageInfo, result.ImageInfo)
+		assert.Nil(t, result.Cves)
+	})
+
+	t.Run("returns ErrScanNotFound when scan not found", func(t *testing.T) {
+		imageID := &ecrtypes.ImageIdentifier{
+			ImageTag: aws.String("test-tag"),
+		}
+		scanErr := &smithy.GenericAPIError{
+			Code:    "ScanNotFoundException",
+			Message: "Scan not found",
+		}
+		stub := &stubEcrTool{
+			imageID: imageID,
+			errScan: scanErr,
+		}
+
+		result := scanImage(ctx, stub, imageInfo)
+
+		assert.Equal(t, ErrScanNotFound, result.Err)
 		assert.Equal(t, imageInfo, result.ImageInfo)
 		assert.Nil(t, result.Cves)
 	})
