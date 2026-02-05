@@ -74,7 +74,7 @@ func Test_ScanResult_Summary(t *testing.T) {
 		want   ScanResultSummary
 	}{
 		{
-			name: "no findings - NONE status",
+			name: "no findings - OK status",
 			result: ScanResult{
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
