@@ -221,3 +221,40 @@ func TestScanImage(t *testing.T) {
 		assert.Empty(t, result.Cves)
 	})
 }
+func TestParseError(t *testing.T) {
+	t.Run("returns ErrScanNotFound when error code is ScanNotFoundException", func(t *testing.T) {
+		scanErr := &smithy.GenericAPIError{
+			Code:    "ScanNotFoundException",
+			Message: "Scan not found",
+		}
+
+		result := parseError(scanErr)
+
+		assert.Equal(t, ErrScanNotFound, result)
+	})
+
+	t.Run("returns original error when error code is not ScanNotFoundException", func(t *testing.T) {
+		otherErr := &smithy.GenericAPIError{
+			Code:    "OtherException",
+			Message: "Some other error",
+		}
+
+		result := parseError(otherErr)
+
+		assert.Equal(t, otherErr, result)
+	})
+
+	t.Run("returns original error when error is not smithy.APIError", func(t *testing.T) {
+		standardErr := errors.New("standard error")
+
+		result := parseError(standardErr)
+
+		assert.Equal(t, standardErr, result)
+	})
+
+	t.Run("returns original error when error is nil", func(t *testing.T) {
+		result := parseError(nil)
+
+		assert.Nil(t, result)
+	})
+}
