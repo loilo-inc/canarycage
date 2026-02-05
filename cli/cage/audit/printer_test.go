@@ -3,6 +3,7 @@ package audit
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -54,17 +55,8 @@ func TestPrinter_Print(t *testing.T) {
 		result := makeScanResult()
 		printer.Print(result)
 
-		// Check that "No CVEs found" message is present
-		found := false
-		for _, log := range p.Logs {
-			if log == "No CVEs found\n" {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Error("Expected 'No CVEs found' message")
-		}
+		assert.Equal(t, p.Logs, []string{"No CVEs found\n"})
+		assert.Len(t, p.Stderr, 0)
 	})
 
 	t.Run("prints table header", func(t *testing.T) {
@@ -74,16 +66,11 @@ func TestPrinter_Print(t *testing.T) {
 		result := makeScanResult(ecrtypes.FindingSeverityCritical)
 		printer.Print(result)
 
-		// Check that header contains expected columns
-		if len(p.Logs) == 0 {
-			t.Fatal("Expected logs to be generated")
-		}
+		assert.NotEmpty(t, p.Logs, "Expected logs to be generated")
 		header := p.Logs[0]
 		expectedCols := []string{"CONTAINER", "STATUS", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "IMAGE"}
 		for _, col := range expectedCols {
-			if !strings.Contains(header, col) {
-				t.Errorf("Header missing column: %s", col)
-			}
+			assert.Contains(t, header, col)
 		}
 	})
 
@@ -98,30 +85,19 @@ func TestPrinter_Print(t *testing.T) {
 		)
 		printer.Print(result)
 
-		// Should have CRITICAL, HIGH, MEDIUM sections
-		criticalFound := false
-		highFound := false
-		mediumFound := false
-		for _, log := range p.Logs {
-			if strings.Contains(log, "CRITICAL") && strings.Contains(log, "===") {
-				criticalFound = true
-			}
-			if strings.Contains(log, "HIGH") && strings.Contains(log, "===") {
-				highFound = true
-			}
-			if strings.Contains(log, "MEDIUM") && strings.Contains(log, "===") {
-				mediumFound = true
-			}
-		}
-		if !criticalFound {
-			t.Error("Expected CRITICAL section")
-		}
-		if !highFound {
-			t.Error("Expected HIGH section")
-		}
-		if !mediumFound {
-			t.Error("Expected MEDIUM section")
-		}
+		criticalFound := slices.ContainsFunc(p.Logs, func(log string) bool {
+			return strings.Contains(log, "CRITICAL") && strings.Contains(log, "===")
+		})
+		highFound := slices.ContainsFunc(p.Logs, func(log string) bool {
+			return strings.Contains(log, "HIGH") && strings.Contains(log, "===")
+		})
+		mediumFound := slices.ContainsFunc(p.Logs, func(log string) bool {
+			return strings.Contains(log, "MEDIUM") && strings.Contains(log, "===")
+		})
+
+		assert.True(t, criticalFound, "Expected CRITICAL section")
+		assert.True(t, highFound, "Expected HIGH section")
+		assert.True(t, mediumFound, "Expected MEDIUM section")
 	})
 
 	t.Run("prints total summary with counts", func(t *testing.T) {
@@ -134,17 +110,10 @@ func TestPrinter_Print(t *testing.T) {
 		)
 		printer.Print(result)
 
-		// Check for total line
-		totalFound := false
-		for _, log := range p.Logs {
-			if strings.Contains(log, "Total:") {
-				totalFound = true
-				break
-			}
-		}
-		if !totalFound {
-			t.Error("Expected Total summary line")
-		}
+		totalFound := slices.ContainsFunc(p.Logs, func(log string) bool {
+			return strings.Contains(log, "Total:")
+		})
+		assert.True(t, totalFound, "Expected Total summary line")
 	})
 }
 
@@ -163,9 +132,7 @@ func TestPrinter_logVuln(t *testing.T) {
 		printer := NewPrinter(d, true, false)
 		printer.logVuln(ecrtypes.FindingSeverityCritical, []Vuln{})
 
-		if len(p.Logs) != 0 {
-			t.Errorf("Expected no logs, got %d", len(p.Logs))
-		}
+		assert.Empty(t, p.Logs)
 	})
 
 	t.Run("prints severity header", func(t *testing.T) {
@@ -184,16 +151,10 @@ func TestPrinter_logVuln(t *testing.T) {
 
 		printer.logVuln(ecrtypes.FindingSeverityCritical, findings)
 
-		headerFound := false
-		for _, log := range logger.Logs {
-			if strings.Contains(log, "CRITICAL") && strings.Contains(log, "===") {
-				headerFound = true
-				break
-			}
-		}
-		if !headerFound {
-			t.Error("Expected severity header with CRITICAL")
-		}
+		headerFound := slices.ContainsFunc(logger.Logs, func(log string) bool {
+			return strings.Contains(log, "CRITICAL") && strings.Contains(log, "===")
+		})
+		assert.True(t, headerFound, "Expected severity header with CRITICAL")
 	})
 
 	t.Run("prints CVE name and URI", func(t *testing.T) {
@@ -215,10 +176,9 @@ func TestPrinter_logVuln(t *testing.T) {
 
 		printer.logVuln(ecrtypes.FindingSeverityMedium, findings)
 
-		assert := assert.New(t)
-		assert.Contains(logger.Logs[0], "=== MEDIUM ===")
-		assert.Contains(logger.Stdout[1], "- CVE-2023-0001 container-1, container-2 \n")
-		assert.Contains(logger.Stdout[2], "test-package::1.2.3 (http://example.com)\n")
+		assert.Contains(t, logger.Logs[0], "=== MEDIUM ===")
+		assert.Contains(t, logger.Stdout[1], "- CVE-2023-0001 container-1, container-2 \n")
+		assert.Contains(t, logger.Stdout[2], "test-package::1.2.3 (http://example.com)\n")
 	})
 
 	t.Run("uses unknown for missing package info", func(t *testing.T) {
@@ -240,10 +200,9 @@ func TestPrinter_logVuln(t *testing.T) {
 
 		printer.logVuln(ecrtypes.FindingSeverityLow, findings)
 
-		assert := assert.New(t)
-		assert.Contains(p.Logs[0], "=== LOW ===")
-		assert.Contains(p.Logs[1], "- CVE-2023-0001 container-1 \n")
-		assert.Contains(p.Logs[2], "unknown::unknown (http://example.com)\n")
+		assert.Contains(t, p.Logs[0], "=== LOW ===")
+		assert.Contains(t, p.Logs[1], "- CVE-2023-0001 container-1 \n")
+		assert.Contains(t, p.Logs[2], "unknown::unknown (http://example.com)\n")
 	})
 
 	t.Run("prints description when logDetail is true", func(t *testing.T) {
@@ -262,16 +221,10 @@ func TestPrinter_logVuln(t *testing.T) {
 
 		printer.logVuln(ecrtypes.FindingSeverityHigh, findings)
 
-		descFound := false
-		for _, log := range p.Logs {
-			if strings.Contains(log, "Detailed vulnerability description") {
-				descFound = true
-				break
-			}
-		}
-		if !descFound {
-			t.Error("Expected description in output when logDetail is true")
-		}
+		descFound := slices.ContainsFunc(p.Logs, func(log string) bool {
+			return strings.Contains(log, "Detailed vulnerability description")
+		})
+		assert.True(t, descFound, "Expected description in output when logDetail is true")
 	})
 
 	t.Run("does not print description when logDetail is false", func(t *testing.T) {
@@ -290,16 +243,10 @@ func TestPrinter_logVuln(t *testing.T) {
 
 		printer.logVuln(ecrtypes.FindingSeverityHigh, findings)
 
-		descFound := false
-		for _, log := range logger.Logs {
-			if strings.Contains(log, "Detailed vulnerability description") {
-				descFound = true
-				break
-			}
-		}
-		if descFound {
-			t.Error("Expected no description in output when logDetail is false")
-		}
+		descFound := slices.ContainsFunc(logger.Logs, func(log string) bool {
+			return strings.Contains(log, "Detailed vulnerability description")
+		})
+		assert.False(t, descFound, "Expected no description in output when logDetail is false")
 	})
 }
 
@@ -327,12 +274,11 @@ func TestPrinter_PrintJSON(t *testing.T) {
 
 		printer.PrintJSON(metadata, result)
 
-		assert := assert.New(t)
-		assert.NotEmpty(p.Stdout)
+		assert.NotEmpty(t, p.Stdout)
 
 		var parsed FinalResult
 		err := json.Unmarshal([]byte(p.Stdout[0]), &parsed)
-		assert.NoError(err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("handles empty scan results", func(t *testing.T) {
@@ -348,11 +294,10 @@ func TestPrinter_PrintJSON(t *testing.T) {
 
 		printer.PrintJSON(metadata, result)
 
-		assert := assert.New(t)
-		assert.NotEmpty(p.Stdout)
+		assert.NotEmpty(t, p.Stdout)
 
 		var parsed FinalResult
 		err := json.Unmarshal([]byte(p.Stdout[0]), &parsed)
-		assert.NoError(err)
+		assert.NoError(t, err)
 	})
 }

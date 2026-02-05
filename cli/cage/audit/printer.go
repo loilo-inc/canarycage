@@ -35,15 +35,20 @@ func NewPrinter(di *di.D, noColor, logDetail bool) *printer {
 
 func (p *printer) Print(scanResults []ScanResult) {
 	l := p.di.Get(key.Printer).(logger.Printer)
+	agg := NewAggregater()
+	for _, r := range scanResults {
+		agg.Add(r)
+	}
+	total := agg.TotalCVECount()
+	if total == 0 {
+		l.Printf("%s\n", p.color.Greenf("No CVEs found"))
+		return
+	}
 	containerMax, imageMax := MaxHeaderWidth(scanResults)
 	// |container|status|critical|high|medium|low|info|image|
 	headerFmt := fmt.Sprintf("|%%-%ds|%%-10s|%%-8s|%%-5s|%%-6s|%%-4s|%%-4s|%%-%ds|\n", containerMax, imageMax)
 	l.Printf(headerFmt, "CONTAINER", "STATUS", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "IMAGE")
 	bodyFmt := fmt.Sprintf("|%%-%ds|%%-10s|%%-8d|%%-5d|%%-6d|%%-4d|%%-4d|%%-%ds|\n", containerMax, imageMax)
-	agg := NewAggregater()
-	for _, r := range scanResults {
-		agg.Add(r)
-	}
 	for _, summaries := range agg.summaries {
 		for _, summary := range summaries {
 			l.Printf(
@@ -63,12 +68,6 @@ func (p *printer) Print(scanResults []ScanResult) {
 	p.logVuln(ecrtypes.FindingSeverityCritical, result.CriticalCves())
 	p.logVuln(ecrtypes.FindingSeverityHigh, result.HighCves())
 	p.logVuln(ecrtypes.FindingSeverityMedium, result.MediumCves())
-	total := agg.TotalCVECount()
-	color := p.color
-	if total == 0 {
-		l.Printf("%s\n", color.Greenf("No CVEs found"))
-		return
-	}
 	summary := agg.SummarizeTotal()
 	highest := &severityPrinter{
 		severity: summary.HighestSeverity,
