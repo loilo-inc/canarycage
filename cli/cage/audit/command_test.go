@@ -52,7 +52,7 @@ func TestAuditCommandRun(t *testing.T) {
 			b.Set(key.Time, test.NewNeverTimer())
 		})
 
-		var results []*audit.ScanResult
+		var results []audit.ScanResult
 		gomock.InOrder(
 			mockScanner.EXPECT().Scan(t.Context(), "cluster", "service").Return(results, nil),
 		)
@@ -82,7 +82,7 @@ func TestAuditCommandRun(t *testing.T) {
 			b.Set(key.Time, test.NewNeverTimer())
 		})
 
-		var results []*audit.ScanResult
+		var results []audit.ScanResult
 		gomock.InOrder(
 			mockScanner.EXPECT().Scan(t.Context(), "cluster", "service").Return(results, nil),
 		)

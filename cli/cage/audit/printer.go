@@ -19,8 +19,8 @@ type printer struct {
 }
 
 type Printer interface {
-	Print(result []*ScanResult)
-	PrintJSON(metadata Target, scanResults []*ScanResult)
+	Print(result []ScanResult)
+	PrintJSON(metadata Target, scanResults []ScanResult)
 }
 
 var _ Printer = (*printer)(nil)
@@ -33,7 +33,7 @@ func NewPrinter(di *di.D, noColor, logDetail bool) *printer {
 	}
 }
 
-func (p *printer) Print(scanResults []*ScanResult) {
+func (p *printer) Print(scanResults []ScanResult) {
 	l := p.di.Get(key.Printer).(logger.Printer)
 	containerMax, imageMax := MaxHeaderWidth(scanResults)
 	// |container|status|critical|high|medium|low|info|image|
@@ -90,7 +90,7 @@ func (p *printer) Print(scanResults []*ScanResult) {
 	)
 }
 
-func (p *printer) PrintJSON(metadata Target, scanResults []*ScanResult) {
+func (p *printer) PrintJSON(metadata Target, scanResults []ScanResult) {
 	l := p.di.Get(key.Printer).(logger.Printer)
 	t := p.di.Get(key.Time).(types.Time)
 	agg := NewAggregater()
@@ -135,7 +135,7 @@ func (i *ImageInfo) formatImageLabel() string {
 	return fmt.Sprintf("%s/%s:%s", i.Registry, i.Repository, i.Tag)
 }
 
-func MaxHeaderWidth(imageInfos []*ScanResult) (int, int) {
+func MaxHeaderWidth(imageInfos []ScanResult) (int, int) {
 	containerMax := len("CONTAINER")
 	imageMax := len("IMAGE")
 	for _, info := range imageInfos {

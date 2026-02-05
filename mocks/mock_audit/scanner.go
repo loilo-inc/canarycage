@@ -42,10 +42,10 @@ func (m *MockScanner) EXPECT() *MockScannerMockRecorder {
 }
 
 // Scan mocks base method.
-func (m *MockScanner) Scan(ctx context.Context, cluster, service string) ([]*audit.ScanResult, error) {
+func (m *MockScanner) Scan(ctx context.Context, cluster, service string) ([]audit.ScanResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Scan", ctx, cluster, service)
-	ret0, _ := ret[0].([]*audit.ScanResult)
+	ret0, _ := ret[0].([]audit.ScanResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

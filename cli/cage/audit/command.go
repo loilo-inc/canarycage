@@ -44,7 +44,7 @@ func (a *command) Run(ctx context.Context) (err error) {
 	return nil
 }
 
-func (a *command) doScan(ctx context.Context) (results []*ScanResult, err error) {
+func (a *command) doScan(ctx context.Context) (results []ScanResult, err error) {
 	l := a.di.Get(key.Printer).(logger.Printer)
 	t := a.di.Get(key.Time).(types.Time)
 	defer l.PrintErrf("\r")
