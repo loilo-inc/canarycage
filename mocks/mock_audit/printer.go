@@ -41,7 +41,7 @@ func (m *MockPrinter) EXPECT() *MockPrinterMockRecorder {
 }
 
 // Print mocks base method.
-func (m *MockPrinter) Print(result []*audit.ScanResult) {
+func (m *MockPrinter) Print(result []audit.ScanResult) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Print", result)
 }
@@ -53,7 +53,7 @@ func (mr *MockPrinterMockRecorder) Print(result any) *gomock.Call {
 }
 
 // PrintJSON mocks base method.
-func (m *MockPrinter) PrintJSON(metadata audit.Target, scanResults []*audit.ScanResult) {
+func (m *MockPrinter) PrintJSON(metadata audit.Target, scanResults []audit.ScanResult) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "PrintJSON", metadata, scanResults)
 }

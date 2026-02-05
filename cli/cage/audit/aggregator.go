@@ -12,32 +12,19 @@ import (
 type aggregater struct {
 	cves            map[string]CVE
 	cveToContainers map[string]set.Set[string]
-	summaries       map[string][]*ScanResultSummary
+	summaries       map[string][]ScanResultSummary
 }
 
 func NewAggregater() *aggregater {
 	return &aggregater{
 		cves:            make(map[string]CVE),
 		cveToContainers: make(map[string]set.Set[string]),
-		summaries:       make(map[string][]*ScanResultSummary)}
+		summaries:       make(map[string][]ScanResultSummary)}
 }
 
-func (a *aggregater) Add(r *ScanResult) {
+func (a *aggregater) Add(r ScanResult) {
 	container := r.ContainerName
-	if r.Err != nil {
-		a.summaries[container] = append(a.summaries[container], &ScanResultSummary{
-			ContainerName: container,
-			Status:        "ERROR",
-		})
-		return
-	} else if len(r.Cves) == 0 {
-		a.summaries[container] = append(a.summaries[container], &ScanResultSummary{
-			ContainerName: container,
-			Status:        "N/A",
-		})
-		return
-	}
-	summary := summaryScanResult(r)
+	summary := r.Summary()
 	a.summaries[container] = append(a.summaries[container], summary)
 	for _, f := range r.Cves {
 		if _, exists := a.cves[f.Name]; !exists {

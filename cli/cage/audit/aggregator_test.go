@@ -83,58 +83,131 @@ func TestNewAggregater(t *testing.T) {
 }
 
 func TestAggregater_Add(t *testing.T) {
-	tests := []struct {
-		name         string
-		scanResult   *ScanResult
-		wantStatus   string
-		wantCVECount int
-	}{
-		{
-			name: "add result with error",
-			scanResult: &ScanResult{
-				Err: assert.AnError,
+	t.Run("adds single CVE from scan result", func(t *testing.T) {
+		agg := NewAggregater()
+		scanResult := ScanResult{
+			ImageInfo: ImageInfo{ContainerName: "container1"},
+			Cves: []CVE{
+				{Name: "CVE-2021-1234", Severity: ecrtypes.FindingSeverityCritical},
 			},
-			wantStatus:   "ERROR",
-			wantCVECount: 0,
-		},
-		{
-			name:         "add result with nil findings",
-			scanResult:   &ScanResult{},
-			wantStatus:   "N/A",
-			wantCVECount: 0,
-		},
-		{
-			name: "add result with findings",
-			scanResult: &ScanResult{
-				ImageInfo: ImageInfo{
-					ContainerName: "test-container",
-				},
-				Cves: []CVE{
-					{
-						Name:     "CVE-2021-1234",
-						Severity: ecrtypes.FindingSeverityCritical,
-					},
-					{
-						Name:     "CVE-2021-5678",
-						Severity: ecrtypes.FindingSeverityHigh,
-					},
-				},
+		}
+
+		agg.Add(scanResult)
+
+		assert.Equal(t, 1, len(agg.cves))
+		assert.Equal(t, "CVE-2021-1234", agg.cves["CVE-2021-1234"].Name)
+		assert.Contains(t, agg.cveToContainers["CVE-2021-1234"].Values(), "container1")
+	})
+
+	t.Run("adds multiple CVEs from single scan result", func(t *testing.T) {
+		agg := NewAggregater()
+		scanResult := ScanResult{
+			ImageInfo: ImageInfo{ContainerName: "container1"},
+			Cves: []CVE{
+				{Name: "CVE-2021-1111", Severity: ecrtypes.FindingSeverityCritical},
+				{Name: "CVE-2021-2222", Severity: ecrtypes.FindingSeverityHigh},
+				{Name: "CVE-2021-3333", Severity: ecrtypes.FindingSeverityMedium},
 			},
-			wantStatus:   "VULNERABLE",
-			wantCVECount: 2,
-		},
-	}
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			agg := NewAggregater()
-			agg.Add(tt.scanResult)
-			assert.Equal(t, 1, len(agg.summaries))
-			assert.Equal(t, tt.wantStatus, agg.summaries[tt.scanResult.ImageInfo.ContainerName][0].Status)
-			assert.Equal(t, tt.wantCVECount, len(agg.cves))
-		})
+		agg.Add(scanResult)
 
-	}
+		assert.Equal(t, 3, len(agg.cves))
+		assert.NotNil(t, agg.cves["CVE-2021-1111"])
+		assert.NotNil(t, agg.cves["CVE-2021-2222"])
+		assert.NotNil(t, agg.cves["CVE-2021-3333"])
+	})
+
+	t.Run("adds same CVE from multiple containers", func(t *testing.T) {
+		agg := NewAggregater()
+		scanResult1 := ScanResult{
+			ImageInfo: ImageInfo{ContainerName: "container1"},
+			Cves: []CVE{
+				{Name: "CVE-2021-1234", Severity: ecrtypes.FindingSeverityCritical},
+			},
+		}
+		scanResult2 := ScanResult{
+			ImageInfo: ImageInfo{ContainerName: "container2"},
+			Cves: []CVE{
+				{Name: "CVE-2021-1234", Severity: ecrtypes.FindingSeverityCritical},
+			},
+		}
+
+		agg.Add(scanResult1)
+		agg.Add(scanResult2)
+
+		assert.Equal(t, 1, len(agg.cves))
+		containers := agg.cveToContainers["CVE-2021-1234"].Values()
+		assert.Equal(t, 2, len(containers))
+		assert.Contains(t, containers, "container1")
+		assert.Contains(t, containers, "container2")
+	})
+
+	t.Run("stores scan result summary", func(t *testing.T) {
+		agg := NewAggregater()
+		scanResult := ScanResult{
+			ImageInfo: ImageInfo{ContainerName: "container1"},
+			Cves:      []CVE{},
+		}
+
+		agg.Add(scanResult)
+
+		assert.Equal(t, 1, len(agg.summaries["container1"]))
+	})
+
+	t.Run("appends multiple summaries for same container", func(t *testing.T) {
+		agg := NewAggregater()
+		scanResult1 := ScanResult{
+			ImageInfo: ImageInfo{ContainerName: "container1"},
+			Cves:      []CVE{},
+		}
+		scanResult2 := ScanResult{
+			ImageInfo: ImageInfo{ContainerName: "container1"},
+			Cves:      []CVE{},
+		}
+
+		agg.Add(scanResult1)
+		agg.Add(scanResult2)
+
+		assert.Equal(t, 2, len(agg.summaries["container1"]))
+	})
+
+	t.Run("does not duplicate CVE when added multiple times from same container", func(t *testing.T) {
+		agg := NewAggregater()
+		scanResult1 := ScanResult{
+			ImageInfo: ImageInfo{ContainerName: "container1"},
+			Cves: []CVE{
+				{Name: "CVE-2021-1234", Severity: ecrtypes.FindingSeverityCritical},
+			},
+		}
+		scanResult2 := ScanResult{
+			ImageInfo: ImageInfo{ContainerName: "container1"},
+			Cves: []CVE{
+				{Name: "CVE-2021-1234", Severity: ecrtypes.FindingSeverityCritical},
+			},
+		}
+
+		agg.Add(scanResult1)
+		agg.Add(scanResult2)
+
+		assert.Equal(t, 1, len(agg.cves))
+		containers := agg.cveToContainers["CVE-2021-1234"].Values()
+		assert.Equal(t, 1, len(containers))
+		assert.Contains(t, containers, "container1")
+	})
+
+	t.Run("handles empty CVE list", func(t *testing.T) {
+		agg := NewAggregater()
+		scanResult := ScanResult{
+			ImageInfo: ImageInfo{ContainerName: "container1"},
+			Cves:      []CVE{},
+		}
+
+		agg.Add(scanResult)
+
+		assert.Equal(t, 0, len(agg.cves))
+		assert.Equal(t, 1, len(agg.summaries["container1"]))
+	})
 }
 
 func TestAggregater_SummarizeTotal(t *testing.T) {

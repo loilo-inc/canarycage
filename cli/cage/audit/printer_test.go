@@ -14,8 +14,8 @@ import (
 )
 
 func makeScanResult(
-	list ...ecrtypes.FindingSeverity) []*ScanResult {
-	return []*ScanResult{
+	list ...ecrtypes.FindingSeverity) []ScanResult {
+	return []ScanResult{
 		{
 			ImageInfo: ImageInfo{
 				ContainerName: "test-container",
@@ -344,7 +344,7 @@ func TestPrinter_PrintJSON(t *testing.T) {
 			Cluster: "test-cluster",
 			Service: "test-service",
 		}
-		result := []*ScanResult{}
+		result := []ScanResult{}
 
 		printer.PrintJSON(metadata, result)
 

@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,15 +67,15 @@ func TestImageInfo_IsECRImage(t *testing.T) {
 	}
 }
 
-func Test_summaryScanResult(t *testing.T) {
+func Test_ScanResult_Summary(t *testing.T) {
 	tests := []struct {
 		name   string
-		result *ScanResult
-		want   *ScanResultSummary
+		result ScanResult
+		want   ScanResultSummary
 	}{
 		{
-			name: "no findings - NONE status",
-			result: &ScanResult{
+			name: "no findings - OK status",
+			result: ScanResult{
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 					Registry:      "123456789012.dkr.ecr.us-east-1.amazonaws.com",
@@ -83,9 +84,9 @@ func Test_summaryScanResult(t *testing.T) {
 				},
 				Cves: []CVE{},
 			},
-			want: &ScanResultSummary{
+			want: ScanResultSummary{
 				ContainerName: "test-container",
-				Status:        "NONE",
+				Status:        ScanStatusOK,
 				CriticalCount: 0,
 				HighCount:     0,
 				MediumCount:   0,
@@ -96,7 +97,7 @@ func Test_summaryScanResult(t *testing.T) {
 		},
 		{
 			name: "critical findings - VULNERABLE status",
-			result: &ScanResult{
+			result: ScanResult{
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
@@ -105,9 +106,9 @@ func Test_summaryScanResult(t *testing.T) {
 					{Severity: ecrtypes.FindingSeverityHigh},
 				},
 			},
-			want: &ScanResultSummary{
+			want: ScanResultSummary{
 				ContainerName: "test-container",
-				Status:        "VULNERABLE",
+				Status:        ScanStatusVulnerable,
 				CriticalCount: 1,
 				HighCount:     1,
 				MediumCount:   0,
@@ -117,7 +118,7 @@ func Test_summaryScanResult(t *testing.T) {
 		},
 		{
 			name: "high findings - VULNERABLE status",
-			result: &ScanResult{
+			result: ScanResult{
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
@@ -126,9 +127,9 @@ func Test_summaryScanResult(t *testing.T) {
 					{Severity: ecrtypes.FindingSeverityHigh},
 				},
 			},
-			want: &ScanResultSummary{
+			want: ScanResultSummary{
 				ContainerName: "test-container",
-				Status:        "VULNERABLE",
+				Status:        ScanStatusVulnerable,
 				CriticalCount: 0,
 				HighCount:     2,
 				MediumCount:   0,
@@ -138,7 +139,7 @@ func Test_summaryScanResult(t *testing.T) {
 		},
 		{
 			name: "medium findings - WARNING status",
-			result: &ScanResult{
+			result: ScanResult{
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
@@ -147,9 +148,9 @@ func Test_summaryScanResult(t *testing.T) {
 					{Severity: ecrtypes.FindingSeverityLow},
 				},
 			},
-			want: &ScanResultSummary{
+			want: ScanResultSummary{
 				ContainerName: "test-container",
-				Status:        "WARNING",
+				Status:        ScanStatusWarning,
 				CriticalCount: 0,
 				HighCount:     0,
 				MediumCount:   1,
@@ -158,8 +159,8 @@ func Test_summaryScanResult(t *testing.T) {
 			},
 		},
 		{
-			name: "low and informational findings - empty status",
-			result: &ScanResult{
+			name: "low and informational findings - OK status",
+			result: ScanResult{
 				ImageInfo: ImageInfo{
 					ContainerName: "test-container",
 				},
@@ -168,9 +169,9 @@ func Test_summaryScanResult(t *testing.T) {
 					{Severity: ecrtypes.FindingSeverityInformational},
 				},
 			},
-			want: &ScanResultSummary{
+			want: ScanResultSummary{
 				ContainerName: "test-container",
-				Status:        "OK",
+				Status:        ScanStatusOK,
 				CriticalCount: 0,
 				HighCount:     0,
 				MediumCount:   0,
@@ -180,7 +181,7 @@ func Test_summaryScanResult(t *testing.T) {
 		},
 		{
 			name: "mixed severity findings",
-			result: &ScanResult{
+			result: ScanResult{
 				ImageInfo: ImageInfo{
 					ContainerName: "mixed-container",
 				},
@@ -193,9 +194,9 @@ func Test_summaryScanResult(t *testing.T) {
 					{Severity: ecrtypes.FindingSeverityInformational},
 				},
 			},
-			want: &ScanResultSummary{
+			want: ScanResultSummary{
 				ContainerName: "mixed-container",
-				Status:        "VULNERABLE",
+				Status:        ScanStatusVulnerable,
 				CriticalCount: 2,
 				HighCount:     1,
 				MediumCount:   1,
@@ -203,11 +204,51 @@ func Test_summaryScanResult(t *testing.T) {
 				InfoCount:     1,
 			},
 		},
+		{
+			name: "ErrScanNotFound - NA status",
+			result: ScanResult{
+				ImageInfo: ImageInfo{
+					ContainerName: "test-container",
+				},
+				Err: ErrScanNotFound,
+			},
+			want: ScanResultSummary{
+				ContainerName: "test-container",
+				Status:        ScanStatusNA,
+			},
+		},
+		{
+			name: "generic error - ERROR status",
+			result: ScanResult{
+				ImageInfo: ImageInfo{
+					ContainerName: "test-container",
+				},
+				Err: errors.New("some error"),
+			},
+			want: ScanResultSummary{
+				ContainerName: "test-container",
+				Status:        ScanStatusError,
+			},
+		},
+		{
+			name: "error takes precedence over empty CVEs",
+			result: ScanResult{
+				ImageInfo: ImageInfo{
+					ContainerName: "test-container",
+				},
+				Cves: []CVE{},
+				Err:  errors.New("scan failed"),
+			},
+			want: ScanResultSummary{
+				ContainerName: "test-container",
+				Status:        ScanStatusError,
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := summaryScanResult(tt.result)
+			got := tt.result.Summary()
 			assert.Equal(t, tt.want.ContainerName, got.ContainerName)
 			assert.Equal(t, tt.want.Status, got.Status)
 			assert.Equal(t, tt.want.CriticalCount, got.CriticalCount)
@@ -468,6 +509,7 @@ func Test_findingToCVE(t *testing.T) {
 		})
 	}
 }
+
 func stringPtr(s string) *string {
 	return &s
 }

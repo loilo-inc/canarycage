@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"errors"
 	"regexp"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
@@ -32,15 +33,64 @@ type ScanResult struct {
 	Err  error
 }
 
+type ScanStatus string
+
+const (
+	ScanStatusOK         ScanStatus = "OK"
+	ScanStatusWarning    ScanStatus = "WARNING"
+	ScanStatusVulnerable ScanStatus = "VULNERABLE"
+	ScanStatusError      ScanStatus = "ERROR"
+	ScanStatusNA         ScanStatus = "N/A"
+)
+
+func (r ScanResult) Summary() ScanResultSummary {
+	var status ScanStatus = ScanStatusOK
+	var critical, high, medium, low, info int32
+	cves := r.Cves
+	for _, f := range cves {
+		switch f.Severity {
+		case ecrtypes.FindingSeverityCritical:
+			critical++
+		case ecrtypes.FindingSeverityHigh:
+			high++
+		case ecrtypes.FindingSeverityMedium:
+			medium++
+		case ecrtypes.FindingSeverityLow:
+			low++
+		case ecrtypes.FindingSeverityInformational:
+			info++
+		}
+	}
+	if errors.Is(r.Err, ErrScanNotFound) {
+		status = ScanStatusNA
+	} else if r.Err != nil {
+		status = ScanStatusError
+	} else if critical > 0 || high > 0 {
+		status = ScanStatusVulnerable
+	} else if medium > 0 {
+		status = ScanStatusWarning
+	}
+	return ScanResultSummary{
+		ContainerName: r.ContainerName,
+		Status:        status,
+		CriticalCount: critical,
+		HighCount:     high,
+		MediumCount:   medium,
+		LowCount:      low,
+		InfoCount:     info,
+		ImageURI:      r.formatImageLabel(),
+	}
+}
+
 type ScanResultSummary struct {
-	ContainerName string `json:"container_name"`
-	Status        string `json:"status"`
-	CriticalCount int32  `json:"critical_count"`
-	HighCount     int32  `json:"high_count"`
-	MediumCount   int32  `json:"medium_count"`
-	LowCount      int32  `json:"low_count"`
-	InfoCount     int32  `json:"info_count"`
-	ImageURI      string `json:"image_uri"`
+	ContainerName string     `json:"container_name"`
+	Status        ScanStatus `json:"status"`
+	CriticalCount int32      `json:"critical_count"`
+	HighCount     int32      `json:"high_count"`
+	MediumCount   int32      `json:"medium_count"`
+	LowCount      int32      `json:"low_count"`
+	InfoCount     int32      `json:"info_count"`
+	ImageURI      string     `json:"image_uri"`
 }
 
 func unwrapAttributes(attrs []ecrtypes.Attribute) map[string]string {
@@ -77,43 +127,6 @@ func findingToCVE(finding ecrtypes.ImageScanFinding) CVE {
 		cve.Description = *finding.Description
 	}
 	return cve
-}
-
-func summaryScanResult(result *ScanResult) *ScanResultSummary {
-	var status = "OK"
-	var critical, high, medium, low, info int32
-	cves := result.Cves
-	for _, f := range cves {
-		switch f.Severity {
-		case "CRITICAL":
-			critical++
-		case "HIGH":
-			high++
-		case "MEDIUM":
-			medium++
-		case "LOW":
-			low++
-		case "INFORMATIONAL":
-			info++
-		}
-	}
-	if len(result.Cves) == 0 {
-		status = "NONE"
-	} else if critical > 0 || high > 0 {
-		status = "VULNERABLE"
-	} else if medium > 0 {
-		status = "WARNING"
-	}
-	return &ScanResultSummary{
-		ContainerName: result.ContainerName,
-		Status:        status,
-		CriticalCount: critical,
-		HighCount:     high,
-		MediumCount:   medium,
-		LowCount:      low,
-		InfoCount:     info,
-		ImageURI:      result.formatImageLabel(),
-	}
 }
 
 type FinalResult struct {
