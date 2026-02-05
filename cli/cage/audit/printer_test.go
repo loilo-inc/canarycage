@@ -55,7 +55,7 @@ func TestPrinter_Print(t *testing.T) {
 		result := makeScanResult()
 		printer.Print(result)
 
-		assert.Equal(t, p.Logs, []string{"No CVEs found\n"})
+		assert.Equal(t, []string{"No CVEs found\n"}, p.Logs)
 		assert.Len(t, p.Stderr, 0)
 	})
 
