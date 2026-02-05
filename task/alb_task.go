@@ -109,10 +109,9 @@ func (c *albTask) getFargateTargetNetwork(ctx context.Context) (*string, *string
 	for _, attachment := range task.Attachments {
 		if *attachment.Status == "ATTACHED" && *attachment.Type == "ElasticNetworkInterface" {
 			for _, v := range attachment.Details {
-				switch *v.Name {
-				case "subnetId":
+				if *v.Name == "subnetId" {
 					subnetId = v.Value
-				case "privateIPv4Address":
+				} else if *v.Name == "privateIPv4Address" {
 					privateIp = v.Value
 				}
 			}
