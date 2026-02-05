@@ -66,7 +66,7 @@ func TestAuditCommandRun(t *testing.T) {
 		err := cmd.Run(t.Context())
 		assert := assert.New(t)
 		assert.NoError(err)
-		assert.Len(mockPrinter.Stdout, 1) // header + no findings
+		assert.Len(mockPrinter.Stdout, 1) // only "No CVEs found" message (no header)
 		assert.Contains(mockPrinter.Stdout[0], "No CVEs found")
 		assert.Len(mockPrinter.Stderr, 1)
 		assert.Equal(mockPrinter.Stderr[0], "\r")
