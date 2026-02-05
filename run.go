@@ -2,6 +2,7 @@ package cage
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -11,7 +12,6 @@ import (
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/types"
-	"golang.org/x/xerrors"
 )
 
 func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container *string) bool {
@@ -37,7 +37,7 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResult, error) {
 	env := c.di.Get(key.Env).(*env.Envars)
 	if !containerExistsInDefinition(env.TaskDefinitionInput, input.Container) {
-		return nil, xerrors.Errorf("🚫 '%s' not found in container definitions", *input.Container)
+		return nil, fmt.Errorf("🚫 '%s' not found in container definitions", *input.Container)
 	}
 	td, err := c.CreateNextTaskDefinition(ctx)
 	if err != nil {
@@ -67,7 +67,7 @@ func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResu
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
 	}, env.GetTaskRunningWait()); err != nil {
-		return nil, xerrors.Errorf("task failed to start: %w", err)
+		return nil, fmt.Errorf("task failed to start: %w", err)
 	}
 	l.Infof("task '%s' is running", *taskArn)
 	l.Infof("waiting for task '%s' to stop...", *taskArn)
@@ -75,20 +75,20 @@ func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResu
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
 	}, env.GetTaskStoppedWait()); err != nil {
-		return nil, xerrors.Errorf("task failed to stop: %w", err)
+		return nil, fmt.Errorf("task failed to stop: %w", err)
 	} else {
 		task := result.Tasks[0]
 		for _, c := range task.Containers {
 			if *c.Name == *input.Container {
 				if c.ExitCode == nil {
-					return nil, xerrors.Errorf("container '%s' hasn't exit", *input.Container)
+					return nil, fmt.Errorf("container '%s' hasn't exit", *input.Container)
 				} else if *c.ExitCode != 0 {
-					return nil, xerrors.Errorf("task exited with %d", *c.ExitCode)
+					return nil, fmt.Errorf("task exited with %d", *c.ExitCode)
 				}
 				return &types.RunResult{ExitCode: *c.ExitCode}, nil
 			}
 		}
 		// Never reached?
-		return nil, xerrors.Errorf("task '%s' not found in result", *taskArn)
+		return nil, fmt.Errorf("task '%s' not found in result", *taskArn)
 	}
 }

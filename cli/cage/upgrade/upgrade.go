@@ -20,7 +20,6 @@ import (
 	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
-	"golang.org/x/xerrors"
 )
 
 type upgrader struct {
@@ -96,7 +95,7 @@ func findAssets(release *github.RepositoryRelease) (checksumAsset *github.Releas
 		}
 	}
 	if checksumAsset == nil || binaryAsset == nil {
-		return nil, nil, xerrors.Errorf("failed to find assets for version %s", release.GetTagName())
+		return nil, nil, fmt.Errorf("failed to find assets for version %s", release.GetTagName())
 	}
 	return checksumAsset, binaryAsset, nil
 }
@@ -105,7 +104,7 @@ func findLatestRelease(cont context.Context, pre bool) (*github.RepositoryReleas
 	client := github.NewClient(nil)
 	releases, _, err := client.Repositories.ListReleases(cont, "loilo-inc", "canarycage", nil)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to list releases: %w", err)
+		return nil, fmt.Errorf("failed to list releases: %w", err)
 	}
 	var latestRelease *github.RepositoryRelease
 	for _, release := range releases {
@@ -122,7 +121,7 @@ func findLatestRelease(cont context.Context, pre bool) (*github.RepositoryReleas
 		}
 	}
 	if latestRelease == nil {
-		return nil, xerrors.Errorf("no releases found")
+		return nil, fmt.Errorf("no releases found")
 	}
 	return latestRelease, nil
 }
@@ -154,7 +153,7 @@ func unzipArchive(
 
 	actChecksum := sha.Sum(nil)
 	if !bytes.Equal(checksum, actChecksum) {
-		return "", xerrors.Errorf("checksum mismatch: expected %x, got %x", checksum, actChecksum)
+		return "", fmt.Errorf("checksum mismatch: expected %x, got %x", checksum, actChecksum)
 	}
 
 	ziprd, err := zip.OpenReader(zipdest.Name())
@@ -197,13 +196,13 @@ func parseChecksums(url string, file string) ([]byte, error) {
 		}
 		parts := strings.Split(line, "  ")
 		if len(parts) != 2 {
-			return nil, xerrors.Errorf("invalid checksum line: %s", line)
+			return nil, fmt.Errorf("invalid checksum line: %s", line)
 		}
 		sums[parts[1]] = parts[0]
 	}
 	checksum, ok := sums[file]
 	if !ok {
-		return nil, xerrors.Errorf("failed to find checksum for %s", file)
+		return nil, fmt.Errorf("failed to find checksum for %s", file)
 	}
 	bin, err := hex.DecodeString(checksum)
 	if err != nil {

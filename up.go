@@ -2,6 +2,7 @@ package cage
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -9,7 +10,6 @@ import (
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/types"
-	"golang.org/x/xerrors"
 )
 
 func (c *cage) Up(ctx context.Context) (*types.UpResult, error) {
@@ -25,11 +25,11 @@ func (c *cage) Up(ctx context.Context) (*types.UpResult, error) {
 		Cluster:  &env.Cluster,
 		Services: []string{env.Service},
 	}); err != nil {
-		return nil, xerrors.Errorf("couldn't describe service: %w", err)
+		return nil, fmt.Errorf("couldn't describe service: %w", err)
 	} else if len(o.Services) > 0 {
 		svc := o.Services[0]
 		if *svc.Status != "INACTIVE" {
-			return nil, xerrors.Errorf("service '%s' already exists. Use 'cage rollout' instead", env.Service)
+			return nil, fmt.Errorf("service '%s' already exists. Use 'cage rollout' instead", env.Service)
 		}
 	}
 	env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinitionArn
@@ -47,14 +47,14 @@ func (c *cage) createService(ctx context.Context, serviceDefinitionInput *ecs.Cr
 	l.Infof("creating service '%s' with task-definition '%s'...", *serviceDefinitionInput.ServiceName, *serviceDefinitionInput.TaskDefinition)
 	o, err := ecsCli.CreateService(ctx, serviceDefinitionInput)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to create service '%s': %w", *serviceDefinitionInput.ServiceName, err)
+		return nil, fmt.Errorf("failed to create service '%s': %w", *serviceDefinitionInput.ServiceName, err)
 	}
 	l.Infof("waiting for service '%s' to be STABLE", *serviceDefinitionInput.ServiceName)
 	if err := ecs.NewServicesStableWaiter(ecsCli).Wait(ctx, &ecs.DescribeServicesInput{
 		Cluster:  &env.Cluster,
 		Services: []string{*serviceDefinitionInput.ServiceName},
 	}, env.GetServiceStableWait()); err != nil {
-		return nil, xerrors.Errorf("failed to wait for service '%s' to be STABLE: %w", *serviceDefinitionInput.ServiceName, err)
+		return nil, fmt.Errorf("failed to wait for service '%s' to be STABLE: %w", *serviceDefinitionInput.ServiceName, err)
 	}
 	return o.Service, nil
 }

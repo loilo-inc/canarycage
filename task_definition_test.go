@@ -2,6 +2,7 @@ package cage
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -13,7 +14,6 @@ import (
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/xerrors"
 )
 
 func TestCage_CreateNextTaskDefinition(t *testing.T) {
@@ -48,7 +48,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 				b.Set(key.EcsCli, ecsMock)
 				b.Set(key.Logger, test.NewLogger())
 			})}
-		ecsMock.EXPECT().DescribeTaskDefinition(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("error"))
+		ecsMock.EXPECT().DescribeTaskDefinition(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("error"))
 		td, err := c.CreateNextTaskDefinition(context.Background())
 		assert.Errorf(t, err, "failed to describe next task definition: error")
 		assert.Nil(t, td)
@@ -83,7 +83,7 @@ func TestCage_CreateNextTaskDefinition(t *testing.T) {
 				b.Set(key.EcsCli, ecsMock)
 				b.Set(key.Logger, test.NewLogger())
 			})}
-		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("error"))
+		ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("error"))
 		td, err := c.CreateNextTaskDefinition(context.Background())
 		assert.Errorf(t, err, "failed to register next task definition: error")
 		assert.Nil(t, td)

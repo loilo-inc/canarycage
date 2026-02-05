@@ -2,13 +2,13 @@ package env
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"golang.org/x/xerrors"
 )
 
 type Envars struct {
@@ -49,16 +49,16 @@ func EnsureEnvars(
 ) error {
 	// required
 	if dest.Region == "" {
-		return xerrors.Errorf("--region [%s] is required", RegionKey)
+		return fmt.Errorf("--region [%s] is required", RegionKey)
 	}
 	if dest.Cluster == "" {
-		return xerrors.Errorf("--cluster [%s] is required", ClusterKey)
+		return fmt.Errorf("--cluster [%s] is required", ClusterKey)
 	}
 	if dest.Service == "" {
-		return xerrors.Errorf("--service [%s] is required", ServiceKey)
+		return fmt.Errorf("--service [%s] is required", ServiceKey)
 	}
 	if dest.TaskDefinitionArn == "" && dest.TaskDefinitionInput == nil {
-		return xerrors.Errorf("--nextTaskDefinitionArn or deploy context must be provided")
+		return fmt.Errorf("--nextTaskDefinitionArn or deploy context must be provided")
 	}
 	return nil
 }
@@ -68,10 +68,10 @@ func LoadServiceDefinition(dir string) (*ecs.CreateServiceInput, error) {
 	_, noSvc := os.Stat(svcPath)
 	var service ecs.CreateServiceInput
 	if noSvc != nil {
-		return nil, xerrors.Errorf("no 'service.json' found in %s", dir)
+		return nil, fmt.Errorf("no 'service.json' found in %s", dir)
 	}
 	if err := ReadAndUnmarshalJson(svcPath, &service); err != nil {
-		return nil, xerrors.Errorf("failed to read and unmarshal 'service.json': %s", err)
+		return nil, fmt.Errorf("failed to read and unmarshal 'service.json': %s", err)
 	}
 	return &service, nil
 }
@@ -81,10 +81,10 @@ func LoadTaskDefinition(dir string) (*ecs.RegisterTaskDefinitionInput, error) {
 	_, noTd := os.Stat(tdPath)
 	var td ecs.RegisterTaskDefinitionInput
 	if noTd != nil {
-		return nil, xerrors.Errorf("no 'task-definition.json' found in %s", dir)
+		return nil, fmt.Errorf("no 'task-definition.json' found in %s", dir)
 	}
 	if err := ReadAndUnmarshalJson(tdPath, &td); err != nil {
-		return nil, xerrors.Errorf("failed to read and unmarshal 'task-definition.json': %s", err)
+		return nil, fmt.Errorf("failed to read and unmarshal 'task-definition.json': %s", err)
 	}
 	return &td, nil
 }
@@ -134,7 +134,7 @@ func ReadFileAndApplyEnvars(path string) ([]byte, error) {
 		if envar, ok := os.LookupEnv(m[1]); ok {
 			str = strings.Replace(str, m[0], envar, -1)
 		} else {
-			return nil, xerrors.Errorf("envar literal '%s' found in %s but was not defined", m[0], path)
+			return nil, fmt.Errorf("envar literal '%s' found in %s but was not defined", m[0], path)
 		}
 	}
 	return []byte(str), nil

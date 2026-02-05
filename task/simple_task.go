@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -10,7 +11,6 @@ import (
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
-	"golang.org/x/xerrors"
 )
 
 // simpleTask is a task that isn't attachet to any load balancer or service discovery
@@ -65,7 +65,7 @@ func (c *simpleTask) waitForIdleDuration(ctx context.Context) error {
 	}
 	task := o.Tasks[0]
 	if *task.LastStatus != "RUNNING" {
-		return xerrors.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
+		return fmt.Errorf("😫 canary task has stopped: %s", *task.StoppedReason)
 	}
 	return nil
 }
