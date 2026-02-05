@@ -2,6 +2,7 @@ package cage
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -11,7 +12,6 @@ import (
 	"github.com/loilo-inc/canarycage/logger"
 	"github.com/loilo-inc/canarycage/rollout"
 	"github.com/loilo-inc/canarycage/types"
-	"golang.org/x/xerrors"
 )
 
 func (c *cage) RollOut(ctx context.Context, input *types.RollOutInput) (*types.RollOutResult, error) {
@@ -38,7 +38,7 @@ func (c *cage) doRollOut(ctx context.Context, input *types.RollOutInput) (*types
 		Cluster:  &env.Cluster,
 		Services: []string{env.Service},
 	}); err != nil {
-		return result, xerrors.Errorf("failed to describe current service due to: %w", err)
+		return result, fmt.Errorf("failed to describe current service due to: %w", err)
 	} else {
 		var service *ecstypes.Service
 		for _, s := range out.Services {
@@ -48,19 +48,19 @@ func (c *cage) doRollOut(ctx context.Context, input *types.RollOutInput) (*types
 			}
 		}
 		if service == nil {
-			return result, xerrors.Errorf("service '%s' doesn't exist. Run 'cage up' or create service before rolling out", env.Service)
+			return result, fmt.Errorf("service '%s' doesn't exist. Run 'cage up' or create service before rolling out", env.Service)
 		}
 		if *service.Status != "ACTIVE" {
-			return result, xerrors.Errorf("😵 service '%s' status is '%s'. Stop rolling out", env.Service, *service.Status)
+			return result, fmt.Errorf("😵 service '%s' status is '%s'. Stop rolling out", env.Service, *service.Status)
 		}
 		if service.LaunchType == ecstypes.LaunchTypeEc2 && env.CanaryInstanceArn == "" {
-			return result, xerrors.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'")
+			return result, fmt.Errorf("🥺 --canaryInstanceArn is required when LaunchType = 'EC2'")
 		}
 	}
 	c.logger().Infof("ensuring next task definition...")
 	var nextTaskDefinition *ecstypes.TaskDefinition
 	if o, err := c.CreateNextTaskDefinition(ctx); err != nil {
-		return result, xerrors.Errorf("failed to register next task definition due to: %w", err)
+		return result, fmt.Errorf("failed to register next task definition due to: %w", err)
 	} else {
 		nextTaskDefinition = o
 	}

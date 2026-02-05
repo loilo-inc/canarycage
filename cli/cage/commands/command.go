@@ -2,13 +2,13 @@ package commands
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/env"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/xerrors"
 )
 
 type CageCommands struct {
@@ -28,9 +28,9 @@ func RequireArgs(
 	maxArgs int,
 ) (dir string, rest []string, err error) {
 	if ctx.NArg() < minArgs {
-		return "", nil, xerrors.Errorf("invalid number of arguments. expected at least %d", minArgs)
+		return "", nil, fmt.Errorf("invalid number of arguments. expected at least %d", minArgs)
 	} else if ctx.NArg() > maxArgs {
-		return "", nil, xerrors.Errorf("invalid number of arguments. expected at most %d", maxArgs)
+		return "", nil, fmt.Errorf("invalid number of arguments. expected at most %d", maxArgs)
 	}
 	dir = ctx.Args().First()
 	rest = ctx.Args().Tail()

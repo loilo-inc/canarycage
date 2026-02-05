@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/loilo-inc/canarycage/env"
-	"golang.org/x/xerrors"
 )
 
 type Prompter struct {
@@ -24,9 +23,9 @@ func (s *Prompter) Confirm(
 ) error {
 	fmt.Fprintf(os.Stderr, "please confirm [%s]: ", name)
 	if text, err := s.Reader.ReadString('\n'); err != nil {
-		return xerrors.Errorf("failed to read from stdin: %w", err)
+		return fmt.Errorf("failed to read from stdin: %w", err)
 	} else if text[:len(text)-1] != value {
-		return xerrors.Errorf("%s is not matched. expected: %s", name, value)
+		return fmt.Errorf("%s is not matched. expected: %s", name, value)
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/loilo-inc/canarycage/key"
 	"github.com/loilo-inc/canarycage/types"
 	"github.com/loilo-inc/logos/di"
-	"golang.org/x/xerrors"
 )
 
 // albTask is a task that is attached to an Application Load Balancer
@@ -109,16 +109,17 @@ func (c *albTask) getFargateTargetNetwork(ctx context.Context) (*string, *string
 	for _, attachment := range task.Attachments {
 		if *attachment.Status == "ATTACHED" && *attachment.Type == "ElasticNetworkInterface" {
 			for _, v := range attachment.Details {
-				if *v.Name == "subnetId" {
+				switch *v.Name {
+				case "subnetId":
 					subnetId = v.Value
-				} else if *v.Name == "privateIPv4Address" {
+				case "privateIPv4Address":
 					privateIp = v.Value
 				}
 			}
 		}
 	}
 	if subnetId == nil || privateIp == nil {
-		return nil, nil, xerrors.Errorf("couldn't find ElasticNetworkInterface attachment in task")
+		return nil, nil, fmt.Errorf("couldn't find ElasticNetworkInterface attachment in task")
 	}
 	return privateIp, subnetId, nil
 }
@@ -153,7 +154,7 @@ func (c *albTask) getTargetPort() (*int32, error) {
 			return container.PortMappings[0].HostPort, nil
 		}
 	}
-	return nil, xerrors.Errorf("couldn't find host port in container definition")
+	return nil, fmt.Errorf("couldn't find host port in container definition")
 }
 
 func (c *albTask) registerToTargetGroup(ctx context.Context) error {
@@ -200,7 +201,7 @@ func (c *albTask) waitUntilTargetHealthy(
 					}
 				}
 				if recentState == nil {
-					return xerrors.Errorf("'%s' is not registered to the target group '%s'", *c.target.Id, *c.lb.TargetGroupArn)
+					return fmt.Errorf("'%s' is not registered to the target group '%s'", *c.target.Id, *c.lb.TargetGroupArn)
 				}
 				l.Infof("canary task '%s' (%s:%d) state is: %s", *c.taskArn, *c.target.Id, *c.target.Port, *recentState)
 				switch *recentState {
@@ -216,7 +217,7 @@ func (c *albTask) waitUntilTargetHealthy(
 	}
 	// unhealthy, draining, unused
 	c.logger().Errorf("😨 canary task '%s' is unhealthy", *c.taskArn)
-	return xerrors.Errorf(
+	return fmt.Errorf(
 		"canary task '%s' (%s:%d) hasn't become to be healthy. The most recent state: %s",
 		*c.taskArn, *c.target.Id, *c.target.Port, *recentState,
 	)
