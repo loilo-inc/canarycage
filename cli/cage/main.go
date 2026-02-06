@@ -41,6 +41,7 @@ func main() {
 		cmds.Run(cageapp.NewCageCmdInput(os.Stdin, configCmdInput)),
 		commands.Upgrade(cageapp.NewUpgradeCmdInput(upgradeCmdInput), upgrade.ProvideUpgradeDI),
 		commands.Audit(appConf, audit.ProvideAuditCmd),
+		commands.Policy(),
 	}
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{
