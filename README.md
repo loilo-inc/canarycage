@@ -120,6 +120,14 @@ By default, `cage rollout` will only update the task definition of the service. 
     {
       "Effect": "Allow",
       "Action": [
+        "ecr:BatchGetImage",
+        "ecr:DescribeImageScanFindings",
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
         "elbv2:DescribeTargetGroups",
         "elbv2:DescribeTargetHealth",
         "elbv2:DescribeTargetGroupAttributes",
