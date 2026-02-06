@@ -47,7 +47,7 @@ type AggregateResult struct {
 
 func (a *aggregater) SummarizeTotal() *AggregateResult {
 	result := &AggregateResult{}
-	highest := ecrtypes.FindingSeverityInformational
+	highest := ecrtypes.FindingSeverityUndefined
 	for cve := range a.cves {
 		severity := a.cves[cve].Severity
 		switch severity {
@@ -71,7 +71,7 @@ func (a *aggregater) SummarizeTotal() *AggregateResult {
 		highest = ecrtypes.FindingSeverityMedium
 	} else if result.LowCount > 0 {
 		highest = ecrtypes.FindingSeverityLow
-	} else {
+	} else if result.InfoCount > 0 {
 		highest = ecrtypes.FindingSeverityInformational
 	}
 	result.HighestSeverity = highest
