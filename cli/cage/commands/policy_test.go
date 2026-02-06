@@ -15,10 +15,10 @@ func TestPolicy(t *testing.T) {
 	assert.Equal(t, "output IAM policy required for canarycage", cmd.Usage)
 	assert.Len(t, cmd.Flags, 1)
 
-	prettyFlag, ok := cmd.Flags[0].(*cli.BoolFlag)
+	shortFlag, ok := cmd.Flags[0].(*cli.BoolFlag)
 	assert.True(t, ok)
-	assert.Equal(t, "pretty", prettyFlag.Name)
-	assert.Equal(t, "output indented JSON", prettyFlag.Usage)
+	assert.Equal(t, "short", shortFlag.Name)
+	assert.Equal(t, "output short format", shortFlag.Usage)
 }
 
 func TestPolicyAction(t *testing.T) {
@@ -28,12 +28,12 @@ func TestPolicyAction(t *testing.T) {
 		expectErr bool
 	}{
 		{
-			name: "without pretty flag",
+			name: "without short flag",
 			args: []string{"cage", "policy"},
 		},
 		{
-			name: "with pretty flag",
-			args: []string{"cage", "policy", "--pretty"},
+			name: "with short flag",
+			args: []string{"cage", "policy", "--short"},
 		},
 	}
 

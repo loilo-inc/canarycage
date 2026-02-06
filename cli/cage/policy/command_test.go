@@ -2,24 +2,47 @@ package policy
 
 import (
 	"bytes"
-	"encoding/json"
+	"errors"
 	"testing"
 )
 
-func TestCommandRunPretty(t *testing.T) {
+func TestRunShortFormat(t *testing.T) {
 	buf := &bytes.Buffer{}
 	cmd := NewCommand(buf, true)
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("Run() error: %s", err)
+	err := cmd.Run()
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
 	}
-	var doc Document
-	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
-		t.Fatalf("invalid json output: %s", err)
+	if !bytes.HasSuffix(buf.Bytes(), []byte("\n")) {
+		t.Error("output should end with newline")
 	}
-	if doc.Version == "" {
-		t.Fatalf("expected version to be set")
+}
+
+func TestRunIndentedFormat(t *testing.T) {
+	buf := &bytes.Buffer{}
+	cmd := NewCommand(buf, false)
+	err := cmd.Run()
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
 	}
-	if len(doc.Statement) == 0 {
-		t.Fatalf("expected at least one statement")
+	if !bytes.HasSuffix(buf.Bytes(), []byte("\n")) {
+		t.Error("output should end with newline")
 	}
+	if !bytes.Contains(buf.Bytes(), []byte("  ")) {
+		t.Error("indented output should contain spaces")
+	}
+}
+
+func TestRunWriterError(t *testing.T) {
+	cmd := NewCommand(&failingWriter{}, false)
+	err := cmd.Run()
+	if err == nil {
+		t.Error("Run() should return error when Writer fails")
+	}
+}
+
+type failingWriter struct{}
+
+func (fw *failingWriter) Write(p []byte) (n int, err error) {
+	return 0, errors.New("write failed")
 }

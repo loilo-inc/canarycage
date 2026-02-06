@@ -7,11 +7,11 @@ import (
 
 type Command struct {
 	Writer io.Writer
-	Pretty bool
+	Short  bool
 }
 
-func NewCommand(writer io.Writer, pretty bool) *Command {
-	return &Command{Writer: writer, Pretty: pretty}
+func NewCommand(writer io.Writer, short bool) *Command {
+	return &Command{Writer: writer, Short: short}
 }
 
 func (c *Command) Run() error {
@@ -20,7 +20,7 @@ func (c *Command) Run() error {
 		out []byte
 		err error
 	)
-	if c.Pretty {
+	if !c.Short {
 		out, err = json.MarshalIndent(doc, "", "  ")
 	} else {
 		out, err = json.Marshal(doc)
