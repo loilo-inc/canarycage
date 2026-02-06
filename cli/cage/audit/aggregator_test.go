@@ -249,6 +249,11 @@ func TestAggregater_SummarizeTotal(t *testing.T) {
 			})
 		}
 	})
+	t.Run("set highest to UNDEFINED if no vulns", func(t *testing.T) {
+		agg := NewAggregater()
+		result := agg.SummarizeTotal()
+		assert.Equal(t, ecrtypes.FindingSeverityUndefined, result.HighestSeverity)
+	})
 }
 
 func TestAggregateResult_SeverityCounts(t *testing.T) {
