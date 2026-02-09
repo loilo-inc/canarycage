@@ -5,7 +5,6 @@
 *.so
 *.dylib
 .DS_Store
-cage
 
 # Test binary, build with `go test -c`
 *.test
