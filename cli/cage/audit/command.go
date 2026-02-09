@@ -2,7 +2,6 @@ package audit
 
 import (
 	"context"
-	"time"
 
 	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/key"
@@ -12,16 +11,14 @@ import (
 )
 
 type command struct {
-	di           *di.D
-	input        *cageapp.AuditCmdInput
-	spinInterval time.Duration
+	*cageapp.AuditCmdInput
+	di *di.D
 }
 
 func NewCommand(di *di.D, input *cageapp.AuditCmdInput) *command {
 	return &command{
-		di:           di,
-		input:        input,
-		spinInterval: 100 * time.Millisecond,
+		di:            di,
+		AuditCmdInput: input,
 	}
 }
 
@@ -30,12 +27,12 @@ func (a *command) Run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	p := NewPrinter(a.di, a.input.NoColor, a.input.LogDetail)
-	if a.input.JSON {
+	p := NewPrinter(a.di, a.NoColor, a.LogDetail)
+	if a.JSON {
 		metadata := Target{
-			Region:  a.input.Region,
-			Cluster: a.input.Cluster,
-			Service: a.input.Service,
+			Region:  a.Region,
+			Cluster: a.Cluster,
+			Service: a.Service,
 		}
 		p.PrintJSON(metadata, results)
 	} else {
@@ -53,11 +50,12 @@ func (a *command) doScan(ctx context.Context) (results []ScanResult, err error) 
 	go func() {
 		defer close(waiter)
 		scanner := a.di.Get(key.Scanner).(Scanner)
-		results, err = scanner.Scan(ctx, a.input.Cluster, a.input.Service)
+		results, err = scanner.Scan(ctx, a.Cluster, a.Service)
 		waiter <- struct{}{}
 	}()
+	interval := a.SpinInterval()
 	for {
-		timer := t.NewTimer(a.spinInterval)
+		timer := t.NewTimer(interval)
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
