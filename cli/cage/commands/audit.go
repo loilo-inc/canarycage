@@ -14,7 +14,7 @@ func Audit(app *cageapp.App, provider cageapp.AuditCmdProvider) *cli.Command {
 	return &cli.Command{
 		Name:      "audit",
 		Usage:     "Audit container images used in an ECS service",
-		ArgsUsage: "[directory path of service.json and task-definition.json]",
+		ArgsUsage: "[directory path of service.json]",
 		Flags: []cli.Flag{
 			cageapp.RegionFlag(&input.Region),
 			cageapp.ClusterFlag(&input.Cluster),
