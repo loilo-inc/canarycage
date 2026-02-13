@@ -5,11 +5,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-type App struct {
-	CI      bool
-	NoColor bool
-}
-
 func RegionFlag(dest *string) *cli.StringFlag {
 	return &cli.StringFlag{
 		Name:        "region",
