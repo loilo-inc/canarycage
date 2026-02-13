@@ -91,6 +91,22 @@ If the service is not attached to any target group, this evaluation will be skip
 
 By default, `cage rollout` will only update the task definition of the service. If you want to update the service as well, you can specify `--updateService` flag. This flag will update the service with the service definition in the `service.json` file. This is useful when you want to update the service's network configuration, load balancer configuration, or other service-level configurations.
 
+### cage audit
+
+`audit` command scans container images used by an ECS service and summarizes ECR image scan findings. Basic usage is as follows:
+
+```bash
+$ cage audit --region ${AWS_REGION} ./deploy
+```
+
+You can also specify the target service directly:
+
+```bash
+$ cage audit --region ${AWS_REGION} --cluster ${ECS_CLUSTER} --service ${ECS_SERVICE}
+```
+
+By default, the output is a table with per-container status and severity counts. Use `--detail` to include vulnerability descriptions and `--json` to output the aggregated result as JSON.
+
 ### IAM Policy
 
 `cararycage` requires several IAM policies to run. Here is an example of IAM policy for `canarycage`:
