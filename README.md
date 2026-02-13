@@ -137,7 +137,7 @@ By default, the output is a table with per-container status and severity counts.
       "Effect": "Allow",
       "Action": [
         "ecr:BatchGetImage",
-        "ecr:DescribeImageScanFindings",
+        "ecr:DescribeImageScanFindings"
       ],
       "Resource": "*"
     },
