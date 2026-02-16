@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
-	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/v5/types"
 	"github.com/stretchr/testify/assert"
 )
 

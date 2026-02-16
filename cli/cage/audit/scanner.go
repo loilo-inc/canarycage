@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	smithy "github.com/aws/smithy-go"
-	"github.com/loilo-inc/canarycage/awsiface"
+	"github.com/loilo-inc/canarycage/v5/awsiface"
 )
 
 type scanner struct {

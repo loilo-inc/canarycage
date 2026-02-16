@@ -7,11 +7,11 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/loilo-inc/canarycage/awsiface"
-	"github.com/loilo-inc/canarycage/env"
-	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/logger"
-	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/canarycage/v5/awsiface"
+	"github.com/loilo-inc/canarycage/v5/env"
+	"github.com/loilo-inc/canarycage/v5/key"
+	"github.com/loilo-inc/canarycage/v5/logger"
+	"github.com/loilo-inc/canarycage/v5/types"
 	"github.com/loilo-inc/logos/di"
 )
 

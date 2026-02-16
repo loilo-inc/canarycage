@@ -5,7 +5,7 @@ import (
 	"sort"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	"github.com/loilo-inc/canarycage/logger"
+	"github.com/loilo-inc/canarycage/v5/logger"
 	"github.com/loilo-inc/logos/v2/set"
 )
 

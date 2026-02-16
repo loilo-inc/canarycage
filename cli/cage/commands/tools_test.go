@@ -5,10 +5,10 @@ import (
 	"io"
 	"testing"
 
-	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
-	"github.com/loilo-inc/canarycage/cli/cage/commands"
-	"github.com/loilo-inc/canarycage/mocks/mock_types"
-	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/v5/cli/cage/commands"
+	"github.com/loilo-inc/canarycage/v5/mocks/mock_types"
+	"github.com/loilo-inc/canarycage/v5/types"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/mock/gomock"
 )

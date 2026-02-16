@@ -4,11 +4,11 @@ import (
 	"context"
 	"os"
 
-	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
-	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/logger"
-	"github.com/loilo-inc/canarycage/timeout"
-	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/v5/key"
+	"github.com/loilo-inc/canarycage/v5/logger"
+	"github.com/loilo-inc/canarycage/v5/timeout"
+	"github.com/loilo-inc/canarycage/v5/types"
 	"github.com/loilo-inc/logos/di"
 )
 

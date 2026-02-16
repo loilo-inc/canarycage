@@ -1,7 +1,7 @@
 package cageapp
 
 import (
-	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/v5/env"
 	"github.com/urfave/cli/v2"
 )
 

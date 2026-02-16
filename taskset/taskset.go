@@ -4,7 +4,7 @@ import (
 	"context"
 
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/loilo-inc/canarycage/task"
+	"github.com/loilo-inc/canarycage/v5/task"
 	"golang.org/x/sync/errgroup"
 )
 

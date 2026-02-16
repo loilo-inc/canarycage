@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
+	"github.com/loilo-inc/canarycage/v5/mocks/mock_awsiface"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

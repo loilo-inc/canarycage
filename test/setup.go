@@ -10,8 +10,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	"github.com/loilo-inc/canarycage/env"
-	"github.com/loilo-inc/canarycage/mocks/mock_awsiface"
+	"github.com/loilo-inc/canarycage/v5/env"
+	"github.com/loilo-inc/canarycage/v5/mocks/mock_awsiface"
 	"go.uber.org/mock/gomock"
 )
 

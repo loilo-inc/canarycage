@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/v5/env"
 )
 
 type Prompter struct {
