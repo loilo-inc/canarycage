@@ -10,7 +10,7 @@ import (
 	"github.com/loilo-inc/canarycage/v5/env"
 	"github.com/loilo-inc/canarycage/v5/key"
 	"github.com/loilo-inc/canarycage/v5/types"
-	"github.com/loilo-inc/logos/di"
+	"github.com/loilo-inc/logos/v2/di"
 )
 
 // simpleTask is a task that isn't attachet to any load balancer or service discovery

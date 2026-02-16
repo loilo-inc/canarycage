@@ -16,7 +16,7 @@ import (
 	"github.com/loilo-inc/canarycage/v5/env"
 	"github.com/loilo-inc/canarycage/v5/key"
 	"github.com/loilo-inc/canarycage/v5/types"
-	"github.com/loilo-inc/logos/di"
+	"github.com/loilo-inc/logos/v2/di"
 )
 
 // albTask is a task that is attached to an Application Load Balancer

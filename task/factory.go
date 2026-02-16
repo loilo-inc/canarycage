@@ -2,7 +2,7 @@ package task
 
 import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/loilo-inc/logos/di"
+	"github.com/loilo-inc/logos/v2/di"
 )
 
 type Factory interface {
