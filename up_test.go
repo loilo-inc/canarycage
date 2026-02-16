@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	cage "github.com/loilo-inc/canarycage"
-	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/test"
+	cage "github.com/loilo-inc/canarycage/v5"
+	"github.com/loilo-inc/canarycage/v5/key"
+	"github.com/loilo-inc/canarycage/v5/test"
 	"github.com/loilo-inc/logos/di"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"

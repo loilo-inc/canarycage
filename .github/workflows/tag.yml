@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
+      - name: Validate tag major matches go.mod module
+        run: ./.github/scripts/validate-tag-major.sh
       - name: Release
         uses: goreleaser/goreleaser-action@v6
         with:

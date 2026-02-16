@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
 	"github.com/stretchr/testify/assert"
 )
 

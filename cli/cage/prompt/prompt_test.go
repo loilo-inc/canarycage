@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/loilo-inc/canarycage/cli/cage/prompt"
-	"github.com/loilo-inc/canarycage/env"
+	"github.com/loilo-inc/canarycage/v5/cli/cage/prompt"
+	"github.com/loilo-inc/canarycage/v5/env"
 	"github.com/stretchr/testify/assert"
 )
 

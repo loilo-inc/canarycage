@@ -12,10 +12,10 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
-	"github.com/loilo-inc/canarycage/awsiface"
-	"github.com/loilo-inc/canarycage/env"
-	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/canarycage/v5/awsiface"
+	"github.com/loilo-inc/canarycage/v5/env"
+	"github.com/loilo-inc/canarycage/v5/key"
+	"github.com/loilo-inc/canarycage/v5/types"
 	"github.com/loilo-inc/logos/di"
 )
 

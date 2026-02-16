@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/canarycage/v5/types"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

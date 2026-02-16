@@ -13,7 +13,7 @@ import (
 	reflect "reflect"
 
 	types "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	task "github.com/loilo-inc/canarycage/task"
+	task "github.com/loilo-inc/canarycage/v5/task"
 	gomock "go.uber.org/mock/gomock"
 )
 

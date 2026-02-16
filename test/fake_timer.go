@@ -3,7 +3,7 @@ package test
 import (
 	"time"
 
-	"github.com/loilo-inc/canarycage/types"
+	"github.com/loilo-inc/canarycage/v5/types"
 )
 
 func newTimer(_ time.Duration) *time.Timer {

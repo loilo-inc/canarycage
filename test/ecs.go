@@ -9,8 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/google/uuid"
-	"github.com/loilo-inc/canarycage/key"
-	"github.com/loilo-inc/canarycage/logger"
+	"github.com/loilo-inc/canarycage/v5/key"
+	"github.com/loilo-inc/canarycage/v5/logger"
 )
 
 type EcsServer struct {

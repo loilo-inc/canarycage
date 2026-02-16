@@ -5,10 +5,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/loilo-inc/canarycage/cli/cage/audit"
-	"github.com/loilo-inc/canarycage/cli/cage/cageapp"
-	"github.com/loilo-inc/canarycage/cli/cage/commands"
-	"github.com/loilo-inc/canarycage/cli/cage/upgrade"
+	"github.com/loilo-inc/canarycage/v5/cli/cage/audit"
+	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/v5/cli/cage/commands"
+	"github.com/loilo-inc/canarycage/v5/cli/cage/upgrade"
 	"github.com/urfave/cli/v2"
 )
 
