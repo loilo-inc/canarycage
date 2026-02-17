@@ -1,11 +1,12 @@
 package commands
 
 import (
+	"context"
 	"errors"
 
 	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/v5/env"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func Audit(app *cageapp.App, provider cageapp.AuditCmdProvider) *cli.Command {
@@ -32,8 +33,8 @@ func Audit(app *cageapp.App, provider cageapp.AuditCmdProvider) *cli.Command {
 				Destination: &input.JSON,
 			},
 		},
-		Action: func(ctx *cli.Context) error {
-			dir, _, err := RequireArgs(ctx, 0, 1)
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			dir, _, err := RequireArgs(cmd, 0, 1)
 			if err != nil {
 				return err
 			}
@@ -53,11 +54,11 @@ func Audit(app *cageapp.App, provider cageapp.AuditCmdProvider) *cli.Command {
 			} else if input.Cluster == "" || input.Service == "" {
 				return errors.New("either directory argument or both --cluster and --service flags must be provided")
 			}
-			cmd, err := provider(ctx.Context, input)
+			auditCmd, err := provider(ctx, input)
 			if err != nil {
 				return err
 			}
-			return cmd.Run(ctx.Context)
+			return auditCmd.Run(ctx)
 		},
 	}
 }

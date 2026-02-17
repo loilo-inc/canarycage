@@ -9,13 +9,13 @@ import (
 	"github.com/loilo-inc/canarycage/v5/mocks/mock_types"
 	"github.com/loilo-inc/canarycage/v5/types"
 	"github.com/stretchr/testify/assert"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"go.uber.org/mock/gomock"
 )
 
 func TestUpgrade(t *testing.T) {
 	t.Run("Upgrade", func(t *testing.T) {
-		app := cli.NewApp()
+		app := &cli.Command{}
 		ctrl := gomock.NewController(t)
 		u := mock_types.NewMockUpgrade(ctrl)
 		u.EXPECT().Upgrade(gomock.Any()).Return(nil)
@@ -24,11 +24,11 @@ func TestUpgrade(t *testing.T) {
 				return u, nil
 			}),
 		}
-		err := app.Run([]string{"cage", "upgrade"})
+		err := app.Run(context.Background(), []string{"cage", "upgrade"})
 		assert.NoError(t, err)
 	})
 	t.Run("Upgrade with pre-release", func(t *testing.T) {
-		app := cli.NewApp()
+		app := &cli.Command{}
 		ctrl := gomock.NewController(t)
 		u := mock_types.NewMockUpgrade(ctrl)
 		u.EXPECT().Upgrade(gomock.Any()).Return(nil)
@@ -37,17 +37,17 @@ func TestUpgrade(t *testing.T) {
 				return u, nil
 			}),
 		}
-		err := app.Run([]string{"cage", "upgrade", "--pre-release"})
+		err := app.Run(context.Background(), []string{"cage", "upgrade", "--pre-release"})
 		assert.NoError(t, err)
 	})
 	t.Run("should return error when provider fails", func(t *testing.T) {
-		app := cli.NewApp()
+		app := &cli.Command{}
 		app.Commands = []*cli.Command{
 			commands.Upgrade(&cageapp.UpgradeCmdInput{}, func(_Ctx context.Context, _Input *cageapp.UpgradeCmdInput) (types.Upgrade, error) {
 				return nil, assert.AnError
 			}),
 		}
-		err := app.Run([]string{"cage", "upgrade"})
+		err := app.Run(context.Background(), []string{"cage", "upgrade"})
 		assert.Equal(t, assert.AnError, err)
 	})
 }

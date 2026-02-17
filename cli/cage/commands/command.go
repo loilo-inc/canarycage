@@ -8,7 +8,7 @@ import (
 	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/v5/env"
 	"github.com/loilo-inc/canarycage/v5/types"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 type CageCommands struct {
@@ -23,17 +23,17 @@ func NewCageCommands(
 }
 
 func RequireArgs(
-	ctx *cli.Context,
+	cmd *cli.Command,
 	minArgs int,
 	maxArgs int,
 ) (dir string, rest []string, err error) {
-	if ctx.NArg() < minArgs {
+	if cmd.NArg() < minArgs {
 		return "", nil, fmt.Errorf("invalid number of arguments. expected at least %d", minArgs)
-	} else if ctx.NArg() > maxArgs {
+	} else if cmd.NArg() > maxArgs {
 		return "", nil, fmt.Errorf("invalid number of arguments. expected at most %d", maxArgs)
 	}
-	dir = ctx.Args().First()
-	rest = ctx.Args().Tail()
+	dir = cmd.Args().First()
+	rest = cmd.Args().Tail()
 	return
 }
 

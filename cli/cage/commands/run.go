@@ -1,11 +1,13 @@
 package commands
 
 import (
+	"context"
+
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/v5/cli/cage/prompt"
 	"github.com/loilo-inc/canarycage/v5/types"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
@@ -13,7 +15,6 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 		Name:        "run",
 		Usage:       "run task with specified task definition",
 		Description: "run task with specified task definition",
-		Args:        true,
 		ArgsUsage:   "<directory path of service.json and task-definition.json> <container> <commands>...",
 		Flags: []cli.Flag{
 			cageapp.RegionFlag(&input.Region),
@@ -21,8 +22,8 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 			cageapp.TaskRunningWaitFlag(&input.CanaryTaskRunningWait),
 			cageapp.TaskStoppedWaitFlag(&input.CanaryTaskStoppedWait),
 		},
-		Action: func(ctx *cli.Context) error {
-			dir, rest, err := RequireArgs(ctx, 3, 100)
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			dir, rest, err := RequireArgs(cmd, 3, 100)
 			if err != nil {
 				return err
 			}
@@ -38,7 +39,7 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 			}
 			container := rest[0]
 			commands := rest[1:]
-			_, err = cagecli.Run(ctx.Context, &types.RunInput{
+			_, err = cagecli.Run(ctx, &types.RunInput{
 				Container: &container,
 				Overrides: &ecstypes.TaskOverride{
 					ContainerOverrides: []ecstypes.ContainerOverride{
