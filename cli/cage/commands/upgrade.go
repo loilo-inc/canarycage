@@ -1,8 +1,10 @@
 package commands
 
 import (
+	"context"
+
 	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func Upgrade(input *cageapp.UpgradeCmdInput, provider cageapp.UpgradeCmdProvider,
@@ -17,12 +19,12 @@ func Upgrade(input *cageapp.UpgradeCmdInput, provider cageapp.UpgradeCmdProvider
 				Destination: &input.PreRelease,
 			},
 		},
-		Action: func(ctx *cli.Context) error {
-			upgrader, err := provider(ctx.Context, input)
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			upgrader, err := provider(ctx, input)
 			if err != nil {
 				return err
 			}
-			return upgrader.Upgrade(ctx.Context)
+			return upgrader.Upgrade(ctx)
 		},
 	}
 }

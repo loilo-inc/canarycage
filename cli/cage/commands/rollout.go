@@ -1,11 +1,13 @@
 package commands
 
 import (
+	"context"
+
 	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/v5/cli/cage/prompt"
 	"github.com/loilo-inc/canarycage/v5/env"
 	"github.com/loilo-inc/canarycage/v5/types"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
@@ -14,7 +16,6 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 		Name:        "rollout",
 		Usage:       "roll out ECS service to next task definition",
 		Description: "start rolling out next service with current service",
-		Args:        true,
 		ArgsUsage:   "[directory path of service.json and task-definition.json]",
 		Flags: []cli.Flag{
 			cageapp.RegionFlag(&input.Region),
@@ -24,13 +25,13 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 			cageapp.CanaryTaskIdleDurationFlag(&input.CanaryTaskIdleDuration),
 			&cli.StringFlag{
 				Name:        "canaryInstanceArn",
-				EnvVars:     []string{env.CanaryInstanceArnKey},
+				Sources:     cli.EnvVars(env.CanaryInstanceArnKey),
 				Usage:       "EC2 instance ARN for placing canary task. required only when LaunchType is EC2",
 				Destination: &input.CanaryInstanceArn,
 			},
 			&cli.BoolFlag{
 				Name:        "updateService",
-				EnvVars:     []string{env.UpdateServiceKey},
+				Sources:     cli.EnvVars(env.UpdateServiceKey),
 				Usage:       "Update service configurations except for task definiton. Default is false.",
 				Destination: &updateServiceConf,
 			},
@@ -39,8 +40,8 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 			cageapp.TaskStoppedWaitFlag(&input.CanaryTaskStoppedWait),
 			cageapp.ServiceStableWaitFlag(&input.ServiceStableWait),
 		},
-		Action: func(ctx *cli.Context) error {
-			dir, _, err := RequireArgs(ctx, 1, 1)
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			dir, _, err := RequireArgs(cmd, 1, 1)
 			if err != nil {
 				return err
 			}
@@ -54,7 +55,7 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 					return err
 				}
 			}
-			_, err = cagecli.RollOut(ctx.Context, &types.RollOutInput{UpdateService: updateServiceConf})
+			_, err = cagecli.RollOut(ctx, &types.RollOutInput{UpdateService: updateServiceConf})
 			return err
 		},
 	}

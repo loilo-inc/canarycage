@@ -9,18 +9,18 @@ import (
 	"github.com/loilo-inc/canarycage/v5/cli/cage/commands"
 	"github.com/loilo-inc/canarycage/v5/mocks/mock_types"
 	"github.com/loilo-inc/canarycage/v5/types"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"go.uber.org/mock/gomock"
 )
 
 var stdinService = "ap-notheast-1\ncluster\nservice\nyes\n"
 var stdinTask = "ap-notheast-1\ncluster\nyes\n"
 
-func setup(t *testing.T, stdin io.Reader) (*cli.App, *mock_types.MockCage) {
+func setup(t *testing.T, stdin io.Reader) (*cli.Command, *mock_types.MockCage) {
 	ctrl := gomock.NewController(t)
 	cagecli := mock_types.NewMockCage(ctrl)
 	input := cageapp.NewCageCmdInput(stdin)
-	app := cli.NewApp()
+	app := &cli.Command{}
 	cmds := commands.NewCageCommands(func(ctx context.Context, input *cageapp.CageCmdInput) (types.Cage, error) {
 		return cagecli, nil
 	})

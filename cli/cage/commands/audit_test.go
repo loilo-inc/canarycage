@@ -9,27 +9,27 @@ import (
 	"github.com/loilo-inc/canarycage/v5/mocks/mock_types"
 	"github.com/loilo-inc/canarycage/v5/types"
 	"github.com/stretchr/testify/assert"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"go.uber.org/mock/gomock"
 )
 
 func TestAudit(t *testing.T) {
 	t.Run("returns error when region is missing", func(t *testing.T) {
 		app := setupAuditApp(t, nil)
-		err := app.Run([]string{"cage", "audit", "--region", ""})
+		err := app.Run(context.Background(), []string{"cage", "audit", "--region", ""})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "--region flag is required")
 	})
 	t.Run("return errors when too many arguments", func(t *testing.T) {
 		app := setupAuditApp(t, nil)
-		err := app.Run([]string{"cage", "audit", "--region", "us-east-1", "arg1", "arg2"})
+		err := app.Run(context.Background(), []string{"cage", "audit", "--region", "us-east-1", "arg1", "arg2"})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid number of arguments. expected at most 1")
 	})
 	t.Run("returns error when both directory and flags are missing", func(t *testing.T) {
 		app := setupAuditApp(t, nil)
 
-		err := app.Run([]string{"cage", "audit", "--region", "us-east-1"})
+		err := app.Run(context.Background(), []string{"cage", "audit", "--region", "us-east-1"})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "either directory argument or both --cluster and --service flags must be provided")
 	})
@@ -37,7 +37,7 @@ func TestAudit(t *testing.T) {
 	t.Run("returns error when only cluster flag is provided", func(t *testing.T) {
 		app := setupAuditApp(t, nil)
 
-		err := app.Run([]string{"cage", "audit", "--region", "us-east-1", "--cluster", "test-cluster"})
+		err := app.Run(context.Background(), []string{"cage", "audit", "--region", "us-east-1", "--cluster", "test-cluster"})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "either directory argument or both --cluster and --service flags must be provided")
 	})
@@ -45,7 +45,7 @@ func TestAudit(t *testing.T) {
 	t.Run("returns error when only service flag is provided", func(t *testing.T) {
 		app := setupAuditApp(t, nil)
 
-		err := app.Run([]string{"cage", "audit", "--region", "us-east-1", "--service", "test-service"})
+		err := app.Run(context.Background(), []string{"cage", "audit", "--region", "us-east-1", "--service", "test-service"})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "either directory argument or both --cluster and --service flags must be provided")
 	})
@@ -57,13 +57,13 @@ func TestAudit(t *testing.T) {
 			return nil, expectedErr
 		})
 
-		err := app.Run([]string{
+		err := app.Run(context.Background(), []string{
 			"cage", "audit", "--region", "us-east-1", "--cluster", "test-cluster", "--service", "test-service",
 		})
 		assert.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 	})
-	setupBase := func(t *testing.T) (*cli.App, *mock_types.MockAudit) {
+	setupBase := func(t *testing.T) (*cli.Command, *mock_types.MockAudit) {
 		t.Helper()
 		ctrl := gomock.NewController(t)
 		mockAudit := mock_types.NewMockAudit(ctrl)
@@ -75,7 +75,7 @@ func TestAudit(t *testing.T) {
 		return app, mockAudit
 	}
 	t.Run("Succcess", func(t *testing.T) {
-		setup := func(t *testing.T) *cli.App {
+		setup := func(t *testing.T) *cli.Command {
 			t.Helper()
 			app, mockAudit := setupBase(t)
 			mockAudit.EXPECT().
@@ -85,13 +85,13 @@ func TestAudit(t *testing.T) {
 		}
 		t.Run("executes scan with directory argument", func(t *testing.T) {
 			app := setup(t)
-			err := app.Run([]string{"cage", "audit",
+			err := app.Run(context.Background(), []string{"cage", "audit",
 				"--region", "us-east-1", "../../../fixtures"})
 			assert.NoError(t, err)
 		})
 		t.Run("executes scan with flags", func(t *testing.T) {
 			app := setup(t)
-			err := app.Run([]string{"cage", "audit",
+			err := app.Run(context.Background(), []string{"cage", "audit",
 				"--region", "us-east-1",
 				"--cluster", "cluster",
 				"--service", "service"})
@@ -105,7 +105,7 @@ func TestAudit(t *testing.T) {
 				Run(gomock.Any()).
 				Return(errors.New("scan error"))
 
-			err := app.Run([]string{"cage", "audit",
+			err := app.Run(context.Background(), []string{"cage", "audit",
 				"--region", "us-east-1",
 				"--cluster", "cluster",
 				"--service", "service"})
@@ -114,7 +114,7 @@ func TestAudit(t *testing.T) {
 		})
 		t.Run("error on loading service definition", func(t *testing.T) {
 			app := setupAuditApp(t, nil)
-			err := app.Run([]string{"cage", "audit",
+			err := app.Run(context.Background(), []string{"cage", "audit",
 				"--region", "us-east-1", "../../../fixtures/invalid-service"})
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "no 'service.json' found")
@@ -122,13 +122,14 @@ func TestAudit(t *testing.T) {
 	})
 }
 
-func setupAuditApp(t *testing.T, provider cageapp.AuditCmdProvider) *cli.App {
+func setupAuditApp(t *testing.T, provider cageapp.AuditCmdProvider) *cli.Command {
 	t.Helper()
 	conf := &cageapp.App{}
-	app := cli.NewApp()
-	app.Name = "cage"
-	app.Commands = []*cli.Command{
-		Audit(conf, provider),
+	app := &cli.Command{
+		Name: "cage",
+		Commands: []*cli.Command{
+			Audit(conf, provider),
+		},
 	}
 	return app
 }

@@ -1,9 +1,11 @@
 package commands
 
 import (
+	"context"
+
 	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/v5/cli/cage/prompt"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func (c *CageCommands) Up(input *cageapp.CageCmdInput) *cli.Command {
@@ -11,7 +13,6 @@ func (c *CageCommands) Up(input *cageapp.CageCmdInput) *cli.Command {
 		Name:        "up",
 		Usage:       "create new ECS service with specified task definition",
 		Description: "create new ECS service with specified task definition",
-		Args:        true,
 		ArgsUsage:   "[directory path of service.json and task-definition.json]",
 		Flags: []cli.Flag{
 			cageapp.RegionFlag(&input.Region),
@@ -21,8 +22,8 @@ func (c *CageCommands) Up(input *cageapp.CageCmdInput) *cli.Command {
 			cageapp.CanaryTaskIdleDurationFlag(&input.CanaryTaskIdleDuration),
 			cageapp.ServiceStableWaitFlag(&input.ServiceStableWait),
 		},
-		Action: func(ctx *cli.Context) error {
-			dir, _, err := RequireArgs(ctx, 1, 1)
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			dir, _, err := RequireArgs(cmd, 1, 1)
 			if err != nil {
 				return err
 			}
@@ -36,7 +37,7 @@ func (c *CageCommands) Up(input *cageapp.CageCmdInput) *cli.Command {
 					return err
 				}
 			}
-			_, err = cagecli.Up(ctx.Context)
+			_, err = cagecli.Up(ctx)
 			return err
 		},
 	}

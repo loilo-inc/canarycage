@@ -2,13 +2,13 @@ package cageapp
 
 import (
 	"github.com/loilo-inc/canarycage/v5/env"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func RegionFlag(dest *string) *cli.StringFlag {
 	return &cli.StringFlag{
 		Name:        "region",
-		EnvVars:     []string{env.RegionKey},
+		Sources:     cli.EnvVars(env.RegionKey),
 		Usage:       "aws region for ecs. if not specified, try to load from aws sessions automatically",
 		Destination: dest,
 		Required:    true,
@@ -17,7 +17,7 @@ func RegionFlag(dest *string) *cli.StringFlag {
 func ClusterFlag(dest *string) *cli.StringFlag {
 	return &cli.StringFlag{
 		Name:        "cluster",
-		EnvVars:     []string{env.ClusterKey},
+		Sources:     cli.EnvVars(env.ClusterKey),
 		Usage:       "ecs cluster name. if not specified, load from service.json",
 		Destination: dest,
 	}
@@ -25,7 +25,7 @@ func ClusterFlag(dest *string) *cli.StringFlag {
 func ServiceFlag(dest *string) *cli.StringFlag {
 	return &cli.StringFlag{
 		Name:        "service",
-		EnvVars:     []string{env.ServiceKey},
+		Sources:     cli.EnvVars(env.ServiceKey),
 		Usage:       "service name. if not specified, load from service.json",
 		Destination: dest,
 	}
@@ -33,7 +33,7 @@ func ServiceFlag(dest *string) *cli.StringFlag {
 func TaskDefinitionArnFlag(dest *string) *cli.StringFlag {
 	return &cli.StringFlag{
 		Name:        "taskDefinitionArn",
-		EnvVars:     []string{env.TaskDefinitionArnKey},
+		Sources:     cli.EnvVars(env.TaskDefinitionArnKey),
 		Usage:       "full arn or family:revision of task definition. if not specified, new task definition will be created based on task-definition.json",
 		Destination: dest,
 	}
@@ -42,7 +42,7 @@ func TaskDefinitionArnFlag(dest *string) *cli.StringFlag {
 func CanaryTaskIdleDurationFlag(dest *int) *cli.IntFlag {
 	return &cli.IntFlag{
 		Name:        "canaryTaskIdleDuration",
-		EnvVars:     []string{env.CanaryTaskIdleDuration},
+		Sources:     cli.EnvVars(env.CanaryTaskIdleDuration),
 		Usage:       "duration seconds for waiting canary task that isn't attached to target group considered as ready for serving traffic",
 		Destination: dest,
 		Value:       15,
@@ -52,7 +52,7 @@ func CanaryTaskIdleDurationFlag(dest *int) *cli.IntFlag {
 func TaskRunningWaitFlag(dest *int) *cli.IntFlag {
 	return &cli.IntFlag{
 		Name:        "taskRunningTimeout",
-		EnvVars:     []string{env.TaskRunningTimeout},
+		Sources:     cli.EnvVars(env.TaskRunningTimeout),
 		Usage:       "max duration seconds for waiting canary task running",
 		Destination: dest,
 		Category:    "ADVANCED",
@@ -63,7 +63,7 @@ func TaskRunningWaitFlag(dest *int) *cli.IntFlag {
 func TaskHealthCheckWaitFlag(dest *int) *cli.IntFlag {
 	return &cli.IntFlag{
 		Name:        "taskHealthCheckTimeout",
-		EnvVars:     []string{env.TaskHealthCheckTimeout},
+		Sources:     cli.EnvVars(env.TaskHealthCheckTimeout),
 		Usage:       "max duration seconds for waiting canary task health check",
 		Destination: dest,
 		Category:    "ADVANCED",
@@ -74,7 +74,7 @@ func TaskHealthCheckWaitFlag(dest *int) *cli.IntFlag {
 func TaskStoppedWaitFlag(dest *int) *cli.IntFlag {
 	return &cli.IntFlag{
 		Name:        "taskStoppedTimeout",
-		EnvVars:     []string{env.TaskStoppedTimeout},
+		Sources:     cli.EnvVars(env.TaskStoppedTimeout),
 		Usage:       "max duration seconds for waiting canary task stopped",
 		Destination: dest,
 		Category:    "ADVANCED",
@@ -85,7 +85,7 @@ func TaskStoppedWaitFlag(dest *int) *cli.IntFlag {
 func ServiceStableWaitFlag(dest *int) *cli.IntFlag {
 	return &cli.IntFlag{
 		Name:        "serviceStableTimeout",
-		EnvVars:     []string{env.ServiceStableTimeout},
+		Sources:     cli.EnvVars(env.ServiceStableTimeout),
 		Usage:       "max duration seconds for waiting service stable",
 		Destination: dest,
 		Category:    "ADVANCED",
