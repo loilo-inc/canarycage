@@ -13,7 +13,7 @@ import (
 	"github.com/loilo-inc/canarycage/v5/logger"
 	"github.com/loilo-inc/canarycage/v5/timeout"
 	"github.com/loilo-inc/canarycage/v5/types"
-	"github.com/loilo-inc/logos/di"
+	"github.com/loilo-inc/logos/v2/di"
 )
 
 func ProvideAuditCmd(ctx context.Context, input *cageapp.AuditCmdInput) (types.Audit, error) {

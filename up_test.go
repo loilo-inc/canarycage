@@ -7,7 +7,7 @@ import (
 	cage "github.com/loilo-inc/canarycage/v5"
 	"github.com/loilo-inc/canarycage/v5/key"
 	"github.com/loilo-inc/canarycage/v5/test"
-	"github.com/loilo-inc/logos/di"
+	"github.com/loilo-inc/logos/v2/di"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

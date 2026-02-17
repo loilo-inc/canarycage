@@ -12,7 +12,7 @@ import (
 	"github.com/loilo-inc/canarycage/v5/task"
 	"github.com/loilo-inc/canarycage/v5/taskset"
 	"github.com/loilo-inc/canarycage/v5/types"
-	"github.com/loilo-inc/logos/di"
+	"github.com/loilo-inc/logos/v2/di"
 )
 
 type Executor interface {

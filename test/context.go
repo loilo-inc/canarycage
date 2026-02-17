@@ -7,7 +7,7 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/v5/awsiface"
 	"github.com/loilo-inc/canarycage/v5/key"
-	"github.com/loilo-inc/logos/di"
+	"github.com/loilo-inc/logos/v2/di"
 )
 
 type commons struct {
