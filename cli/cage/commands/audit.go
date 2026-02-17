@@ -54,11 +54,11 @@ func Audit(app *cageapp.App, provider cageapp.AuditCmdProvider) *cli.Command {
 			} else if input.Cluster == "" || input.Service == "" {
 				return errors.New("either directory argument or both --cluster and --service flags must be provided")
 			}
-			command, err := provider(ctx, input)
+			auditCmd, err := provider(ctx, input)
 			if err != nil {
 				return err
 			}
-			return command.Run(ctx)
+			return auditCmd.Run(ctx)
 		},
 	}
 }
