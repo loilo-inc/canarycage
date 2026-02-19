@@ -3,4 +3,4 @@
 # The owners will be automatically requested for review when someone opens a pull request.
 
 # package.json files are owned by the OSS maintainer team
-package.json @loilo-inc/oss-maintainer-go
+**/package.json @loilo-inc/oss-maintainer-go
