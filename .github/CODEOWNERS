@@ -2,5 +2,5 @@
 # Each line is a file pattern followed by one or more owners.
 # The owners will be automatically requested for review when someone opens a pull request.
 
-# package.json files are owned by the OSS maintainer team
-**/package.json @loilo-inc/oss-maintainer-go
+# go.mod files are owned by the OSS maintainer team
+go.mod @loilo-inc/oss-maintainer-go
