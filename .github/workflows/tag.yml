@@ -19,7 +19,7 @@ jobs:
       - name: Validate tag major matches go.mod module
         run: ./.github/scripts/validate-tag-major.sh
       - name: Release
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           # either 'goreleaser' (default) or 'goreleaser-pro'
           distribution: goreleaser
