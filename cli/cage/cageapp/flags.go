@@ -9,7 +9,7 @@ func RegionFlag(dest *string) *cli.StringFlag {
 	return &cli.StringFlag{
 		Name:        "region",
 		Sources:     cli.EnvVars(env.RegionKey),
-		Usage:       "aws region for ecs. if not specified, try to load from aws sessions automatically",
+		Usage:       "aws region for ecs.",
 		Destination: dest,
 		Required:    true,
 	}
