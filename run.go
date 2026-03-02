@@ -60,14 +60,24 @@ func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResu
 
 	// NOTE: https://github.com/loilo-inc/canarycage/issues/93
 	// wait for the task to be running
-	time.Sleep(2 * time.Second)
+	t := c.di.Get(key.Time).(types.Time)
+	<-t.NewTimer(2 * time.Second).C
+
 	l := c.logger()
 	l.Infof("waiting for task '%s' to start...", *taskArn)
-	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
+	if waitErr := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{
 		Cluster: &env.Cluster,
 		Tasks:   []string{*taskArn},
-	}, env.GetTaskRunningWait()); err != nil {
-		return nil, fmt.Errorf("task failed to start: %w", err)
+	}, env.GetTaskRunningWait()); waitErr != nil {
+		l.Infof("task '%s' might have failed to start. try to check container status: %v", *taskArn, waitErr)
+		if task, err := ecsCli.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+			Cluster: &env.Cluster,
+			Tasks:   []string{*taskArn},
+		}); err != nil {
+			return nil, fmt.Errorf("task failed to start: %w", err)
+		} else {
+			return checkTaskStopped(&task.Tasks[0])
+		}
 	}
 	l.Infof("task '%s' is running", *taskArn)
 	l.Infof("waiting for task '%s' to stop...", *taskArn)
@@ -77,18 +87,17 @@ func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResu
 	}, env.GetTaskStoppedWait()); err != nil {
 		return nil, fmt.Errorf("task failed to stop: %w", err)
 	} else {
-		task := result.Tasks[0]
-		for _, c := range task.Containers {
-			if *c.Name == *input.Container {
-				if c.ExitCode == nil {
-					return nil, fmt.Errorf("container '%s' hasn't exit", *input.Container)
-				} else if *c.ExitCode != 0 {
-					return nil, fmt.Errorf("task exited with %d", *c.ExitCode)
-				}
-				return &types.RunResult{ExitCode: *c.ExitCode}, nil
-			}
-		}
-		// Never reached?
-		return nil, fmt.Errorf("task '%s' not found in result", *taskArn)
+		return checkTaskStopped(&result.Tasks[0])
 	}
+}
+
+func checkTaskStopped(task *ecstypes.Task) (*types.RunResult, error) {
+	for _, c := range task.Containers {
+		if c.ExitCode == nil {
+			return nil, fmt.Errorf("container '%s' hasn't exit", *c.Name)
+		} else if *c.ExitCode != 0 {
+			return nil, fmt.Errorf("task exited with %d", *c.ExitCode)
+		}
+	}
+	return &types.RunResult{ExitCode: 0}, nil
 }

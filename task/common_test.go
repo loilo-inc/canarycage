@@ -111,6 +111,7 @@ func TestCommon_WaitForTaskRunning(t *testing.T) {
 				b.Set(key.Env, envars)
 				b.Set(key.EcsCli, ecsMock)
 				b.Set(key.Logger, test.NewLogger())
+				b.Set(key.Time, test.NewFakeTime())
 			}),
 		}
 		cm.taskArn = aws.String("task-arn")
