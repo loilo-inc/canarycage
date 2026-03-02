@@ -94,7 +94,7 @@ func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResu
 func checkTaskStopped(task *ecstypes.Task) (*types.RunResult, error) {
 	for _, c := range task.Containers {
 		if c.ExitCode == nil {
-			return nil, fmt.Errorf("container '%s' hasn't exit", *c.Name)
+			return nil, fmt.Errorf("container '%s' hasn't exited", *c.Name)
 		} else if *c.ExitCode != 0 {
 			return nil, fmt.Errorf("task exited with %d", *c.ExitCode)
 		}
