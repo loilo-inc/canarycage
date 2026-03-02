@@ -27,7 +27,7 @@ type Time interface {
 }
 
 type RunInput struct {
-	Container *string
+	Container string
 	Overrides *ecstypes.TaskOverride
 }
 

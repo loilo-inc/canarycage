@@ -14,9 +14,9 @@ import (
 	"github.com/loilo-inc/canarycage/v5/types"
 )
 
-func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container *string) bool {
+func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container string) bool {
 	for _, v := range td.ContainerDefinitions {
-		if *v.Name == *container {
+		if *v.Name == container {
 			return true
 		}
 	}
@@ -37,7 +37,7 @@ func (c *cage) Run(ctx context.Context, input *types.RunInput) (*types.RunResult
 func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResult, error) {
 	env := c.di.Get(key.Env).(*env.Envars)
 	if !containerExistsInDefinition(env.TaskDefinitionInput, input.Container) {
-		return nil, fmt.Errorf("🚫 '%s' not found in container definitions", *input.Container)
+		return nil, fmt.Errorf("🚫 '%s' not found in container definitions", input.Container)
 	}
 	td, err := c.CreateNextTaskDefinition(ctx)
 	if err != nil {
@@ -70,13 +70,22 @@ func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResu
 		Tasks:   []string{*taskArn},
 	}, env.GetTaskRunningWait()); waitErr != nil {
 		l.Infof("task '%s' might have failed to start. try to check container status: %v", *taskArn, waitErr)
-		if task, err := ecsCli.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+		desc, descErr := ecsCli.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 			Cluster: &env.Cluster,
 			Tasks:   []string{*taskArn},
-		}); err != nil {
+		})
+		if descErr != nil {
+			return nil, fmt.Errorf("failed to describe task: %w", descErr)
+		} else if len(desc.Tasks) == 0 {
+			return nil, fmt.Errorf("task failed to start: no tasks found")
+		}
+		task := desc.Tasks[0]
+		if task.LastStatus != nil && *task.LastStatus != "STOPPED" {
+			return nil, fmt.Errorf("task failed to start: task is in '%s' status", *task.LastStatus)
+		} else if res, err := CheckTaskStopped(task, input.Container); err != nil {
 			return nil, fmt.Errorf("task failed to start: %w", err)
 		} else {
-			return checkTaskStopped(&task.Tasks[0])
+			return res, nil
 		}
 	}
 	l.Infof("task '%s' is running", *taskArn)
@@ -87,17 +96,22 @@ func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResu
 	}, env.GetTaskStoppedWait()); err != nil {
 		return nil, fmt.Errorf("task failed to stop: %w", err)
 	} else {
-		return checkTaskStopped(&result.Tasks[0])
+		return CheckTaskStopped(result.Tasks[0], input.Container)
 	}
 }
 
-func checkTaskStopped(task *ecstypes.Task) (*types.RunResult, error) {
+func CheckTaskStopped(task ecstypes.Task, runContainer string) (*types.RunResult, error) {
 	for _, c := range task.Containers {
+		if *c.Name != runContainer {
+			continue
+		}
 		if c.ExitCode == nil {
 			return nil, fmt.Errorf("container '%s' hasn't exited", *c.Name)
 		} else if *c.ExitCode != 0 {
 			return nil, fmt.Errorf("task exited with %d", *c.ExitCode)
+		} else {
+			return &types.RunResult{ExitCode: 0}, nil
 		}
 	}
-	return &types.RunResult{ExitCode: 0}, nil
+	return nil, fmt.Errorf("container '%s' not found in task", runContainer)
 }

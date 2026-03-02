@@ -40,7 +40,7 @@ func (c *CageCommands) Run(input *cageapp.CageCmdInput) *cli.Command {
 			container := rest[0]
 			commands := rest[1:]
 			_, err = cagecli.Run(ctx, &types.RunInput{
-				Container: &container,
+				Container: container,
 				Overrides: &ecstypes.TaskOverride{
 					ContainerOverrides: []ecstypes.ContainerOverride{
 						{Command: commands,

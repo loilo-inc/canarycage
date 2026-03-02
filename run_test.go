@@ -2,6 +2,7 @@ package cage_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -50,7 +51,7 @@ func TestCage_Run(t *testing.T) {
 			}),
 		)
 		result, err := cagecli.Run(ctx, &types.RunInput{
-			Container: &container,
+			Container: container,
 			Overrides: overrides,
 		})
 		assert.NoError(t, err)
@@ -67,7 +68,7 @@ func TestCage_Run(t *testing.T) {
 			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.DescribeTasks).Times(2),
 		)
 		result, err := cagecli.Run(ctx, &types.RunInput{
-			Container: &container,
+			Container: container,
 			Overrides: overrides,
 		})
 		assert.Nil(t, result)
@@ -90,7 +91,7 @@ func TestCage_Run(t *testing.T) {
 			}),
 		)
 		result, err := cagecli.Run(ctx, &types.RunInput{
-			Container: &container,
+			Container: container,
 			Overrides: overrides,
 		})
 		assert.Nil(t, result)
@@ -113,18 +114,18 @@ func TestCage_Run(t *testing.T) {
 			}),
 		)
 		result, err := cagecli.Run(ctx, &types.RunInput{
-			Container: &container,
+			Container: container,
 			Overrides: overrides,
 		})
 		assert.Nil(t, result)
-		assert.EqualError(t, err, "container 'container' hasn't exit")
+		assert.EqualError(t, err, "container 'container' hasn't exited")
 	})
 	t.Run("should error if container doesn't exist in definition", func(t *testing.T) {
 		overrides := &ecstypes.TaskOverride{}
 		ctx := context.Background()
 		_, _, _, cagecli := setupRunTest(t)
 		result, err := cagecli.Run(ctx, &types.RunInput{
-			Container: aws.String("foo"),
+			Container: "foo",
 			Overrides: overrides,
 		})
 		assert.Nil(t, result)
@@ -159,10 +160,32 @@ func TestCage_Run_Not_Running(t *testing.T) {
 		)
 		return cagecli
 	}
+	t.Run("never reach running", func(t *testing.T) {
+		env, mocker, ecsMock, cagecli := setupRunTest(t)
+		env.CanaryTaskRunningWait = 1
+		gomock.InOrder(
+			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RunTask),
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).Times(2).DoAndReturn(
+				func(ctx context.Context, input *ecs.DescribeTasksInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTasksOutput, error) {
+					res, err := mocker.Ecs.DescribeTasks(ctx, input)
+					for i := range res.Tasks {
+						res.Tasks[i].LastStatus = aws.String("PROVISIONING")
+					}
+					return res, err
+				},
+			),
+		)
+		result, err := cagecli.Run(context.Background(), &types.RunInput{
+			Container: container,
+			Overrides: overrides,
+		})
+		assert.Nil(t, result)
+		assert.EqualError(t, err, "task failed to start: task is in 'PROVISIONING' status")
+	})
 	t.Run("exit code: 0", func(t *testing.T) {
 		cagecli := setup(t, 0)
 		result, err := cagecli.Run(t.Context(), &types.RunInput{
-			Container: &container,
+			Container: container,
 			Overrides: overrides,
 		})
 		assert.NoError(t, err)
@@ -171,10 +194,86 @@ func TestCage_Run_Not_Running(t *testing.T) {
 	t.Run("exit code: 1", func(t *testing.T) {
 		cagecli := setup(t, 1)
 		result, err := cagecli.Run(t.Context(), &types.RunInput{
-			Container: &container,
+			Container: container,
 			Overrides: overrides,
 		})
 		assert.Nil(t, result)
+		assert.EqualError(t, err, "task failed to start: task exited with 1")
+	})
+	t.Run("failed to describe task", func(t *testing.T) {
+		env, mocker, ecsMock, cagecli := setupRunTest(t)
+		env.CanaryTaskRunningWait = 1
+		gomock.InOrder(
+			ecsMock.EXPECT().RunTask(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RunTask),
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, input *ecs.DescribeTasksInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTasksOutput, error) {
+					return nil, assert.AnError
+				}),
+			ecsMock.EXPECT().DescribeTasks(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, input *ecs.DescribeTasksInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTasksOutput, error) {
+					return nil, fmt.Errorf("err")
+				}),
+		)
+		result, err := cagecli.Run(t.Context(), &types.RunInput{
+			Container: container,
+			Overrides: overrides,
+		})
+		assert.Nil(t, result)
+		assert.EqualError(t, err, "failed to describe task: err")
+	})
+}
+
+func TestCheckTaskStopped(t *testing.T) {
+	t.Run("should return RunResult if exit code is 0", func(t *testing.T) {
+		task := ecstypes.Task{
+			Containers: []ecstypes.Container{
+				{
+					Name:     aws.String("container"),
+					ExitCode: aws.Int32(0),
+				},
+			},
+		}
+		result, err := cage.CheckTaskStopped(task, "container")
+		assert.NoError(t, err)
+		assert.Equal(t, result.ExitCode, int32(0))
+	})
+	t.Run("should error if exit code is not 0", func(t *testing.T) {
+		task := ecstypes.Task{
+			Containers: []ecstypes.Container{
+				{
+					Name:     aws.String("container"),
+					ExitCode: aws.Int32(1),
+				},
+			},
+		}
+		result, err := cage.CheckTaskStopped(task, "container")
+		assert.Nil(t, result)
 		assert.EqualError(t, err, "task exited with 1")
+	})
+	t.Run("should error if exit code is nil", func(t *testing.T) {
+		task := ecstypes.Task{
+			Containers: []ecstypes.Container{
+				{
+					Name:     aws.String("container"),
+					ExitCode: nil,
+				},
+			},
+		}
+		result, err := cage.CheckTaskStopped(task, "container")
+		assert.Nil(t, result)
+		assert.EqualError(t, err, "container 'container' hasn't exited")
+	})
+	t.Run("should error if container not found", func(t *testing.T) {
+		task := ecstypes.Task{
+			Containers: []ecstypes.Container{
+				{
+					Name:     aws.String("foo"),
+					ExitCode: aws.Int32(0),
+				},
+			},
+		}
+		result, err := cage.CheckTaskStopped(task, "container")
+		assert.Nil(t, result)
+		assert.EqualError(t, err, "container 'container' not found in task")
 	})
 }
