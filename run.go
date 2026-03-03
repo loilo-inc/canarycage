@@ -82,7 +82,7 @@ func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResu
 		task := desc.Tasks[0]
 		if task.LastStatus != nil && *task.LastStatus != "STOPPED" {
 			return nil, fmt.Errorf("task failed to start: task is in '%s' status", *task.LastStatus)
-		} else if res, err := CheckTaskStopped(task, input.Container); err != nil {
+		} else if res, err := checkTaskStopped(task, input.Container); err != nil {
 			return nil, fmt.Errorf("task failed to start: %w", err)
 		} else {
 			return res, nil
@@ -96,21 +96,23 @@ func (c *cage) doRun(ctx context.Context, input *types.RunInput) (*types.RunResu
 	}, env.GetTaskStoppedWait()); err != nil {
 		return nil, fmt.Errorf("task failed to stop: %w", err)
 	} else {
-		return CheckTaskStopped(result.Tasks[0], input.Container)
+		return checkTaskStopped(result.Tasks[0], input.Container)
 	}
 }
 
-func CheckTaskStopped(task ecstypes.Task, runContainer string) (*types.RunResult, error) {
+func checkTaskStopped(task ecstypes.Task, runContainer string) (*types.RunResult, error) {
 	for _, c := range task.Containers {
 		if *c.Name != runContainer {
 			continue
 		}
 		if c.ExitCode == nil {
 			return nil, fmt.Errorf("container '%s' hasn't exited", *c.Name)
-		} else if *c.ExitCode != 0 {
-			return nil, fmt.Errorf("task exited with %d", *c.ExitCode)
+		}
+		exitCode := *c.ExitCode
+		if exitCode != 0 {
+			return nil, fmt.Errorf("task exited with %d", exitCode)
 		} else {
-			return &types.RunResult{ExitCode: 0}, nil
+			return &types.RunResult{ExitCode: exitCode}, nil
 		}
 	}
 	return nil, fmt.Errorf("container '%s' not found in task", runContainer)

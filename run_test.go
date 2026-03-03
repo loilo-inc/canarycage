@@ -1,4 +1,4 @@
-package cage_test
+package cage
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	cage "github.com/loilo-inc/canarycage/v5"
 	"github.com/loilo-inc/canarycage/v5/env"
 	"github.com/loilo-inc/canarycage/v5/key"
 	"github.com/loilo-inc/canarycage/v5/mocks/mock_awsiface"
@@ -27,7 +26,7 @@ func setupRunTest(t *testing.T) (*env.Envars,
 	ctrl := gomock.NewController(t)
 	ecsMock := mock_awsiface.NewMockEcsClient(ctrl)
 	ecsMock.EXPECT().RegisterTaskDefinition(gomock.Any(), gomock.Any()).DoAndReturn(mocker.Ecs.RegisterTaskDefinition).AnyTimes()
-	cagecli := cage.NewCage(di.NewDomain(func(b *di.B) {
+	cagecli := NewCage(di.NewDomain(func(b *di.B) {
 		b.Set(key.Env, env)
 		b.Set(key.EcsCli, ecsMock)
 		b.Set(key.Logger, test.NewLogger())
@@ -233,7 +232,7 @@ func TestCheckTaskStopped(t *testing.T) {
 				},
 			},
 		}
-		result, err := cage.CheckTaskStopped(task, "container")
+		result, err := checkTaskStopped(task, "container")
 		assert.NoError(t, err)
 		assert.Equal(t, result.ExitCode, int32(0))
 	})
@@ -246,7 +245,7 @@ func TestCheckTaskStopped(t *testing.T) {
 				},
 			},
 		}
-		result, err := cage.CheckTaskStopped(task, "container")
+		result, err := checkTaskStopped(task, "container")
 		assert.Nil(t, result)
 		assert.EqualError(t, err, "task exited with 1")
 	})
@@ -259,7 +258,7 @@ func TestCheckTaskStopped(t *testing.T) {
 				},
 			},
 		}
-		result, err := cage.CheckTaskStopped(task, "container")
+		result, err := checkTaskStopped(task, "container")
 		assert.Nil(t, result)
 		assert.EqualError(t, err, "container 'container' hasn't exited")
 	})
@@ -272,7 +271,7 @@ func TestCheckTaskStopped(t *testing.T) {
 				},
 			},
 		}
-		result, err := cage.CheckTaskStopped(task, "container")
+		result, err := checkTaskStopped(task, "container")
 		assert.Nil(t, result)
 		assert.EqualError(t, err, "container 'container' not found in task")
 	})
