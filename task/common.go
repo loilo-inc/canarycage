@@ -69,10 +69,10 @@ func (c *common) waitForTaskRunning(ctx context.Context) error {
 	l := c.logger()
 	env := c.di.Get(key.Env).(*env.Envars)
 	ecsCli := c.di.Get(key.EcsCli).(awsiface.EcsClient)
-
+	t := c.di.Get(key.Time).(types.Time)
 	// NOTE: https://github.com/loilo-inc/canarycage/issues/93
 	// wait for the task to be running
-	time.Sleep(2 * time.Second)
+	<-t.NewTimer(2 * time.Second).C
 
 	l.Infof("🥚 waiting for canary task '%s' is running...", *c.taskArn)
 	if err := ecs.NewTasksRunningWaiter(ecsCli).Wait(ctx, &ecs.DescribeTasksInput{

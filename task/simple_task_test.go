@@ -75,6 +75,7 @@ func TestSimpleTask_Wait(t *testing.T) {
 					b.Set(key.Env, test.DefaultEnvars())
 					b.Set(key.EcsCli, ecsMock)
 					b.Set(key.Logger, test.NewLogger())
+					b.Set(key.Time, test.NewFakeTime())
 				}),
 			},
 		}
