@@ -93,42 +93,6 @@ type ScanResultSummary struct {
 	ImageURI      string     `json:"image_uri"`
 }
 
-func unwrapAttributes(attrs []ecrtypes.Attribute) map[string]string {
-	m := make(map[string]string)
-	for _, attr := range attrs {
-		if attr.Key != nil && attr.Value != nil {
-			m[*attr.Key] = *attr.Value
-		}
-	}
-	return m
-}
-
-func findingToCVE(finding ecrtypes.ImageScanFinding) CVE {
-	cve := CVE{
-		Name:           "unknown",
-		PackageName:    "unknown",
-		PackageVersion: "unknown",
-		Severity:       finding.Severity,
-	}
-	if finding.Name != nil {
-		cve.Name = *finding.Name
-	}
-	attrs := unwrapAttributes(finding.Attributes)
-	if val, ok := attrs["package_name"]; ok {
-		cve.PackageName = val
-	}
-	if val, ok := attrs["package_version"]; ok {
-		cve.PackageVersion = val
-	}
-	if finding.Uri != nil {
-		cve.Uri = *finding.Uri
-	}
-	if finding.Description != nil {
-		cve.Description = *finding.Description
-	}
-	return cve
-}
-
 type FinalResult struct {
 	Target
 	Result
@@ -152,12 +116,22 @@ type Vuln struct {
 }
 
 type CVE struct {
-	Name           string                   `json:"name"`
-	Description    string                   `json:"description"`
-	PackageName    string                   `json:"package_name"`
-	PackageVersion string                   `json:"package_version"`
-	Uri            string                   `json:"uri"`
-	Severity       ecrtypes.FindingSeverity `json:"severity"`
+	Name              string                   `json:"name"`
+	Description       string                   `json:"description"`
+	PackageName       string                   `json:"package_name"`
+	PackageVersion    string                   `json:"package_version"`
+	Uri               string                   `json:"uri"`
+	Severity          ecrtypes.FindingSeverity `json:"severity"`
+	EnchancedAnalysis *EnchancedAnalysis       `json:"enchanced_analysis"`
+}
+
+type EnchancedAnalysis struct {
+	// Fields below are populated only from EnhancedImageScanFinding (Inspector v2).
+	Status           string  `json:"status"`
+	ExploitAvailable string  `json:"exploit_available"`
+	FixAvailable     string  `json:"fix_available"`
+	FixedInVersion   string  `json:"fixed_in_version"`
+	Score            float64 `json:"score"`
 }
 
 func (a *Result) CriticalCves() []Vuln {

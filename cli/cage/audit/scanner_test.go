@@ -152,6 +152,62 @@ func TestScanImage(t *testing.T) {
 		assert.Len(t, result.Cves, 1)
 	})
 
+	t.Run("returns scan result with CVEs from enhanced findings", func(t *testing.T) {
+		imageID := &ecrtypes.ImageIdentifier{
+			ImageTag: aws.String("test-tag"),
+		}
+		findings := &ecrtypes.ImageScanFindings{
+			Findings: nil,
+			EnhancedFindings: []ecrtypes.EnhancedImageScanFinding{
+				{
+					Description:      aws.String("Enhanced vulnerability"),
+					Severity:         aws.String(string(ecrtypes.FindingSeverityHigh)),
+					Status:           aws.String("ACTIVE"),
+					ExploitAvailable: aws.String("NO"),
+					FixAvailable:     aws.String("YES"),
+					Score:            7.5,
+					PackageVulnerabilityDetails: &ecrtypes.PackageVulnerabilityDetails{
+						SourceUrl:       aws.String("https://example.com/CVE-2026-1234"),
+						VulnerabilityId: aws.String("CVE-2026-1234"),
+						VulnerablePackages: []ecrtypes.VulnerablePackage{
+							{
+								Name:           aws.String("openssl"),
+								Version:        aws.String("1.0.0"),
+								FixedInVersion: aws.String("1.0.1"),
+							},
+						},
+					},
+				},
+			},
+		}
+		stub := &stubEcrTool{
+			imageID:  imageID,
+			findings: findings,
+		}
+
+		result := scanImage(ctx, stub, imageInfo)
+
+		assert.NoError(t, result.Err)
+		assert.Equal(t, imageInfo, result.ImageInfo)
+		assert.Equal(t, []CVE{
+			{
+				Name:           "CVE-2026-1234",
+				Description:    "Enhanced vulnerability",
+				PackageName:    "openssl",
+				PackageVersion: "1.0.0",
+				Uri:            "https://example.com/CVE-2026-1234",
+				Severity:       ecrtypes.FindingSeverityHigh,
+				EnchancedAnalysis: &EnchancedAnalysis{
+					Status:           "ACTIVE",
+					ExploitAvailable: "NO",
+					FixAvailable:     "YES",
+					FixedInVersion:   "1.0.1",
+					Score:            7.5,
+				},
+			},
+		}, result.Cves)
+	})
+
 	t.Run("returns error when GetActualImageIdentifier fails", func(t *testing.T) {
 		expectedErr := errors.New("image identifier error")
 		stub := &stubEcrTool{
