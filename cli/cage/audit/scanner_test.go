@@ -197,7 +197,7 @@ func TestScanImage(t *testing.T) {
 				PackageVersion: "1.0.0",
 				Uri:            "https://example.com/CVE-2026-1234",
 				Severity:       ecrtypes.FindingSeverityHigh,
-				EnchancedAnalysis: &EnchancedAnalysis{
+				EnhancedAnalysis: &EnhancedAnalysis{
 					Status:           "ACTIVE",
 					ExploitAvailable: "NO",
 					FixAvailable:     "YES",
@@ -277,6 +277,71 @@ func TestScanImage(t *testing.T) {
 		assert.Empty(t, result.Cves)
 	})
 }
+func TestEnhancedFindingToCVE(t *testing.T) {
+	t.Run("nil PackageVulnerabilityDetails leaves defaults and skips package fields", func(t *testing.T) {
+		got := enhancedFindingToCVE(ecrtypes.EnhancedImageScanFinding{
+			Severity: aws.String(string(ecrtypes.FindingSeverityHigh)),
+			Score:    4.2,
+		})
+		assert.Equal(t, CVE{
+			Name:           "unknown",
+			PackageName:    "unknown",
+			PackageVersion: "unknown",
+			Severity:       ecrtypes.FindingSeverityHigh,
+			EnhancedAnalysis: &EnhancedAnalysis{
+				Score: 4.2,
+			},
+		}, got)
+	})
+
+	t.Run("falls back to VendorSeverity when top-level severity is missing", func(t *testing.T) {
+		got := enhancedFindingToCVE(ecrtypes.EnhancedImageScanFinding{
+			PackageVulnerabilityDetails: &ecrtypes.PackageVulnerabilityDetails{
+				VulnerabilityId: aws.String("CVE-VENDOR"),
+				VendorSeverity:  aws.String(string(ecrtypes.FindingSeverityMedium)),
+			},
+		})
+		assert.Equal(t, ecrtypes.FindingSeverityMedium, got.Severity)
+		assert.Equal(t, "CVE-VENDOR", got.Name)
+	})
+
+	t.Run("falls back to first ReferenceUrl when SourceUrl is missing", func(t *testing.T) {
+		got := enhancedFindingToCVE(ecrtypes.EnhancedImageScanFinding{
+			PackageVulnerabilityDetails: &ecrtypes.PackageVulnerabilityDetails{
+				ReferenceUrls: []string{"https://ref.example/a", "https://ref.example/b"},
+			},
+		})
+		assert.Equal(t, "https://ref.example/a", got.Uri)
+	})
+
+	t.Run("uniquePackageValues skips nil/empty and dedupes", func(t *testing.T) {
+		got := enhancedFindingToCVE(ecrtypes.EnhancedImageScanFinding{
+			PackageVulnerabilityDetails: &ecrtypes.PackageVulnerabilityDetails{
+				VulnerablePackages: []ecrtypes.VulnerablePackage{
+					{Name: aws.String("openssl"), Version: aws.String("1.0.0"), FixedInVersion: aws.String("1.0.1")},
+					{Name: nil, Version: aws.String(""), FixedInVersion: nil},
+					{Name: aws.String("openssl"), Version: aws.String("1.0.0"), FixedInVersion: aws.String("1.0.1")},
+					{Name: aws.String("curl"), Version: aws.String("8.0"), FixedInVersion: aws.String("")},
+				},
+			},
+		})
+		assert.Equal(t, "openssl, curl", got.PackageName)
+		assert.Equal(t, "1.0.0, 8.0", got.PackageVersion)
+		assert.Equal(t, "1.0.1", got.EnhancedAnalysis.FixedInVersion)
+	})
+
+	t.Run("returns 'unknown' for missing package fields when VulnerablePackages is empty", func(t *testing.T) {
+		got := enhancedFindingToCVE(ecrtypes.EnhancedImageScanFinding{
+			PackageVulnerabilityDetails: &ecrtypes.PackageVulnerabilityDetails{
+				VulnerabilityId: aws.String("CVE-EMPTY"),
+			},
+		})
+		assert.Equal(t, "unknown", got.PackageName)
+		assert.Equal(t, "unknown", got.PackageVersion)
+		assert.Empty(t, got.EnhancedAnalysis.FixedInVersion)
+	})
+}
+
 func TestParseError(t *testing.T) {
 	t.Run("returns ErrScanNotFound when error code is ScanNotFoundException", func(t *testing.T) {
 		scanErr := &smithy.GenericAPIError{

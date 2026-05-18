@@ -116,16 +116,16 @@ type Vuln struct {
 }
 
 type CVE struct {
-	Name              string                   `json:"name"`
-	Description       string                   `json:"description"`
-	PackageName       string                   `json:"package_name"`
-	PackageVersion    string                   `json:"package_version"`
-	Uri               string                   `json:"uri"`
-	Severity          ecrtypes.FindingSeverity `json:"severity"`
-	EnchancedAnalysis *EnchancedAnalysis       `json:"enchanced_analysis"`
+	Name             string                   `json:"name"`
+	Description      string                   `json:"description"`
+	PackageName      string                   `json:"package_name"`
+	PackageVersion   string                   `json:"package_version"`
+	Uri              string                   `json:"uri"`
+	Severity         ecrtypes.FindingSeverity `json:"severity"`
+	EnhancedAnalysis *EnhancedAnalysis        `json:"enhanced_analysis"`
 }
 
-type EnchancedAnalysis struct {
+type EnhancedAnalysis struct {
 	// Fields below are populated only from EnhancedImageScanFinding (Inspector v2).
 	Status           string  `json:"status"`
 	ExploitAvailable string  `json:"exploit_available"`

@@ -112,13 +112,13 @@ func findingToCVE(finding ecrtypes.ImageScanFinding) CVE {
 }
 
 func enhancedFindingToCVE(finding ecrtypes.EnhancedImageScanFinding) CVE {
-	analysis := &EnchancedAnalysis{Score: finding.Score}
+	analysis := &EnhancedAnalysis{Score: finding.Score}
 	cve := CVE{
-		Name:              "unknown",
-		PackageName:       "unknown",
-		PackageVersion:    "unknown",
-		Severity:          ecrtypes.FindingSeverityUndefined,
-		EnchancedAnalysis: analysis,
+		Name:             "unknown",
+		PackageName:      "unknown",
+		PackageVersion:   "unknown",
+		Severity:         ecrtypes.FindingSeverityUndefined,
+		EnhancedAnalysis: analysis,
 	}
 	if finding.Description != nil {
 		cve.Description = *finding.Description
