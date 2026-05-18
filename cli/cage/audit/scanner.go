@@ -72,12 +72,11 @@ func parseError(err error) error {
 
 func scanFindingsToCVEs(findings *ecrtypes.ImageScanFindings) []CVE {
 	var cves []CVE
-	if findings.Findings != nil {
+	if len(findings.Findings) > 0 {
 		for _, f := range findings.Findings {
 			cves = append(cves, findingToCVE(f))
 		}
-		return cves
-	} else if findings.EnhancedFindings != nil {
+	} else if len(findings.EnhancedFindings) > 0 {
 		for _, f := range findings.EnhancedFindings {
 			cves = append(cves, enhancedFindingToCVE(f))
 		}
