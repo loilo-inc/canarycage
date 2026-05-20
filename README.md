@@ -144,11 +144,11 @@ By default, the output is a table with per-container status and severity counts.
     {
       "Effect": "Allow",
       "Action": [
-        "elbv2:DescribeTargetGroups",
-        "elbv2:DescribeTargetHealth",
-        "elbv2:DescribeTargetGroupAttributes",
-        "elbv2:RegisterTargets",
-        "elbv2:DeregisterTargets"
+        "elasticloadbalancing:DescribeTargetGroups",
+        "elasticloadbalancing:DescribeTargetHealth",
+        "elasticloadbalancing:DescribeTargetGroupAttributes",
+        "elasticloadbalancing:RegisterTargets",
+        "elasticloadbalancing:DeregisterTargets"
       ],
       "Resource": "*"
     },
@@ -174,10 +174,10 @@ This approach is very robust and reliable. For past 5 years, we have been using 
 You can use `canarycage` with GitHub Actions. Here is an example of GitHub Actions workflow:
 
 ```yaml
-- uses: loilo-inc/actions-setup-cage@5
+- uses: loilo-inc/actions-setup-cage@7
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-- uses: loilo-inc/actions-deploy-cage@v4
+- uses: loilo-inc/actions-deploy-cage@v7
   with:
     region: your-region
     deploy-context: deploy
