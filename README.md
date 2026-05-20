@@ -146,7 +146,7 @@ By default, the output is a table with per-container status and severity counts.
       "Action": [
         "elasticloadbalancing:DescribeTargetGroups",
         "elasticloadbalancing:DescribeTargetHealth",
-        "elelasticloadbalancingbv2:DescribeTargetGroupAttributes",
+        "elasticloadbalancing:DescribeTargetGroupAttributes",
         "elasticloadbalancing:RegisterTargets",
         "elasticloadbalancing:DeregisterTargets"
       ],
