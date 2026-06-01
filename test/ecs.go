@@ -28,6 +28,7 @@ func (ctx *EcsServer) CreateService(c context.Context, input *ecs.CreateServiceI
 	}
 	ret := &types.Service{
 		ServiceName:                   input.ServiceName,
+		CapacityProviderStrategy:      input.CapacityProviderStrategy,
 		RunningCount:                  0,
 		LaunchType:                    input.LaunchType,
 		LoadBalancers:                 input.LoadBalancers,
@@ -37,6 +38,8 @@ func (ctx *EcsServer) CreateService(c context.Context, input *ecs.CreateServiceI
 		Status:                        &st,
 		ServiceArn:                    &idstr,
 		PlatformVersion:               input.PlatformVersion,
+		PlacementConstraints:          input.PlacementConstraints,
+		PlacementStrategy:             input.PlacementStrategy,
 		ServiceRegistries:             input.ServiceRegistries,
 		NetworkConfiguration:          input.NetworkConfiguration,
 		Deployments: []types.Deployment{
@@ -116,7 +119,10 @@ func (ctx *EcsServer) UpdateService(c context.Context, input *ecs.UpdateServiceI
 	s.DesiredCount = nextDesiredCount
 	s.TaskDefinition = nextTaskDefinition
 	s.RunningCount = nextDesiredCount
+	s.CapacityProviderStrategy = input.CapacityProviderStrategy
 	s.PlatformVersion = input.PlatformVersion
+	s.PlacementConstraints = input.PlacementConstraints
+	s.PlacementStrategy = input.PlacementStrategy
 	s.ServiceRegistries = input.ServiceRegistries
 	s.NetworkConfiguration = input.NetworkConfiguration
 	s.LoadBalancers = input.LoadBalancers
