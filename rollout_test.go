@@ -108,7 +108,15 @@ func integrationTest(t *testing.T, env *env.Envars, lbcount int, input *types.Ro
 	}
 }
 
-func TestCage_RollOut_UpdateServicePreservesNilOptionalSliceSettings(t *testing.T) {
+func setupRollOutWithOptionalServiceSettings(t *testing.T) (
+	context.Context,
+	*env.Envars,
+	*test.MockContext,
+	ecs.CreateServiceInput,
+	*cage,
+) {
+	t.Helper()
+
 	ctx := context.TODO()
 	envars := test.DefaultEnvars()
 	mocker := test.NewMockContext()
@@ -137,14 +145,8 @@ func TestCage_RollOut_UpdateServicePreservesNilOptionalSliceSettings(t *testing.
 	assert.NotEmpty(t, serviceBeforeRollout.ServiceRegistries)
 	assert.NotEmpty(t, serviceBeforeRollout.PlacementConstraints)
 	assert.NotEmpty(t, serviceBeforeRollout.PlacementStrategy)
-
-	nextServiceInput := currentServiceInput
-	nextServiceInput.CapacityProviderStrategy = nil
-	nextServiceInput.LoadBalancers = nil
-	nextServiceInput.ServiceRegistries = nil
-	nextServiceInput.PlacementConstraints = nil
-	nextServiceInput.PlacementStrategy = nil
-	envars.ServiceDefinitionInput = &nextServiceInput
+	assert.NotNil(t, serviceBeforeRollout.PlatformVersion)
+	assert.NotNil(t, serviceBeforeRollout.NetworkConfiguration)
 
 	c := &cage{di: di.NewDomain(func(b *di.B) {
 		b.Set(key.Env, envars)
@@ -156,6 +158,41 @@ func TestCage_RollOut_UpdateServicePreservesNilOptionalSliceSettings(t *testing.
 		b.Set(key.TaskFactory, task.NewFactory(b.Future()))
 	})}
 
+	return ctx, envars, mocker, currentServiceInput, c
+}
+
+func TestCage_RollOut_PreservesOptionalServiceSettingsWithoutUpdateService(t *testing.T) {
+	ctx, _, mocker, currentServiceInput, c := setupRollOutWithOptionalServiceSettings(t)
+
+	result, err := c.RollOut(ctx, &types.RollOutInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updatedService, _ := mocker.GetEcsService(*currentServiceInput.ServiceName)
+	assert.True(t, result.ServiceUpdated)
+	assert.Equal(t, currentServiceInput.CapacityProviderStrategy, updatedService.CapacityProviderStrategy)
+	assert.Equal(t, currentServiceInput.LoadBalancers, updatedService.LoadBalancers)
+	assert.Equal(t, currentServiceInput.ServiceRegistries, updatedService.ServiceRegistries)
+	assert.Equal(t, currentServiceInput.PlacementConstraints, updatedService.PlacementConstraints)
+	assert.Equal(t, currentServiceInput.PlacementStrategy, updatedService.PlacementStrategy)
+	assert.Equal(t, currentServiceInput.PlatformVersion, updatedService.PlatformVersion)
+	assert.Equal(t, currentServiceInput.NetworkConfiguration, updatedService.NetworkConfiguration)
+}
+
+func TestCage_RollOut_UpdateServicePreservesNilOptionalServiceSettings(t *testing.T) {
+	ctx, envars, mocker, currentServiceInput, c := setupRollOutWithOptionalServiceSettings(t)
+
+	nextServiceInput := currentServiceInput
+	nextServiceInput.CapacityProviderStrategy = nil
+	nextServiceInput.LoadBalancers = nil
+	nextServiceInput.ServiceRegistries = nil
+	nextServiceInput.PlacementConstraints = nil
+	nextServiceInput.PlacementStrategy = nil
+	nextServiceInput.PlatformVersion = nil
+	nextServiceInput.NetworkConfiguration = nil
+	envars.ServiceDefinitionInput = &nextServiceInput
+
 	result, err := c.RollOut(ctx, &types.RollOutInput{UpdateService: true})
 	if err != nil {
 		t.Fatal(err)
@@ -163,11 +200,43 @@ func TestCage_RollOut_UpdateServicePreservesNilOptionalSliceSettings(t *testing.
 
 	updatedService, _ := mocker.GetEcsService(envars.Service)
 	assert.True(t, result.ServiceUpdated)
-	assert.Nil(t, updatedService.CapacityProviderStrategy)
-	assert.Nil(t, updatedService.LoadBalancers)
-	assert.Nil(t, updatedService.ServiceRegistries)
-	assert.Nil(t, updatedService.PlacementConstraints)
-	assert.Nil(t, updatedService.PlacementStrategy)
+	assert.Equal(t, currentServiceInput.CapacityProviderStrategy, updatedService.CapacityProviderStrategy)
+	assert.Equal(t, currentServiceInput.LoadBalancers, updatedService.LoadBalancers)
+	assert.Equal(t, currentServiceInput.ServiceRegistries, updatedService.ServiceRegistries)
+	assert.Equal(t, currentServiceInput.PlacementConstraints, updatedService.PlacementConstraints)
+	assert.Equal(t, currentServiceInput.PlacementStrategy, updatedService.PlacementStrategy)
+	assert.Equal(t, currentServiceInput.PlatformVersion, updatedService.PlatformVersion)
+	assert.Equal(t, currentServiceInput.NetworkConfiguration, updatedService.NetworkConfiguration)
+}
+
+func TestCage_RollOut_UpdateServiceClearsEmptyOptionalSliceSettings(t *testing.T) {
+	ctx, envars, mocker, currentServiceInput, c := setupRollOutWithOptionalServiceSettings(t)
+
+	nextServiceInput := currentServiceInput
+	nextServiceInput.CapacityProviderStrategy = []ecstypes.CapacityProviderStrategyItem{}
+	nextServiceInput.LoadBalancers = []ecstypes.LoadBalancer{}
+	nextServiceInput.ServiceRegistries = []ecstypes.ServiceRegistry{}
+	nextServiceInput.PlacementConstraints = []ecstypes.PlacementConstraint{}
+	nextServiceInput.PlacementStrategy = []ecstypes.PlacementStrategy{}
+	envars.ServiceDefinitionInput = &nextServiceInput
+
+	result, err := c.RollOut(ctx, &types.RollOutInput{UpdateService: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updatedService, _ := mocker.GetEcsService(envars.Service)
+	assert.True(t, result.ServiceUpdated)
+	assert.NotNil(t, updatedService.CapacityProviderStrategy)
+	assert.Len(t, updatedService.CapacityProviderStrategy, 0)
+	assert.NotNil(t, updatedService.LoadBalancers)
+	assert.Len(t, updatedService.LoadBalancers, 0)
+	assert.NotNil(t, updatedService.ServiceRegistries)
+	assert.Len(t, updatedService.ServiceRegistries, 0)
+	assert.NotNil(t, updatedService.PlacementConstraints)
+	assert.Len(t, updatedService.PlacementConstraints, 0)
+	assert.NotNil(t, updatedService.PlacementStrategy)
+	assert.Len(t, updatedService.PlacementStrategy, 0)
 }
 
 func TestCage_Rollout_Failure(t *testing.T) {

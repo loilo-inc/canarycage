@@ -119,13 +119,27 @@ func (ctx *EcsServer) UpdateService(c context.Context, input *ecs.UpdateServiceI
 	s.DesiredCount = nextDesiredCount
 	s.TaskDefinition = nextTaskDefinition
 	s.RunningCount = nextDesiredCount
-	s.CapacityProviderStrategy = input.CapacityProviderStrategy
-	s.PlatformVersion = input.PlatformVersion
-	s.PlacementConstraints = input.PlacementConstraints
-	s.PlacementStrategy = input.PlacementStrategy
-	s.ServiceRegistries = input.ServiceRegistries
-	s.NetworkConfiguration = input.NetworkConfiguration
-	s.LoadBalancers = input.LoadBalancers
+	if input.CapacityProviderStrategy != nil {
+		s.CapacityProviderStrategy = input.CapacityProviderStrategy
+	}
+	if input.PlatformVersion != nil {
+		s.PlatformVersion = input.PlatformVersion
+	}
+	if input.PlacementConstraints != nil {
+		s.PlacementConstraints = input.PlacementConstraints
+	}
+	if input.PlacementStrategy != nil {
+		s.PlacementStrategy = input.PlacementStrategy
+	}
+	if input.ServiceRegistries != nil {
+		s.ServiceRegistries = input.ServiceRegistries
+	}
+	if input.NetworkConfiguration != nil {
+		s.NetworkConfiguration = input.NetworkConfiguration
+	}
+	if input.LoadBalancers != nil {
+		s.LoadBalancers = input.LoadBalancers
+	}
 	s.Deployments = []types.Deployment{
 		{
 			DesiredCount:   nextDesiredCount,
