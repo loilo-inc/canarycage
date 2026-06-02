@@ -108,7 +108,7 @@ func integrationTest(t *testing.T, env *env.Envars, lbcount int, input *types.Ro
 	}
 }
 
-func TestCage_RollOut_UpdateServiceRemovesOptionalSliceSettings(t *testing.T) {
+func TestCage_RollOut_UpdateServicePreservesNilOptionalSliceSettings(t *testing.T) {
 	ctx := context.TODO()
 	envars := test.DefaultEnvars()
 	mocker := test.NewMockContext()
@@ -163,16 +163,11 @@ func TestCage_RollOut_UpdateServiceRemovesOptionalSliceSettings(t *testing.T) {
 
 	updatedService, _ := mocker.GetEcsService(envars.Service)
 	assert.True(t, result.ServiceUpdated)
-	assert.NotNil(t, updatedService.CapacityProviderStrategy)
-	assert.Len(t, updatedService.CapacityProviderStrategy, 0)
-	assert.NotNil(t, updatedService.LoadBalancers)
-	assert.Len(t, updatedService.LoadBalancers, 0)
-	assert.NotNil(t, updatedService.ServiceRegistries)
-	assert.Len(t, updatedService.ServiceRegistries, 0)
-	assert.NotNil(t, updatedService.PlacementConstraints)
-	assert.Len(t, updatedService.PlacementConstraints, 0)
-	assert.NotNil(t, updatedService.PlacementStrategy)
-	assert.Len(t, updatedService.PlacementStrategy, 0)
+	assert.Nil(t, updatedService.CapacityProviderStrategy)
+	assert.Nil(t, updatedService.LoadBalancers)
+	assert.Nil(t, updatedService.ServiceRegistries)
+	assert.Nil(t, updatedService.PlacementConstraints)
+	assert.Nil(t, updatedService.PlacementStrategy)
 }
 
 func TestCage_Rollout_Failure(t *testing.T) {
