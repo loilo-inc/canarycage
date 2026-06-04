@@ -68,12 +68,7 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (last
 		TaskDefinition: c.td.TaskDefinitionArn,
 	}
 	if input.UpdateService {
-		updateInput.LoadBalancers = env.ServiceDefinitionInput.LoadBalancers
-		updateInput.NetworkConfiguration = env.ServiceDefinitionInput.NetworkConfiguration
-		updateInput.ServiceConnectConfiguration = env.ServiceDefinitionInput.ServiceConnectConfiguration
-		updateInput.ServiceRegistries = env.ServiceDefinitionInput.ServiceRegistries
-		updateInput.PlatformVersion = env.ServiceDefinitionInput.PlatformVersion
-		updateInput.VolumeConfigurations = env.ServiceDefinitionInput.VolumeConfigurations
+		applyServiceDefinitionToUpdateInput(updateInput, env.ServiceDefinitionInput)
 	}
 	if _, err := ecsCli.UpdateService(ctx, updateInput); err != nil {
 		l.Errorf("😨 failed to update service: %s", err)

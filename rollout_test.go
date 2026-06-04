@@ -108,6 +108,137 @@ func integrationTest(t *testing.T, env *env.Envars, lbcount int, input *types.Ro
 	}
 }
 
+func setupRollOutWithOptionalServiceSettings(t *testing.T) (
+	context.Context,
+	*env.Envars,
+	*test.MockContext,
+	ecs.CreateServiceInput,
+	*cage,
+) {
+	t.Helper()
+
+	ctx := context.TODO()
+	envars := test.DefaultEnvars()
+	mocker := test.NewMockContext()
+	td, _ := mocker.Ecs.RegisterTaskDefinition(ctx, envars.TaskDefinitionInput)
+
+	currentServiceInput := *envars.ServiceDefinitionInput
+	currentServiceInput.TaskDefinition = td.TaskDefinition.TaskDefinitionArn
+	currentServiceInput.LaunchType = ""
+	currentServiceInput.CapacityProviderStrategy = []ecstypes.CapacityProviderStrategyItem{
+		{CapacityProvider: aws.String("FARGATE"), Weight: 1},
+	}
+	currentServiceInput.ServiceRegistries = []ecstypes.ServiceRegistry{
+		{RegistryArn: aws.String("arn:aws:servicediscovery:us-west-2:123456789012:service/srv-123456")},
+	}
+	currentServiceInput.PlacementConstraints = []ecstypes.PlacementConstraint{
+		{Type: ecstypes.PlacementConstraintTypeDistinctInstance},
+	}
+	currentServiceInput.PlacementStrategy = []ecstypes.PlacementStrategy{
+		{Type: ecstypes.PlacementStrategyTypeSpread, Field: aws.String("attribute:ecs.availability-zone")},
+	}
+	_, _ = mocker.Ecs.CreateService(ctx, &currentServiceInput)
+
+	serviceBeforeRollout, _ := mocker.GetEcsService(envars.Service)
+	assert.NotEmpty(t, serviceBeforeRollout.CapacityProviderStrategy)
+	assert.NotEmpty(t, serviceBeforeRollout.LoadBalancers)
+	assert.NotEmpty(t, serviceBeforeRollout.ServiceRegistries)
+	assert.NotEmpty(t, serviceBeforeRollout.PlacementConstraints)
+	assert.NotEmpty(t, serviceBeforeRollout.PlacementStrategy)
+	assert.NotNil(t, serviceBeforeRollout.PlatformVersion)
+	assert.NotNil(t, serviceBeforeRollout.NetworkConfiguration)
+
+	c := &cage{di: di.NewDomain(func(b *di.B) {
+		b.Set(key.Env, envars)
+		b.Set(key.Ec2Cli, mocker.Ec2)
+		b.Set(key.EcsCli, mocker.Ecs)
+		b.Set(key.AlbCli, mocker.Alb)
+		b.Set(key.Logger, test.NewLogger())
+		b.Set(key.Time, test.NewFakeTime())
+		b.Set(key.TaskFactory, task.NewFactory(b.Future()))
+	})}
+
+	return ctx, envars, mocker, currentServiceInput, c
+}
+
+func TestCage_RollOut_PreservesOptionalServiceSettingsWithoutUpdateService(t *testing.T) {
+	ctx, _, mocker, currentServiceInput, c := setupRollOutWithOptionalServiceSettings(t)
+
+	result, err := c.RollOut(ctx, &types.RollOutInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updatedService, _ := mocker.GetEcsService(*currentServiceInput.ServiceName)
+	assert.True(t, result.ServiceUpdated)
+	assert.Equal(t, currentServiceInput.CapacityProviderStrategy, updatedService.CapacityProviderStrategy)
+	assert.Equal(t, currentServiceInput.LoadBalancers, updatedService.LoadBalancers)
+	assert.Equal(t, currentServiceInput.ServiceRegistries, updatedService.ServiceRegistries)
+	assert.Equal(t, currentServiceInput.PlacementConstraints, updatedService.PlacementConstraints)
+	assert.Equal(t, currentServiceInput.PlacementStrategy, updatedService.PlacementStrategy)
+	assert.Equal(t, currentServiceInput.PlatformVersion, updatedService.PlatformVersion)
+	assert.Equal(t, currentServiceInput.NetworkConfiguration, updatedService.NetworkConfiguration)
+}
+
+func TestCage_RollOut_UpdateServicePreservesNilOptionalServiceSettings(t *testing.T) {
+	ctx, envars, mocker, currentServiceInput, c := setupRollOutWithOptionalServiceSettings(t)
+
+	nextServiceInput := currentServiceInput
+	nextServiceInput.CapacityProviderStrategy = nil
+	nextServiceInput.LoadBalancers = nil
+	nextServiceInput.ServiceRegistries = nil
+	nextServiceInput.PlacementConstraints = nil
+	nextServiceInput.PlacementStrategy = nil
+	nextServiceInput.PlatformVersion = nil
+	nextServiceInput.NetworkConfiguration = nil
+	envars.ServiceDefinitionInput = &nextServiceInput
+
+	result, err := c.RollOut(ctx, &types.RollOutInput{UpdateService: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updatedService, _ := mocker.GetEcsService(envars.Service)
+	assert.True(t, result.ServiceUpdated)
+	assert.Equal(t, currentServiceInput.CapacityProviderStrategy, updatedService.CapacityProviderStrategy)
+	assert.Equal(t, currentServiceInput.LoadBalancers, updatedService.LoadBalancers)
+	assert.Equal(t, currentServiceInput.ServiceRegistries, updatedService.ServiceRegistries)
+	assert.Equal(t, currentServiceInput.PlacementConstraints, updatedService.PlacementConstraints)
+	assert.Equal(t, currentServiceInput.PlacementStrategy, updatedService.PlacementStrategy)
+	assert.Equal(t, currentServiceInput.PlatformVersion, updatedService.PlatformVersion)
+	assert.Equal(t, currentServiceInput.NetworkConfiguration, updatedService.NetworkConfiguration)
+}
+
+func TestCage_RollOut_UpdateServiceClearsEmptyOptionalSliceSettings(t *testing.T) {
+	ctx, envars, mocker, currentServiceInput, c := setupRollOutWithOptionalServiceSettings(t)
+
+	nextServiceInput := currentServiceInput
+	nextServiceInput.CapacityProviderStrategy = []ecstypes.CapacityProviderStrategyItem{}
+	nextServiceInput.LoadBalancers = []ecstypes.LoadBalancer{}
+	nextServiceInput.ServiceRegistries = []ecstypes.ServiceRegistry{}
+	nextServiceInput.PlacementConstraints = []ecstypes.PlacementConstraint{}
+	nextServiceInput.PlacementStrategy = []ecstypes.PlacementStrategy{}
+	envars.ServiceDefinitionInput = &nextServiceInput
+
+	result, err := c.RollOut(ctx, &types.RollOutInput{UpdateService: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updatedService, _ := mocker.GetEcsService(envars.Service)
+	assert.True(t, result.ServiceUpdated)
+	assert.NotNil(t, updatedService.CapacityProviderStrategy)
+	assert.Len(t, updatedService.CapacityProviderStrategy, 0)
+	assert.NotNil(t, updatedService.LoadBalancers)
+	assert.Len(t, updatedService.LoadBalancers, 0)
+	assert.NotNil(t, updatedService.ServiceRegistries)
+	assert.Len(t, updatedService.ServiceRegistries, 0)
+	assert.NotNil(t, updatedService.PlacementConstraints)
+	assert.Len(t, updatedService.PlacementConstraints, 0)
+	assert.NotNil(t, updatedService.PlacementStrategy)
+	assert.Len(t, updatedService.PlacementStrategy, 0)
+}
+
 func TestCage_Rollout_Failure(t *testing.T) {
 	t.Run("should error if DescribeServices failed", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
