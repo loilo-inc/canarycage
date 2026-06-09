@@ -1,4 +1,4 @@
-package env_test
+package env
 
 import (
 	"os"
@@ -6,64 +6,63 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/loilo-inc/canarycage/v5/env"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestEnsureEnvars(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
-		e := &env.Envars{
+		e := &Envars{
 			Region:              "us-west-2",
 			Cluster:             "cluster",
 			Service:             "service-next",
 			TaskDefinitionInput: &ecs.RegisterTaskDefinitionInput{},
 		}
-		if err := env.EnsureEnvars(e); err != nil {
+		if err := EnsureEnvars(e); err != nil {
 			t.Fatal(err.Error())
 		}
 	})
 	t.Run("with td arn", func(t *testing.T) {
-		e := &env.Envars{
+		e := &Envars{
 			Region:            "us-west-2",
 			Cluster:           "cluster",
 			Service:           "next",
 			TaskDefinitionArn: "arn://aaa",
 		}
-		if err := env.EnsureEnvars(e); err != nil {
+		if err := EnsureEnvars(e); err != nil {
 			t.Fatal(err.Error())
 		}
 	})
 	t.Run("should return err if nor taskDefinitionArn neither TaskDefinitionInput is defined", func(t *testing.T) {
-		e := &env.Envars{
+		e := &Envars{
 			Region:  "us-west-2",
 			Cluster: "cluster",
 			Service: "next",
 		}
-		err := env.EnsureEnvars(e)
+		err := EnsureEnvars(e)
 		assert.Errorf(t, err, "--nextTaskDefinitionArn or deploy context must be provided")
 	})
 	t.Run("should return err if required props are not defined", func(t *testing.T) {
 		dummy := "aaa"
 		arr := []string{
-			env.RegionKey,
-			env.ServiceKey,
-			env.ClusterKey,
+			RegionKey,
+			ServiceKey,
+			ClusterKey,
 		}
 		for i, v := range arr {
 			m := make(map[string]string)
-			m[env.ServiceKey] = dummy
-			m[env.TaskDefinitionArnKey] = dummy
-			m[env.ClusterKey] = dummy
+			m[ServiceKey] = dummy
+			m[TaskDefinitionArnKey] = dummy
+			m[ClusterKey] = dummy
 			for j, u := range arr {
 				if i == j {
 					m[u] = ""
 				}
 			}
-			e := &env.Envars{
-				Service: m[env.ServiceKey],
-				Cluster: m[env.ClusterKey],
+			e := &Envars{
+				Service: m[ServiceKey],
+				Cluster: m[ClusterKey],
 			}
-			err := env.EnsureEnvars(e)
+			err := EnsureEnvars(e)
 			if err == nil {
 				t.Fatalf("should return error if %s is not defined", v)
 			}
@@ -72,70 +71,136 @@ func TestEnsureEnvars(t *testing.T) {
 }
 
 func TestMergeEnvars(t *testing.T) {
-	e1 := &env.Envars{
+	e1 := &Envars{
 		Region:  "us-west-2",
 		Cluster: "cluster",
 	}
-	e2 := &env.Envars{
+	e2 := &Envars{
 		Cluster: "hoge",
 		Service: "fuga",
 	}
-	env.MergeEnvars(e1, e2)
+	MergeEnvars(e1, e2)
 	assert.Equal(t, e1.Region, "us-west-2")
 	assert.Equal(t, e1.Cluster, "hoge")
 	assert.Equal(t, e1.Service, "fuga")
 }
 
+func TestApplyEnvarsToString(t *testing.T) {
+	const path = "task-definition.json"
+
+	t.Run("replaces envar literals", func(t *testing.T) {
+		t.Setenv("IMAGE_REPOSITORY", "repo/app")
+		t.Setenv("IMAGE_TAG", "v1.2.3")
+
+		got, err := applyEnvarsToString("${IMAGE_REPOSITORY}:${IMAGE_TAG}", path)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "repo/app:v1.2.3", got)
+	})
+
+	t.Run("keeps string without envar literals", func(t *testing.T) {
+		got, err := applyEnvarsToString("repo/app:latest", path)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "repo/app:latest", got)
+	})
+
+	t.Run("returns error if envar is not defined", func(t *testing.T) {
+		unsetenv(t, "UNDEFINED_IMAGE_TAG")
+
+		got, err := applyEnvarsToString("repo/app:${UNDEFINED_IMAGE_TAG}", path)
+
+		assert.Equal(t, "repo/app:${UNDEFINED_IMAGE_TAG}", got)
+		assert.EqualError(t, err, "envar literal '${UNDEFINED_IMAGE_TAG}' found in task-definition.json but was not defined")
+	})
+}
+
+func TestLookupEnvar(t *testing.T) {
+	const path = "service.json"
+
+	t.Run("returns defined envar", func(t *testing.T) {
+		t.Setenv("SERVICE_NAME", "canary-service")
+
+		got, err := lookupEnvar("${SERVICE_NAME}", path)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "canary-service", got)
+	})
+
+	t.Run("returns empty string for defined empty envar", func(t *testing.T) {
+		t.Setenv("EMPTY_VALUE", "")
+
+		got, err := lookupEnvar("${EMPTY_VALUE}", path)
+
+		assert.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("returns error if literal is invalid", func(t *testing.T) {
+		got, err := lookupEnvar("SERVICE_NAME", path)
+
+		assert.Empty(t, got)
+		assert.EqualError(t, err, "invalid envar literal 'SERVICE_NAME' found in service.json")
+	})
+
+	t.Run("returns error if envar is not defined", func(t *testing.T) {
+		unsetenv(t, "UNDEFINED_SERVICE_NAME")
+
+		got, err := lookupEnvar("${UNDEFINED_SERVICE_NAME}", path)
+
+		assert.Empty(t, got)
+		assert.EqualError(t, err, "envar literal '${UNDEFINED_SERVICE_NAME}' found in service.json but was not defined")
+	})
+}
+
+func unsetenv(t *testing.T, key string) {
+	t.Helper()
+
+	value, ok := os.LookupEnv(key)
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatal(err.Error())
+	}
+	t.Cleanup(func() {
+		if ok {
+			_ = os.Setenv(key, value)
+		}
+	})
+}
+
 func TestLoadServiceDefinition(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
-		d, err := env.LoadServiceDefinition("../fixtures")
+		d, err := LoadServiceDefinition("../fixtures")
 		if err != nil {
 			t.Fatal(err.Error())
 		}
 		assert.Equal(t, *d.ServiceName, "service")
 	})
 	t.Run("should error if service.json is not found", func(t *testing.T) {
-		_, err := env.LoadServiceDefinition("./testdata")
+		_, err := LoadServiceDefinition("./testdata")
 		assert.EqualError(t, err, "no 'service.json' found in ./testdata")
 	})
 	t.Run("should error if service.json is invalid", func(t *testing.T) {
-		_, err := env.LoadServiceDefinition("./testdata/invalid")
+		_, err := LoadServiceDefinition("./testdata/invalid")
 		assert.ErrorContains(t, err, "failed to read and unmarshal 'service.json':")
 	})
 }
 
 func TestLoadTaskDefinition(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
-		d, err := env.LoadTaskDefinition("../fixtures")
+		d, err := LoadTaskDefinition("../fixtures")
 		if err != nil {
 			t.Fatal(err.Error())
 		}
 		assert.Equal(t, *d.Family, "test-task")
 	})
 	t.Run("should error if task-definition.json is not found", func(t *testing.T) {
-		_, err := env.LoadTaskDefinition("./testdata")
+		_, err := LoadTaskDefinition("./testdata")
 		assert.EqualError(t, err, "no 'task-definition.json' found in ./testdata")
 	})
 	t.Run("should error if task-definition.json is invalid", func(t *testing.T) {
-		_, err := env.LoadTaskDefinition("./testdata/invalid")
+		_, err := LoadTaskDefinition("./testdata/invalid")
 		assert.ErrorContains(t, err, "failed to read and unmarshal 'task-definition.json':")
 	})
-}
-
-func TestReadFileAndApplyEnvars(t *testing.T) {
-	t.Setenv("HOGE", "hogehoge")
-	t.Setenv("FUGA", "fugafuga")
-	d, err := env.ReadFileAndApplyEnvars("./testdata/template.txt")
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-	s := string(d)
-	e := `HOGE=hogehoge
-FUGA=fugafuga
-fugafuga=hogehoge`
-	if s != e {
-		t.Fatalf("e: %s, a: %s", e, s)
-	}
 }
 
 func TestReadAndUnmarshalJsonEscapesEnvars(t *testing.T) {
@@ -150,7 +215,7 @@ func TestReadAndUnmarshalJsonEscapesEnvars(t *testing.T) {
 		Family      string `json:"family"`
 		TaskRoleArn string `json:"taskRoleArn"`
 	}
-	if err := env.ReadAndUnmarshalJson(path, &got); err != nil {
+	if err := readAndUnmarshalJson(path, &got); err != nil {
 		t.Fatal(err.Error())
 	}
 
@@ -167,7 +232,7 @@ func TestReadAndUnmarshalJsonRejectsEnvarsInObjectKeys(t *testing.T) {
 	}
 
 	var got map[string]string
-	err := env.ReadAndUnmarshalJson(path, &got)
+	err := readAndUnmarshalJson(path, &got)
 
 	assert.ErrorContains(t, err, "envar literal found in JSON object key '${KEY}'")
 }
@@ -180,7 +245,7 @@ func TestReadAndUnmarshalJsonRejectsEnvarsOutsideStringValues(t *testing.T) {
 	}
 
 	var got map[string]int
-	err := env.ReadAndUnmarshalJson(path, &got)
+	err := readAndUnmarshalJson(path, &got)
 
 	assert.Error(t, err)
 }

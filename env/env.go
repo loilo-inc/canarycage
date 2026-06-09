@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 )
@@ -45,7 +44,7 @@ const TaskStoppedTimeout = "CAGE_TASK_STOPPED_TIMEOUT"
 const ServiceStableTimeout = "CAGE_SERVICE_STABLE_TIMEOUT"
 
 var (
-	envarLiteralRegexp = regexp.MustCompile(`\$\{([^}]+)\}`)
+	envarLiteralRegexp = regexp.MustCompile(`\$\{([^}\r\n]+)\}`)
 )
 
 func EnsureEnvars(
@@ -74,7 +73,7 @@ func LoadServiceDefinition(dir string) (*ecs.CreateServiceInput, error) {
 	if noSvc != nil {
 		return nil, fmt.Errorf("no 'service.json' found in %s", dir)
 	}
-	if err := ReadAndUnmarshalJson(svcPath, &service); err != nil {
+	if err := readAndUnmarshalJson(svcPath, &service); err != nil {
 		return nil, fmt.Errorf("failed to read and unmarshal 'service.json': %s", err)
 	}
 	return &service, nil
@@ -87,7 +86,7 @@ func LoadTaskDefinition(dir string) (*ecs.RegisterTaskDefinitionInput, error) {
 	if noTd != nil {
 		return nil, fmt.Errorf("no 'task-definition.json' found in %s", dir)
 	}
-	if err := ReadAndUnmarshalJson(tdPath, &td); err != nil {
+	if err := readAndUnmarshalJson(tdPath, &td); err != nil {
 		return nil, fmt.Errorf("failed to read and unmarshal 'task-definition.json': %s", err)
 	}
 	return &td, nil
@@ -117,36 +116,15 @@ func MergeEnvars(dest *Envars, src *Envars) {
 	}
 }
 
-func ReadAndUnmarshalJson(path string, dest any) error {
-	if d, err := readJSONFileAndApplyEnvars(path); err != nil {
+func readAndUnmarshalJson(path string, dest any) error {
+	if b, err := os.ReadFile(path); err != nil {
+		return err
+	} else if d, err := applyEnvarsToJSON(b, path); err != nil {
 		return err
 	} else if err := json.Unmarshal(d, dest); err != nil {
 		return err
 	}
 	return nil
-}
-
-func ReadFileAndApplyEnvars(path string) ([]byte, error) {
-	d, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	if strings.EqualFold(filepath.Ext(path), ".json") {
-		return applyEnvarsToJSON(d, path)
-	}
-	str, err := applyEnvarsToString(string(d), path)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(str), nil
-}
-
-func readJSONFileAndApplyEnvars(path string) ([]byte, error) {
-	d, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return applyEnvarsToJSON(d, path)
 }
 
 func applyEnvarsToJSON(d []byte, path string) ([]byte, error) {
