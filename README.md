@@ -107,59 +107,146 @@ $ cage audit --region ${AWS_REGION} --cluster ${ECS_CLUSTER} --service ${ECS_SER
 
 By default, the output is a table with per-container status and severity counts. Use `--detail` to include vulnerability descriptions and `--json` to output the aggregated result as JSON.
 
-### IAM Policy
+### IAM Policy (for `cage rollout`)
 
-`cararycage` requires several IAM policies to run. Here is an example of IAM policy for `canarycage`:
+`canarycage` requires several IAM policies to run. Here is a recommended example of IAM policy for `cage rollout` command with Fargate:
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Action": ["ecs:CreateService", "ecs:UpdateService"],
+      "Condition": {
+        "ArnEquals": {
+          "ecs:cluster": "arn:aws:ecs::123456789010:cluster/your-cluster-name"
+        },
+        "ArnLike": {
+          "ecs:task-definition": [
+            "arn:aws:ecs::123456789010:task-definition/your-task-definition-name:*"
+          ]
+        }
+      },
       "Effect": "Allow",
+      "Resource": [
+        "arn:aws:ecs::123456789010:service/your-cluster-name/your-service-name"
+      ]
+    },
+    {
+      "Action": ["ecs:DeleteService", "ecs:DescribeServices"],
+      "Condition": {
+        "ArnEquals": {
+          "ecs:cluster": "arn:aws:ecs::123456789010:cluster/your-cluster-name"
+        }
+      },
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:ecs::123456789010:service/your-cluster-name/your-service-name"
+      ]
+    },
+    {
+      "Action": ["ecs:RegisterTaskDefinition"],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:ecs::123456789010:task-definition/your-task-definition-name:*"
+      ]
+    },
+    {
       "Action": [
-        "ecs:CreateService",
-        "ecs:UpdateService",
-        "ecs:DeleteService",
-        "ecs:StartTask",
-        "ecs:RegisterTaskDefinition",
-        "ecs:DescribeServices",
         "ecs:DescribeTasks",
         "ecs:DescribeContainerInstances",
         "ecs:ListTasks",
-        "ecs:RunTask",
-        "ecs:StopTask",
-        "ecs:DescribeTaskDefinition"
+        "ecs:StopTask"
       ],
+      "Condition": {
+        "ArnEquals": {
+          "ecs:cluster": "arn:aws:ecs::123456789010:cluster/your-cluster-name"
+        }
+      },
+      "Effect": "Allow",
       "Resource": "*"
     },
     {
+      "Action": ["ecs:RunTask", "ecs:StartTask"],
+      "Condition": {
+        "ArnEquals": {
+          "ecs:cluster": "arn:aws:ecs::123456789010:cluster/your-cluster-name"
+        }
+      },
       "Effect": "Allow",
-      "Action": [
-        "ecr:BatchGetImage",
-        "ecr:DescribeImageScanFindings"
-      ],
+      "Resource": [
+        "arn:aws:ecs::123456789010:task-definition/your-task-definition-name:*"
+      ]
+    },
+    {
+      "Action": ["ecs:DescribeTaskDefinition"],
+      "Effect": "Allow",
       "Resource": "*"
     },
     {
-      "Effect": "Allow",
       "Action": [
         "elasticloadbalancing:DescribeTargetGroups",
         "elasticloadbalancing:DescribeTargetHealth",
-        "elasticloadbalancing:DescribeTargetGroupAttributes",
-        "elasticloadbalancing:RegisterTargets",
-        "elasticloadbalancing:DeregisterTargets"
+        "elasticloadbalancing:DescribeTargetGroupAttributes"
       ],
+      "Effect": "Allow",
       "Resource": "*"
     },
     {
+      "Action": [
+        "elasticloadbalancing:RegisterTargets",
+        "elasticloadbalancing:DeregisterTargets"
+      ],
       "Effect": "Allow",
+      "Resource": [
+        "arn:aws:elasticloadbalancing::123456789010:targetgroup/your-target-group-name/your-target-group-id"
+      ]
+    },
+    {
       "Action": ["ec2:DescribeSubnets", "ec2:DescribeInstances"],
+      "Effect": "Allow",
+      "Resource": "*"
+    },
+    {
+      "Action": ["iam:PassRole"],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "ecs-tasks.amazonaws.com"
+        }
+      },
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:iam::123456789010:role/your-task-execution-role",
+        "arn:aws:iam::123456789010:role/your-task-role"
+      ]
+    }
+  ]
+}
+```
+
+### IAM Policy (for `cage audit`)
+
+Here is a recommended example of IAM policy for `cage audit` command:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": ["ecr:BatchGetImage", "ecr:DescribeImageScanFindings"],
+      "Effect": "Allow",
+      "Resource": ["arn:aws:ecr::123456789010:repository/your-repository-name"]
+    },
+    {
+      "Action": ["ecs:DescribeServices", "ecs:DescribeTaskDefinition"],
+      "Effect": "Allow",
       "Resource": "*"
     }
   ]
 }
 ```
+
+You can restrict the `Resource` field of `ecs:DescribeServices` and `ecs:DescribeTaskDefinition` actions to specific services and task definitions if you want to limit the scope of the policy.
 
 ### Why we need `canarycage`
 
@@ -169,19 +256,9 @@ DeploymentCircuitBreaker automatically detects the failure of the deployment and
 
 This approach is very robust and reliable. For past 5 years, we have been using this tool for all production microservices running on ECS Fargate with no downtime caused by deployment. Many misconfigurations and bugs have been detected by canary task before updating the service.
 
-## With GitHub Actions
+## GitHub Actions
 
-You can use `canarycage` with GitHub Actions. Here is an example of GitHub Actions workflow:
-
-```yaml
-- uses: loilo-inc/actions-setup-cage@7
-  with:
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-- uses: loilo-inc/actions-deploy-cage@v7
-  with:
-    region: your-region
-    deploy-context: deploy
-```
+Canarycage Github Actions are now unavailable due to security concerns.
 
 ## Licence
 
