@@ -44,6 +44,10 @@ const TaskHealthCheckTimeout = "CAGE_TASK_HEALTH_CHECK_TIMEOUT"
 const TaskStoppedTimeout = "CAGE_TASK_STOPPED_TIMEOUT"
 const ServiceStableTimeout = "CAGE_SERVICE_STABLE_TIMEOUT"
 
+var (
+	envarLiteralRegexp = regexp.MustCompile(`\$\{([^}]+)\}`)
+)
+
 func EnsureEnvars(
 	dest *Envars,
 ) error {
@@ -113,8 +117,8 @@ func MergeEnvars(dest *Envars, src *Envars) {
 	}
 }
 
-func ReadAndUnmarshalJson(path string, dest interface{}) error {
-	if d, err := ReadFileAndApplyEnvars(path); err != nil {
+func ReadAndUnmarshalJson(path string, dest any) error {
+	if d, err := readJSONFileAndApplyEnvars(path); err != nil {
 		return err
 	} else if err := json.Unmarshal(d, dest); err != nil {
 		return err
@@ -127,15 +131,89 @@ func ReadFileAndApplyEnvars(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	str := string(d)
-	reg := regexp.MustCompile(`\${(.+?)}`)
-	submatches := reg.FindAllStringSubmatch(str, -1)
-	for _, m := range submatches {
-		if envar, ok := os.LookupEnv(m[1]); ok {
-			str = strings.Replace(str, m[0], envar, -1)
-		} else {
-			return nil, fmt.Errorf("envar literal '%s' found in %s but was not defined", m[0], path)
-		}
+	if strings.EqualFold(filepath.Ext(path), ".json") {
+		return applyEnvarsToJSON(d, path)
+	}
+	str, err := applyEnvarsToString(string(d), path)
+	if err != nil {
+		return nil, err
 	}
 	return []byte(str), nil
+}
+
+func readJSONFileAndApplyEnvars(path string) ([]byte, error) {
+	d, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return applyEnvarsToJSON(d, path)
+}
+
+func applyEnvarsToJSON(d []byte, path string) ([]byte, error) {
+	var js any
+	if err := json.Unmarshal(d, &js); err != nil {
+		return nil, err
+	}
+	applied, err := applyEnvarsToJSONValue(js, path)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(applied)
+}
+
+func applyEnvarsToJSONValue(value any, path string) (any, error) {
+	switch v := value.(type) {
+	case map[string]any:
+		for key, child := range v {
+			if envarLiteralRegexp.MatchString(key) {
+				return nil, fmt.Errorf("envar literal found in JSON object key '%s' in %s; envars can only be used in JSON string values", key, path)
+			}
+			applied, err := applyEnvarsToJSONValue(child, path)
+			if err != nil {
+				return nil, err
+			}
+			v[key] = applied
+		}
+		return v, nil
+	case []any:
+		for i, child := range v {
+			applied, err := applyEnvarsToJSONValue(child, path)
+			if err != nil {
+				return nil, err
+			}
+			v[i] = applied
+		}
+		return v, nil
+	case string:
+		return applyEnvarsToString(v, path)
+	default:
+		return v, nil
+	}
+}
+
+func applyEnvarsToString(str string, path string) (string, error) {
+	var replaceErr error
+	replaced := envarLiteralRegexp.ReplaceAllStringFunc(str, func(literal string) string {
+		if replaceErr != nil {
+			return literal
+		}
+		envar, err := lookupEnvar(literal, path)
+		if err != nil {
+			replaceErr = err
+			return literal
+		}
+		return envar
+	})
+	return replaced, replaceErr
+}
+
+func lookupEnvar(literal string, path string) (string, error) {
+	match := envarLiteralRegexp.FindStringSubmatch(literal)
+	if len(match) != 2 {
+		return "", fmt.Errorf("invalid envar literal '%s' found in %s", literal, path)
+	}
+	if envar, ok := os.LookupEnv(match[1]); ok {
+		return envar, nil
+	}
+	return "", fmt.Errorf("envar literal '%s' found in %s but was not defined", literal, path)
 }

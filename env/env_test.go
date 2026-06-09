@@ -2,6 +2,7 @@ package env_test
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -122,8 +123,8 @@ func TestLoadTaskDefinition(t *testing.T) {
 }
 
 func TestReadFileAndApplyEnvars(t *testing.T) {
-	os.Setenv("HOGE", "hogehoge")
-	os.Setenv("FUGA", "fugafuga")
+	t.Setenv("HOGE", "hogehoge")
+	t.Setenv("FUGA", "fugafuga")
 	d, err := env.ReadFileAndApplyEnvars("./testdata/template.txt")
 	if err != nil {
 		t.Fatal(err.Error())
@@ -135,4 +136,51 @@ fugafuga=hogehoge`
 	if s != e {
 		t.Fatalf("e: %s, a: %s", e, s)
 	}
+}
+
+func TestReadAndUnmarshalJsonEscapesEnvars(t *testing.T) {
+	t.Setenv("IMAGE_TAG", `latest","taskRoleArn":"arn:aws:iam::123456789012:role/pwn","image":"attacker`)
+	path := filepath.Join(t.TempDir(), "task-definition.json")
+	if err := os.WriteFile(path, []byte(`{"image":"repo:${IMAGE_TAG}","family":"app"}`), 0o644); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	var got struct {
+		Image       string `json:"image"`
+		Family      string `json:"family"`
+		TaskRoleArn string `json:"taskRoleArn"`
+	}
+	if err := env.ReadAndUnmarshalJson(path, &got); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	assert.Equal(t, `repo:latest","taskRoleArn":"arn:aws:iam::123456789012:role/pwn","image":"attacker`, got.Image)
+	assert.Equal(t, "app", got.Family)
+	assert.Empty(t, got.TaskRoleArn)
+}
+
+func TestReadAndUnmarshalJsonRejectsEnvarsInObjectKeys(t *testing.T) {
+	t.Setenv("KEY", "image")
+	path := filepath.Join(t.TempDir(), "task-definition.json")
+	if err := os.WriteFile(path, []byte(`{"${KEY}":"value"}`), 0o644); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	var got map[string]string
+	err := env.ReadAndUnmarshalJson(path, &got)
+
+	assert.ErrorContains(t, err, "envar literal found in JSON object key '${KEY}'")
+}
+
+func TestReadAndUnmarshalJsonRejectsEnvarsOutsideStringValues(t *testing.T) {
+	t.Setenv("COUNT", "1")
+	path := filepath.Join(t.TempDir(), "service.json")
+	if err := os.WriteFile(path, []byte(`{"desiredCount":${COUNT}}`), 0o644); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	var got map[string]int
+	err := env.ReadAndUnmarshalJson(path, &got)
+
+	assert.Error(t, err)
 }
