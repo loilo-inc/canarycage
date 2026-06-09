@@ -39,7 +39,7 @@ func TestEnsureEnvars(t *testing.T) {
 			Service: "next",
 		}
 		err := EnsureEnvars(e)
-		assert.Errorf(t, err, "--nextTaskDefinitionArn or deploy context must be provided")
+		assert.EqualError(t, err, "--nextTaskDefinitionArn or deploy context must be provided")
 	})
 	t.Run("should return err if required props are not defined", func(t *testing.T) {
 		dummy := "aaa"
