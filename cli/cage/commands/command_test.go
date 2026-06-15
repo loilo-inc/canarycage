@@ -124,7 +124,7 @@ func TestSetupCage(t *testing.T) {
 		})
 
 		_, err := cmds.setupCage(input, "../../../fixtures")
-			assert.EqualError(t, err, "--region is required")
+		assert.EqualError(t, err, "--region is required")
 	})
 
 	t.Run("propagates provider error", func(t *testing.T) {

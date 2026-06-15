@@ -148,10 +148,10 @@ func TestFlagDestinations(t *testing.T) {
 // TestFlagDefaultValues verifies default values for int flags
 func TestFlagDefaultValues(t *testing.T) {
 	tests := []struct {
-		name         string
-		flagFunc     func(*int) *cli.IntFlag
-		expectedVal  int
-		expectedCat  string
+		name        string
+		flagFunc    func(*int) *cli.IntFlag
+		expectedVal int
+		expectedCat string
 	}{
 		{
 			name:        "CanaryTaskIdleDurationFlag",

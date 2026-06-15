@@ -46,11 +46,13 @@ func main() {
 			&cli.BoolFlag{
 				Name:        "ci",
 				Usage:       "CI mode. Skip all confirmations and use default values.",
+				Sources:     cli.EnvVars("CI"),
 				Destination: &appConf.CI,
 			},
 			&cli.BoolFlag{
 				Name:        "no-color",
 				Usage:       "Disable colored output",
+				Sources:     cli.EnvVars("NO_COLOR"),
 				Destination: &appConf.NoColor,
 			},
 		},
