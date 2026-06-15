@@ -13,7 +13,7 @@ func TestRegionFlag(t *testing.T) {
 
 	assert.NotNil(t, flag)
 	assert.Equal(t, "region", flag.Name)
-	assert.Equal(t, "aws region for ecs. if not specified, try to load from aws sessions automatically", flag.Usage)
+	assert.Equal(t, "aws region to be used. region specified in aws session is always ignored", flag.Usage)
 	assert.True(t, flag.Required)
 	assert.Equal(t, &dest, flag.Destination)
 }
