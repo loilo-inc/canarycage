@@ -29,7 +29,7 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:        "updateService",
-				Usage:       "Update service configurations except for task definiton. Default is false.",
+				Usage:       "Update service configurations except for task definition. Default is false.",
 				Destination: &updateServiceConf,
 			},
 			cageapp.TaskRunningWaitFlag(&input.CanaryTaskRunningWait),
