@@ -5,7 +5,6 @@ import (
 
 	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/v5/cli/cage/prompt"
-	"github.com/loilo-inc/canarycage/v5/env"
 	"github.com/loilo-inc/canarycage/v5/types"
 	"github.com/urfave/cli/v3"
 )
@@ -25,13 +24,11 @@ func (c *CageCommands) RollOut(input *cageapp.CageCmdInput) *cli.Command {
 			cageapp.CanaryTaskIdleDurationFlag(&input.CanaryTaskIdleDuration),
 			&cli.StringFlag{
 				Name:        "canaryInstanceArn",
-				Sources:     cli.EnvVars(env.CanaryInstanceArnKey),
 				Usage:       "EC2 instance ARN for placing canary task. required only when LaunchType is EC2",
 				Destination: &input.CanaryInstanceArn,
 			},
 			&cli.BoolFlag{
 				Name:        "updateService",
-				Sources:     cli.EnvVars(env.UpdateServiceKey),
 				Usage:       "Update service configurations except for task definiton. Default is false.",
 				Destination: &updateServiceConf,
 			},

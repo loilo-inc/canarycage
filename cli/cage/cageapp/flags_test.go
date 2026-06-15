@@ -16,12 +16,6 @@ func TestRegionFlag(t *testing.T) {
 	assert.Equal(t, "aws region for ecs. if not specified, try to load from aws sessions automatically", flag.Usage)
 	assert.True(t, flag.Required)
 	assert.Equal(t, &dest, flag.Destination)
-
-	// Verify Sources contain the correct environment variable
-	sources := flag.Sources
-	assert.NotNil(t, sources)
-	// The Sources field is a ValueSourceChain, so we verify it's set
-	assert.NotNil(t, sources)
 }
 
 func TestClusterFlag(t *testing.T) {
@@ -33,7 +27,6 @@ func TestClusterFlag(t *testing.T) {
 	assert.Equal(t, "ecs cluster name. if not specified, load from service.json", flag.Usage)
 	assert.False(t, flag.Required)
 	assert.Equal(t, &dest, flag.Destination)
-	assert.NotNil(t, flag.Sources)
 }
 
 func TestServiceFlag(t *testing.T) {
@@ -45,7 +38,6 @@ func TestServiceFlag(t *testing.T) {
 	assert.Equal(t, "service name. if not specified, load from service.json", flag.Usage)
 	assert.False(t, flag.Required)
 	assert.Equal(t, &dest, flag.Destination)
-	assert.NotNil(t, flag.Sources)
 }
 
 func TestTaskDefinitionArnFlag(t *testing.T) {
@@ -57,7 +49,6 @@ func TestTaskDefinitionArnFlag(t *testing.T) {
 	assert.Equal(t, "full arn or family:revision of task definition. if not specified, new task definition will be created based on task-definition.json", flag.Usage)
 	assert.False(t, flag.Required)
 	assert.Equal(t, &dest, flag.Destination)
-	assert.NotNil(t, flag.Sources)
 }
 
 func TestCanaryTaskIdleDurationFlag(t *testing.T) {
@@ -69,7 +60,6 @@ func TestCanaryTaskIdleDurationFlag(t *testing.T) {
 	assert.Equal(t, "duration seconds for waiting canary task that isn't attached to target group considered as ready for serving traffic", flag.Usage)
 	assert.Equal(t, 15, flag.Value)
 	assert.Equal(t, &dest, flag.Destination)
-	assert.NotNil(t, flag.Sources)
 }
 
 func TestTaskRunningWaitFlag(t *testing.T) {
@@ -82,7 +72,6 @@ func TestTaskRunningWaitFlag(t *testing.T) {
 	assert.Equal(t, 900, flag.Value)
 	assert.Equal(t, "ADVANCED", flag.Category)
 	assert.Equal(t, &dest, flag.Destination)
-	assert.NotNil(t, flag.Sources)
 }
 
 func TestTaskHealthCheckWaitFlag(t *testing.T) {
@@ -95,7 +84,6 @@ func TestTaskHealthCheckWaitFlag(t *testing.T) {
 	assert.Equal(t, 900, flag.Value)
 	assert.Equal(t, "ADVANCED", flag.Category)
 	assert.Equal(t, &dest, flag.Destination)
-	assert.NotNil(t, flag.Sources)
 }
 
 func TestTaskStoppedWaitFlag(t *testing.T) {
@@ -108,7 +96,6 @@ func TestTaskStoppedWaitFlag(t *testing.T) {
 	assert.Equal(t, 900, flag.Value)
 	assert.Equal(t, "ADVANCED", flag.Category)
 	assert.Equal(t, &dest, flag.Destination)
-	assert.NotNil(t, flag.Sources)
 }
 
 func TestServiceStableWaitFlag(t *testing.T) {
@@ -121,7 +108,6 @@ func TestServiceStableWaitFlag(t *testing.T) {
 	assert.Equal(t, 900, flag.Value)
 	assert.Equal(t, "ADVANCED", flag.Category)
 	assert.Equal(t, &dest, flag.Destination)
-	assert.NotNil(t, flag.Sources)
 }
 
 // TestFlagDestinations verifies that flag destination pointers work correctly
