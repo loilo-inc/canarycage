@@ -42,30 +42,44 @@ func TestEnsureEnvars(t *testing.T) {
 		assert.EqualError(t, err, "--nextTaskDefinitionArn or deploy context must be provided")
 	})
 	t.Run("should return err if required props are not defined", func(t *testing.T) {
-		dummy := "aaa"
-		arr := []string{
-			RegionKey,
-			ServiceKey,
-			ClusterKey,
+		tests := []struct {
+			name string
+			e    *Envars
+		}{
+			{
+				name: "missing region",
+				e: &Envars{
+					Region:            "",
+					Service:           "service",
+					Cluster:           "cluster",
+					TaskDefinitionArn: "arn://aaa",
+				},
+			},
+			{
+				name: "missing service",
+				e: &Envars{
+					Region:            "us-west-2",
+					Service:           "",
+					Cluster:           "cluster",
+					TaskDefinitionArn: "arn://aaa",
+				},
+			},
+			{
+				name: "missing cluster",
+				e: &Envars{
+					Region:            "us-west-2",
+					Service:           "service",
+					Cluster:           "",
+					TaskDefinitionArn: "arn://aaa",
+				},
+			},
 		}
-		for i, v := range arr {
-			m := make(map[string]string)
-			m[ServiceKey] = dummy
-			m[TaskDefinitionArnKey] = dummy
-			m[ClusterKey] = dummy
-			for j, u := range arr {
-				if i == j {
-					m[u] = ""
-				}
-			}
-			e := &Envars{
-				Service: m[ServiceKey],
-				Cluster: m[ClusterKey],
-			}
-			err := EnsureEnvars(e)
-			if err == nil {
-				t.Fatalf("should return error if %s is not defined", v)
-			}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				err := EnsureEnvars(tt.e)
+				assert.Error(t, err)
+			})
 		}
 	})
 }

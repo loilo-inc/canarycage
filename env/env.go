@@ -26,23 +26,6 @@ type Envars struct {
 	ServiceStableWait         int // sec
 }
 
-// required
-const ClusterKey = "CAGE_CLUSTER"
-const ServiceKey = "CAGE_SERVICE"
-
-// either required
-const TaskDefinitionArnKey = "CAGE_TASK_DEFINITION_ARN"
-
-// optional
-const CanaryInstanceArnKey = "CAGE_CANARY_INSTANCE_ARN"
-const RegionKey = "CAGE_REGION"
-const CanaryTaskIdleDuration = "CAGE_CANARY_TASK_IDLE_DURATION"
-const UpdateServiceKey = "CAGE_UPDATE_SERVIEC"
-const TaskRunningTimeout = "CAGE_TASK_RUNNING_TIMEOUT"
-const TaskHealthCheckTimeout = "CAGE_TASK_HEALTH_CHECK_TIMEOUT"
-const TaskStoppedTimeout = "CAGE_TASK_STOPPED_TIMEOUT"
-const ServiceStableTimeout = "CAGE_SERVICE_STABLE_TIMEOUT"
-
 var (
 	envarLiteralRegexp = regexp.MustCompile(`\$\{([^}\r\n]+)\}`)
 )
@@ -52,13 +35,13 @@ func EnsureEnvars(
 ) error {
 	// required
 	if dest.Region == "" {
-		return fmt.Errorf("--region [%s] is required", RegionKey)
+		return fmt.Errorf("--region is required")
 	}
 	if dest.Cluster == "" {
-		return fmt.Errorf("--cluster [%s] is required", ClusterKey)
+		return fmt.Errorf("--cluster is required")
 	}
 	if dest.Service == "" {
-		return fmt.Errorf("--service [%s] is required", ServiceKey)
+		return fmt.Errorf("--service is required")
 	}
 	if dest.TaskDefinitionArn == "" && dest.TaskDefinitionInput == nil {
 		return fmt.Errorf("--nextTaskDefinitionArn or deploy context must be provided")
