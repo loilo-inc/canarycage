@@ -5,13 +5,13 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/loilo-inc/canarycage/v5/awsiface"
-	"github.com/loilo-inc/canarycage/v5/env"
-	"github.com/loilo-inc/canarycage/v5/key"
-	"github.com/loilo-inc/canarycage/v5/logger"
-	"github.com/loilo-inc/canarycage/v5/task"
-	"github.com/loilo-inc/canarycage/v5/taskset"
-	"github.com/loilo-inc/canarycage/v5/types"
+	"github.com/loilo-inc/canarycage/v6/awsiface"
+	"github.com/loilo-inc/canarycage/v6/env"
+	"github.com/loilo-inc/canarycage/v6/key"
+	"github.com/loilo-inc/canarycage/v6/logger"
+	"github.com/loilo-inc/canarycage/v6/task"
+	"github.com/loilo-inc/canarycage/v6/taskset"
+	"github.com/loilo-inc/canarycage/v6/types"
 	"github.com/loilo-inc/logos/v2/di"
 )
 

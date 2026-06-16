@@ -1,4 +1,4 @@
-module github.com/loilo-inc/canarycage/v5
+module github.com/loilo-inc/canarycage/v6
 
 go 1.25.7
 

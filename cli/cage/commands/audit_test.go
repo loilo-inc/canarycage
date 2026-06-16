@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
-	"github.com/loilo-inc/canarycage/v5/mocks/mock_types"
-	"github.com/loilo-inc/canarycage/v5/types"
+	"github.com/loilo-inc/canarycage/v6/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/v6/mocks/mock_types"
+	"github.com/loilo-inc/canarycage/v6/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli/v3"
 	"go.uber.org/mock/gomock"

@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	types "github.com/loilo-inc/canarycage/v5/types"
+	types "github.com/loilo-inc/canarycage/v6/types"
 	gomock "go.uber.org/mock/gomock"
 )
 

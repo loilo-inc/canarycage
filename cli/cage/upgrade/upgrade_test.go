@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/go-github/v62/github"
 	"github.com/jarcoal/httpmock"
-	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
-	"github.com/loilo-inc/canarycage/v5/key"
-	"github.com/loilo-inc/canarycage/v5/test"
+	"github.com/loilo-inc/canarycage/v6/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/v6/key"
+	"github.com/loilo-inc/canarycage/v6/test"
 	"github.com/loilo-inc/logos/v2/di"
 	"github.com/stretchr/testify/assert"
 )

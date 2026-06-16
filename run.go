@@ -8,10 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/loilo-inc/canarycage/v5/awsiface"
-	"github.com/loilo-inc/canarycage/v5/env"
-	"github.com/loilo-inc/canarycage/v5/key"
-	"github.com/loilo-inc/canarycage/v5/types"
+	"github.com/loilo-inc/canarycage/v6/awsiface"
+	"github.com/loilo-inc/canarycage/v6/env"
+	"github.com/loilo-inc/canarycage/v6/key"
+	"github.com/loilo-inc/canarycage/v6/types"
 )
 
 func containerExistsInDefinition(td *ecs.RegisterTaskDefinitionInput, container string) bool {

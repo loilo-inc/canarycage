@@ -1,9 +1,9 @@
 package cage
 
 import (
-	"github.com/loilo-inc/canarycage/v5/key"
-	"github.com/loilo-inc/canarycage/v5/logger"
-	"github.com/loilo-inc/canarycage/v5/types"
+	"github.com/loilo-inc/canarycage/v6/key"
+	"github.com/loilo-inc/canarycage/v6/logger"
+	"github.com/loilo-inc/canarycage/v6/types"
 	"github.com/loilo-inc/logos/v2/di"
 )
 

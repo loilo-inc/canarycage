@@ -8,7 +8,7 @@ import (
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	smithy "github.com/aws/smithy-go"
-	"github.com/loilo-inc/canarycage/v5/awsiface"
+	"github.com/loilo-inc/canarycage/v6/awsiface"
 )
 
 type scanner struct {

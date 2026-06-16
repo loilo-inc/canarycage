@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/loilo-inc/canarycage/v5/env"
-	"github.com/loilo-inc/canarycage/v5/types"
+	"github.com/loilo-inc/canarycage/v6/env"
+	"github.com/loilo-inc/canarycage/v6/types"
 )
 
 type CageCmdInput struct {

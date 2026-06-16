@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/loilo-inc/canarycage/v5/env"
+	"github.com/loilo-inc/canarycage/v6/env"
 	"github.com/stretchr/testify/assert"
 )
 

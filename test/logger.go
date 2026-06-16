@@ -3,7 +3,7 @@ package test
 import (
 	"fmt"
 
-	"github.com/loilo-inc/canarycage/v5/logger"
+	"github.com/loilo-inc/canarycage/v6/logger"
 )
 
 type MockPrinter struct {

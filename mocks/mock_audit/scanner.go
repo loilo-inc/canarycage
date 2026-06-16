@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	audit "github.com/loilo-inc/canarycage/v5/cli/cage/audit"
+	audit "github.com/loilo-inc/canarycage/v6/cli/cage/audit"
 	gomock "go.uber.org/mock/gomock"
 )
 

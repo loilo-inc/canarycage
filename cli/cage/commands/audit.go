@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
-	"github.com/loilo-inc/canarycage/v5/env"
+	"github.com/loilo-inc/canarycage/v6/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/v6/env"
 	"github.com/urfave/cli/v3"
 )
 
