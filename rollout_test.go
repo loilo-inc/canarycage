@@ -23,7 +23,7 @@ import (
 
 // fake integration test with test.MockContext
 func TestCage_RollOut(t *testing.T) {
-	for i := 0b000; i < 0b1000; i++ {
+	for i := range 0b1000 {
 		env := test.DefaultEnvars()
 		isEc2 := i&0b001 > 0
 		useExistingTd := i&0b010 > 0
@@ -35,7 +35,7 @@ func TestCage_RollOut(t *testing.T) {
 			env.TaskDefinitionArn = "arn:aws:ecs:us-west-2:123456789012:task-definition/td"
 			env.TaskDefinitionInput = nil
 		}
-		for j := 0; j < 3; j++ {
+		for j := range 3 {
 			t.Run(fmt.Sprintf("isEc2=%t, useTd=%t, lbcount=%d", isEc2, useExistingTd, j), func(t *testing.T) {
 				integrationTest(t, env, j, &types.RollOutInput{UpdateService: updateService})
 			})
@@ -57,7 +57,7 @@ func integrationTest(t *testing.T, env *env.Envars, lbcount int, input *types.Ro
 	env.ServiceDefinitionInput.TaskDefinition = td.TaskDefinitionArn
 	_, _ = mocker.Ecs.CreateService(context.TODO(), env.ServiceDefinitionInput)
 	var lbs []ecstypes.LoadBalancer
-	for i := 0; i < lbcount; i++ {
+	for i := range lbcount {
 		tgArn := aws.String(fmt.Sprintf("tg%d", i+1))
 		lbs = append(lbs, ecstypes.LoadBalancer{
 			ContainerName:  aws.String("container"),

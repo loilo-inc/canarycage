@@ -438,8 +438,8 @@ func Test_unwrapAttributes(t *testing.T) {
 		{
 			name: "valid attributes",
 			attrs: []ecrtypes.Attribute{
-				{Key: stringPtr("package_name"), Value: stringPtr("curl")},
-				{Key: stringPtr("package_version"), Value: stringPtr("7.68.0")},
+				{Key: new("package_name"), Value: new("curl")},
+				{Key: new("package_version"), Value: new("7.68.0")},
 			},
 			want: map[string]string{
 				"package_name":    "curl",
@@ -464,13 +464,13 @@ func Test_findingToCVE(t *testing.T) {
 		{
 			name: "complete finding with all fields",
 			finding: ecrtypes.ImageScanFinding{
-				Name:        stringPtr("CVE-2021-12345"),
+				Name:        new("CVE-2021-12345"),
 				Severity:    ecrtypes.FindingSeverityCritical,
-				Uri:         stringPtr("https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-12345"),
-				Description: stringPtr("Critical vulnerability in package"),
+				Uri:         new("https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-12345"),
+				Description: new("Critical vulnerability in package"),
 				Attributes: []ecrtypes.Attribute{
-					{Key: stringPtr("package_name"), Value: stringPtr("curl")},
-					{Key: stringPtr("package_version"), Value: stringPtr("7.68.0-1ubuntu2.7")},
+					{Key: new("package_name"), Value: new("curl")},
+					{Key: new("package_version"), Value: new("7.68.0-1ubuntu2.7")},
 				},
 			},
 			want: CVE{
@@ -488,7 +488,7 @@ func Test_findingToCVE(t *testing.T) {
 				Name:     nil,
 				Severity: ecrtypes.FindingSeverityHigh,
 				Attributes: []ecrtypes.Attribute{
-					{Key: stringPtr("other_field"), Value: stringPtr("value")},
+					{Key: new("other_field"), Value: new("value")},
 				},
 			},
 			want: CVE{
@@ -510,6 +510,7 @@ func Test_findingToCVE(t *testing.T) {
 	}
 }
 
+//go:fix inline
 func stringPtr(s string) *string {
-	return &s
+	return new(s)
 }

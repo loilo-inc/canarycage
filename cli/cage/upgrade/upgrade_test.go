@@ -106,9 +106,9 @@ func TestUpgrade(t *testing.T) {
 		httpmock.RegisterResponder("GET", "https://api.github.com/repos/loilo-inc/canarycage/releases",
 			httpmock.NewJsonResponderOrPanic(200, []*github.RepositoryRelease{
 				{
-					TagName: github.String("0.2.0"),
+					TagName: new("0.2.0"),
 					Assets: []*github.ReleaseAsset{
-						{Name: github.String("some_other_file.txt")},
+						{Name: new("some_other_file.txt")},
 					},
 				},
 			}))
@@ -135,7 +135,7 @@ func TestUpgrade(t *testing.T) {
 func Test_findAssets(t *testing.T) {
 	t.Run("should return assets", func(t *testing.T) {
 		release := &github.RepositoryRelease{
-			TagName: github.String("0.2.0"),
+			TagName: new("0.2.0"),
 			Assets: []*github.ReleaseAsset{
 				makeAsset("0.2.0", "canarycage_0.2.0_checksums.txt"),
 				makeAsset("0.2.0", binaryAssetName),
@@ -148,7 +148,7 @@ func Test_findAssets(t *testing.T) {
 	})
 	t.Run("should trim v from tag name", func(t *testing.T) {
 		release := &github.RepositoryRelease{
-			TagName: github.String("v0.2.0"),
+			TagName: new("v0.2.0"),
 			Assets: []*github.ReleaseAsset{
 				makeAsset("v0.2.0", "canarycage_0.2.0_checksums.txt"),
 				makeAsset("v0.2.0", binaryAssetName),
@@ -161,7 +161,7 @@ func Test_findAssets(t *testing.T) {
 	})
 	t.Run("should return error if assets not found", func(t *testing.T) {
 		release := &github.RepositoryRelease{
-			TagName: github.String("0.2.0"),
+			TagName: new("0.2.0"),
 			Assets: []*github.ReleaseAsset{
 				makeAsset("0.2.0", "some_other_file.txt"),
 			},
@@ -211,8 +211,8 @@ func Test_findLatestRelease(t *testing.T) {
 
 func makeAsset(tag, name string) *github.ReleaseAsset {
 	return &github.ReleaseAsset{
-		Name:               github.String(name),
-		BrowserDownloadURL: github.String(fmt.Sprintf("https://localhost/%s/%s", tag, name)),
+		Name:               new(name),
+		BrowserDownloadURL: new(fmt.Sprintf("https://localhost/%s/%s", tag, name)),
 	}
 }
 
@@ -222,8 +222,8 @@ func makeReleases(tags ...string) []*github.RepositoryRelease {
 	var releases []*github.RepositoryRelease
 	for _, tag := range tags {
 		releases = append(releases, &github.RepositoryRelease{
-			TagName:    github.String(tag),
-			Prerelease: github.Bool(regexp.MustCompile(`-rc\d+$`).MatchString(tag)),
+			TagName:    new(tag),
+			Prerelease: new(regexp.MustCompile(`-rc\d+$`).MatchString(tag)),
 			Assets: []*github.ReleaseAsset{
 				makeAsset(tag, "canarycage_"+tag+"_checksums.txt"),
 				makeAsset(tag, binaryAssetName)},

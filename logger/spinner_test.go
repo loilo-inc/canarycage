@@ -20,7 +20,7 @@ func TestSpinnerNext(t *testing.T) {
 	expectedFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 	// Test that Next() returns frames in order
-	for i := 0; i < len(expectedFrames); i++ {
+	for i := range expectedFrames {
 		frame := s.Next()
 		if frame != expectedFrames[i] {
 			t.Errorf("expected frame %q at index %d, got %q", expectedFrames[i], i, frame)
