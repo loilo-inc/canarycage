@@ -49,7 +49,7 @@ func (c *executor) RollOut(ctx context.Context, input *types.RollOutInput) (last
 		}
 	}()
 	if startCanaryTaskErr != nil {
-		l.Errorf("😨 failed to start canary task due to: %w", startCanaryTaskErr)
+		l.Errorf("😨 failed to start canary task due to: %s", startCanaryTaskErr)
 		return startCanaryTaskErr
 	}
 	l.Infof("executing canary tasks...")
