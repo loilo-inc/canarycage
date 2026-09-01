@@ -509,8 +509,3 @@ func Test_findingToCVE(t *testing.T) {
 		})
 	}
 }
-
-//go:fix inline
-func stringPtr(s string) *string {
-	return new(s)
-}
