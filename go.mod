@@ -1,6 +1,6 @@
 module github.com/loilo-inc/canarycage/v5
 
-go 1.25.7
+go 1.26.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.45.1

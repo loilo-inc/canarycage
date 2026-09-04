@@ -189,8 +189,8 @@ func parseChecksums(url string, file string) ([]byte, error) {
 	}
 	str := string(b)
 	sums := make(map[string]string)
-	lines := strings.Split(str, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(str, "\n")
+	for line := range lines {
 		if line == "" {
 			continue
 		}
