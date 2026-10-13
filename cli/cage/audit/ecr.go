@@ -23,7 +23,7 @@ type ecrTool struct {
 type EcrTool interface {
 	GetActualImageIdentifier(ctx context.Context, info *ImageInfo) (*ecrtypes.ImageIdentifier, error)
 	GetImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error)
-	ExecImageScanFindings(ctx context.Context, info *ImageInfo) (*ecrtypes.ImageScanFindings, error)
+	ExecImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error)
 }
 
 func newEcrTool(ecrClient awsiface.EcrClient, scanWaiter Waiter) EcrTool {
@@ -73,17 +73,17 @@ func (t *ecrTool) GetImageScanFindings(ctx context.Context, info *ImageInfo, ima
 	return t.unwrapFindings(res)
 }
 
-func (t *ecrTool) ExecImageScanFindings(ctx context.Context, info *ImageInfo) (*ecrtypes.ImageScanFindings, error) {
+func (t *ecrTool) ExecImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error) {
 	_, err := t.Ecr.StartImageScan(ctx, &ecr.StartImageScanInput{
 		RepositoryName: aws.String(info.Repository),
-		ImageId: &ecrtypes.ImageIdentifier{
-			ImageTag: aws.String(info.Tag),
-		},
+		ImageId:        imageID,
 	})
 	if err != nil {
 		return nil, err
 	}
-	res, err := t.Waiter.WaitForImageScan(ctx, info, 30*time.Second)
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	res, err := t.Waiter.WaitForImageScan(waitCtx, info, imageID, 30*time.Second)
 	if err != nil {
 		return nil, err
 	}

@@ -20,9 +20,10 @@ import (
 
 func TestWaitForImageScan(t *testing.T) {
 	info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0"}
+	imageID := &ecrtypes.ImageIdentifier{ImageDigest: aws.String("sha256:arm64digest")}
 	input := &ecr.DescribeImageScanFindingsInput{
 		RepositoryName: aws.String(info.Repository),
-		ImageId:        &ecrtypes.ImageIdentifier{ImageTag: aws.String(info.Tag)},
+		ImageId:        imageID,
 	}
 	setup := func(t *testing.T, clock types.Time) (*waiter, *mock_awsiface.MockEcrClient) {
 		t.Helper()
@@ -41,21 +42,38 @@ func TestWaitForImageScan(t *testing.T) {
 			ImageScanFindings: &ecrtypes.ImageScanFindings{},
 		}
 		gomock.InOrder(
-			client.EXPECT().DescribeImageScanFindings(t.Context(), input).Return(&ecr.DescribeImageScanFindingsOutput{}, nil),
 			client.EXPECT().DescribeImageScanFindings(t.Context(), input).Return(&ecr.DescribeImageScanFindingsOutput{
 				ImageScanStatus: &ecrtypes.ImageScanStatus{Status: ecrtypes.ScanStatusInProgress},
 			}, nil),
 			client.EXPECT().DescribeImageScanFindings(t.Context(), input).Return(completed, nil),
 		)
-		got, err := w.WaitForImageScan(t.Context(), info, 30*time.Second)
+		got, err := w.WaitForImageScan(t.Context(), info, imageID, 30*time.Second)
 		assert.NoError(t, err)
 		assert.Same(t, completed, got)
 	})
+	for _, tc := range []struct {
+		name    string
+		status  *ecrtypes.ImageScanStatus
+		wantErr string
+	}{
+		{name: "returns error for missing status", wantErr: "image scan status missing"},
+		{name: "stops on failed scan", status: &ecrtypes.ImageScanStatus{Status: ecrtypes.ScanStatusFailed}, wantErr: "image scan failed: status=FAILED"},
+		{name: "stops on unsupported image", status: &ecrtypes.ImageScanStatus{Status: ecrtypes.ScanStatusUnsupportedImage}, wantErr: "image scan failed: status=UNSUPPORTED_IMAGE"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, client := setup(t, test.NewFakeTime())
+			client.EXPECT().DescribeImageScanFindings(t.Context(), input).Return(&ecr.DescribeImageScanFindingsOutput{ImageScanStatus: tc.status}, nil)
+			got, err := w.WaitForImageScan(t.Context(), info, imageID, 30*time.Second)
+			assert.EqualError(t, err, tc.wantErr)
+			assert.Nil(t, got)
+		})
+	}
+
 	t.Run("returns describe error", func(t *testing.T) {
 		w, client := setup(t, test.NewFakeTime())
 		expected := errors.New("describe failed")
 		client.EXPECT().DescribeImageScanFindings(t.Context(), input).Return(nil, expected)
-		got, err := w.WaitForImageScan(t.Context(), info, 30*time.Second)
+		got, err := w.WaitForImageScan(t.Context(), info, imageID, 30*time.Second)
 		assert.ErrorIs(t, err, expected)
 		assert.Nil(t, got)
 	})
@@ -63,7 +81,7 @@ func TestWaitForImageScan(t *testing.T) {
 		w, _ := setup(t, test.NewNeverTimer())
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		got, err := w.WaitForImageScan(ctx, info, 30*time.Second)
+		got, err := w.WaitForImageScan(ctx, info, imageID, 30*time.Second)
 		assert.ErrorIs(t, err, context.Canceled)
 		assert.Nil(t, got)
 	})

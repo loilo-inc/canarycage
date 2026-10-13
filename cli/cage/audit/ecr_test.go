@@ -373,10 +373,10 @@ func TestToCPUArchitecture(t *testing.T) {
 	})
 }
 
-type stubWaiter func(context.Context, *ImageInfo, time.Duration) (*ecr.DescribeImageScanFindingsOutput, error)
+type stubWaiter func(context.Context, *ImageInfo, *ecrtypes.ImageIdentifier, time.Duration) (*ecr.DescribeImageScanFindingsOutput, error)
 
-func (w stubWaiter) WaitForImageScan(ctx context.Context, info *ImageInfo, interval time.Duration) (*ecr.DescribeImageScanFindingsOutput, error) {
-	return w(ctx, info, interval)
+func (w stubWaiter) WaitForImageScan(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier, interval time.Duration) (*ecr.DescribeImageScanFindingsOutput, error) {
+	return w(ctx, info, imageID, interval)
 }
 
 func TestExecImageScanFindings(t *testing.T) {
@@ -398,21 +398,32 @@ func TestExecImageScanFindings(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
 			info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0"}
+			imageID := &ecrtypes.ImageIdentifier{ImageDigest: aws.String("sha256:arm64digest")}
 			client := mock_awsiface.NewMockEcrClient(gomock.NewController(t))
 			client.EXPECT().StartImageScan(ctx, &ecr.StartImageScanInput{
 				RepositoryName: aws.String(info.Repository),
-				ImageId:        &ecrtypes.ImageIdentifier{ImageTag: aws.String(info.Tag)},
+				ImageId:        imageID,
 			}).Return(&ecr.StartImageScanOutput{}, tc.startErr)
 			waited := false
-			tool := newEcrTool(client, stubWaiter(func(gotCtx context.Context, gotInfo *ImageInfo, interval time.Duration) (*ecr.DescribeImageScanFindingsOutput, error) {
+			var waitCtx context.Context
+			before := time.Now()
+			tool := newEcrTool(client, stubWaiter(func(gotCtx context.Context, gotInfo *ImageInfo, gotImageID *ecrtypes.ImageIdentifier, interval time.Duration) (*ecr.DescribeImageScanFindingsOutput, error) {
 				waited = true
-				assert.Equal(t, ctx, gotCtx)
+				waitCtx = gotCtx
+				deadline, ok := gotCtx.Deadline()
+				assert.True(t, ok)
+				assert.WithinDuration(t, before.Add(5*time.Minute), deadline, time.Second)
+				assert.NoError(t, gotCtx.Err())
+				assert.Same(t, imageID, gotImageID)
 				assert.Equal(t, info, gotInfo)
 				assert.Equal(t, 30*time.Second, interval)
 				return &ecr.DescribeImageScanFindingsOutput{ImageScanFindings: tc.findings}, tc.waitErr
 			}))
-			got, err := tool.ExecImageScanFindings(ctx, info)
+			got, err := tool.ExecImageScanFindings(ctx, info, imageID)
 			assert.Equal(t, tc.startErr == nil, waited)
+			if waited {
+				assert.ErrorIs(t, waitCtx.Err(), context.Canceled)
+			}
 			if tc.wantErr != "" {
 				assert.EqualError(t, err, tc.wantErr)
 				assert.Nil(t, got)

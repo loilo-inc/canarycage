@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
@@ -41,7 +42,7 @@ func (s *stubEcrTool) GetImageScanFindings(ctx context.Context, info *ImageInfo,
 	return s.findings, nil
 }
 
-func (s *stubEcrTool) ExecImageScanFindings(ctx context.Context, info *ImageInfo) (*ecrtypes.ImageScanFindings, error) {
+func (s *stubEcrTool) ExecImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error) {
 	return s.findings, s.errScan
 }
 
@@ -106,8 +107,15 @@ func TestScanner_Scan(t *testing.T) {
 					ImageId:        &ecrtypes.ImageIdentifier{ImageTag: aws.String("1.2.3")},
 				}).Return(&ecr.StartImageScanOutput{}, nil)
 			}
-			mockEcr.EXPECT().DescribeImageScanFindings(ctx, gomock.AssignableToTypeOf(&ecr.DescribeImageScanFindingsInput{})).
+			mockEcr.EXPECT().DescribeImageScanFindings(gomock.Any(), gomock.AssignableToTypeOf(&ecr.DescribeImageScanFindingsInput{})).
 				DoAndReturn(func(ctx context.Context, input *ecr.DescribeImageScanFindingsInput, opts ...func(*ecr.Options)) (*ecr.DescribeImageScanFindingsOutput, error) {
+					if inPlace {
+						deadline, ok := ctx.Deadline()
+						assert.True(t, ok)
+						assert.InDelta(t, (5 * time.Minute).Seconds(), time.Until(deadline).Seconds(), 1)
+					} else {
+						assert.Equal(t, context.Background(), ctx)
+					}
 					assert.Equal(t, "my-repo", *input.RepositoryName)
 					assert.Equal(t, "1.2.3", *input.ImageId.ImageTag)
 					return &ecr.DescribeImageScanFindingsOutput{

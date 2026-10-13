@@ -65,7 +65,7 @@ func scanImage(ctx context.Context, ecrTool EcrTool, info ImageInfo, inPlace boo
 
 	var findings *ecrtypes.ImageScanFindings
 	if inPlace {
-		findings, err = ecrTool.ExecImageScanFindings(ctx, &info)
+		findings, err = ecrTool.ExecImageScanFindings(ctx, &info, imageID)
 	} else {
 		findings, err = ecrTool.GetImageScanFindings(ctx, &info, imageID)
 	}
