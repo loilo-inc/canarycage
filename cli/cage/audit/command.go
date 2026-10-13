@@ -2,6 +2,8 @@ package audit
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/v5/key"
@@ -38,6 +40,15 @@ func (a *command) Run(ctx context.Context) (err error) {
 	} else {
 		p.Print(results)
 	}
+	var scanErrors []error
+	for _, result := range results {
+		if result.Err != nil {
+			scanErrors = append(scanErrors, fmt.Errorf("%s (%s): %w", result.ContainerName, result.formatImageLabel(), result.Err))
+		}
+	}
+	if err := errors.Join(scanErrors...); err != nil {
+		return &ScanError{err: err}
+	}
 	return nil
 }
 
@@ -66,3 +77,9 @@ func (a *command) doScan(ctx context.Context) (results []ScanResult, err error) 
 		}
 	}
 }
+
+// ScanError wraps image scan failures already reported in the audit output.
+type ScanError struct{ err error }
+
+func (e *ScanError) Error() string { return e.err.Error() }
+func (e *ScanError) Unwrap() error { return e.err }

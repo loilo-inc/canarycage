@@ -107,6 +107,8 @@ $ cage audit --region ${AWS_REGION} --cluster ${ECS_CLUSTER} --service ${ECS_SER
 
 By default, the output is a table with per-container status and severity counts. Use `--detail` to include vulnerability descriptions and `--json` to output the aggregated result as JSON.
 
+If any image cannot be audited, the command prints the available results and exits with a nonzero status. Failed scans show their status in the table and their error details on stderr. JSON output includes per-image statuses and error details in `scan_results`. `No CVEs found` is printed only when all image results are available and contain no CVEs.
+
 ### IAM Policy (for `cage rollout`)
 
 `canarycage` requires several IAM policies to run. Here is a recommended example of IAM policy for `cage rollout` command with Fargate:

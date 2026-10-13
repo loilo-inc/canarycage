@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -58,6 +59,9 @@ func main() {
 		},
 	}
 	if err := app.Run(context.TODO(), os.Args); err != nil {
-		log.Fatal(err)
+		if _, reported := errors.AsType[*audit.ScanError](err); !reported {
+			log.Print(err)
+		}
+		os.Exit(1)
 	}
 }

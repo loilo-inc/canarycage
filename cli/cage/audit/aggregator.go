@@ -119,7 +119,17 @@ func (a *aggregater) Result() Result {
 	sort.Slice(vulns, func(i, j int) bool {
 		return vulns[i].CVE.Name < vulns[j].CVE.Name
 	})
-	return Result{Summary: summary, Vulns: vulns}
+	var scanResults []ScanResultSummary
+	for _, summaries := range a.summaries {
+		scanResults = append(scanResults, summaries...)
+	}
+	sort.Slice(scanResults, func(i, j int) bool {
+		if scanResults[i].ContainerName != scanResults[j].ContainerName {
+			return scanResults[i].ContainerName < scanResults[j].ContainerName
+		}
+		return scanResults[i].ImageURI < scanResults[j].ImageURI
+	})
+	return Result{Summary: summary, Vulns: vulns, ScanResults: scanResults}
 }
 
 type severityPrinter struct {

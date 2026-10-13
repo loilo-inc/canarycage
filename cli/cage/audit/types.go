@@ -70,8 +70,13 @@ func (r ScanResult) Summary() ScanResultSummary {
 	} else if medium > 0 {
 		status = ScanStatusWarning
 	}
+	var errorMessage string
+	if r.Err != nil {
+		errorMessage = r.Err.Error()
+	}
 	return ScanResultSummary{
 		ContainerName: r.ContainerName,
+		Error:         errorMessage,
 		Status:        status,
 		CriticalCount: critical,
 		HighCount:     high,
@@ -83,6 +88,7 @@ func (r ScanResult) Summary() ScanResultSummary {
 }
 
 type ScanResultSummary struct {
+	Error         string     `json:"error,omitempty"`
 	ContainerName string     `json:"container_name"`
 	Status        ScanStatus `json:"status"`
 	CriticalCount int32      `json:"critical_count"`
@@ -106,8 +112,9 @@ type Target struct {
 }
 
 type Result struct {
-	Summary *AggregateResult `json:"summary"`
-	Vulns   []Vuln           `json:"vulns"`
+	ScanResults []ScanResultSummary `json:"scan_results"`
+	Summary     *AggregateResult    `json:"summary"`
+	Vulns       []Vuln              `json:"vulns"`
 }
 
 type Vuln struct {

@@ -67,7 +67,7 @@ func TestPrinter_Print(t *testing.T) {
 		printer.Print(result)
 
 		assert.NotEmpty(t, p.Logs, "Expected logs to be generated")
-		header := p.Logs[0]
+		header := p.Logs[len(p.Logs)-2]
 		expectedCols := []string{"CONTAINER", "STATUS", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "IMAGE"}
 		for _, col := range expectedCols {
 			assert.Contains(t, header, col)
@@ -114,6 +114,8 @@ func TestPrinter_Print(t *testing.T) {
 			return strings.Contains(log, "Total:")
 		})
 		assert.True(t, totalFound, "Expected Total summary line")
+		assert.Contains(t, p.Logs[len(p.Logs)-2], "CONTAINER")
+		assert.True(t, strings.HasPrefix(p.Logs[len(p.Logs)-1], "|test-container"))
 	})
 }
 

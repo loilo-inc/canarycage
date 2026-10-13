@@ -36,13 +36,44 @@ func NewPrinter(di *di.D, noColor, logDetail bool) *printer {
 func (p *printer) Print(scanResults []ScanResult) {
 	l := p.di.Get(key.Printer).(logger.Printer)
 	agg := NewAggregater()
+	hasErrors := false
 	for _, r := range scanResults {
 		agg.Add(r)
+		if r.Err != nil {
+			hasErrors = true
+			l.PrintErrf("Failed to scan %s (%s): %v\n", r.ContainerName, r.formatImageLabel(), r.Err)
+		}
 	}
 	total := agg.TotalCVECount()
-	if total == 0 {
+	if total == 0 && !hasErrors {
 		l.Printf("%s\n", p.color.Greenf("No CVEs found"))
 		return
+	}
+
+	if total > 0 {
+		result := agg.Result()
+		p.logVuln(ecrtypes.FindingSeverityCritical, result.CriticalCves())
+		p.logVuln(ecrtypes.FindingSeverityHigh, result.HighCves())
+		p.logVuln(ecrtypes.FindingSeverityMedium, result.MediumCves())
+		summary := agg.SummarizeTotal()
+		highest := &severityPrinter{
+			severity: summary.HighestSeverity,
+			color:    p.color,
+		}
+		var list []string
+		for _, v := range summary.SeverityCounts() {
+			if v.Count == 0 {
+				continue
+			}
+			sp := &severityPrinter{severity: v.Severity, color: p.color}
+			list = append(list, fmt.Sprintf("%d %s", v.Count, sp.BSprintf("%s", v.Severity)))
+		}
+
+		l.Printf(
+			"\nTotal: %s (%s)\n",
+			highest.BSprintf("%d", summary.TotalCount),
+			strings.Join(list, ", "),
+		)
 	}
 	containerMax, imageMax := MaxHeaderWidth(scanResults)
 	// |container|status|critical|high|medium|low|info|image|
@@ -64,29 +95,6 @@ func (p *printer) Print(scanResults []ScanResult) {
 			)
 		}
 	}
-	result := agg.Result()
-	p.logVuln(ecrtypes.FindingSeverityCritical, result.CriticalCves())
-	p.logVuln(ecrtypes.FindingSeverityHigh, result.HighCves())
-	p.logVuln(ecrtypes.FindingSeverityMedium, result.MediumCves())
-	summary := agg.SummarizeTotal()
-	highest := &severityPrinter{
-		severity: summary.HighestSeverity,
-		color:    p.color,
-	}
-	var list []string
-	for _, v := range summary.SeverityCounts() {
-		if v.Count == 0 {
-			continue
-		}
-		sp := &severityPrinter{severity: v.Severity, color: p.color}
-		list = append(list, fmt.Sprintf("%d %s", v.Count, sp.BSprintf("%s", v.Severity)))
-	}
-
-	l.Printf(
-		"\nTotal: %s (%s)\n",
-		highest.BSprintf("%d", summary.TotalCount),
-		strings.Join(list, ", "),
-	)
 }
 
 func (p *printer) PrintJSON(metadata Target, scanResults []ScanResult) {
@@ -95,6 +103,9 @@ func (p *printer) PrintJSON(metadata Target, scanResults []ScanResult) {
 	agg := NewAggregater()
 	for _, r := range scanResults {
 		agg.Add(r)
+		if r.Err != nil {
+			l.PrintErrf("Failed to scan %s (%s): %v\n", r.ContainerName, r.formatImageLabel(), r.Err)
+		}
 	}
 	aggResult := agg.Result()
 	finalResult := &FinalResult{
