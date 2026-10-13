@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
@@ -21,7 +22,7 @@ func TestGetActualImageIdentifier(t *testing.T) {
 	t.Run("single architecture image returns tag", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient)
+		tool := newEcrTool(mockClient, nil)
 
 		info := &ImageInfo{
 			Repository:   "my-repo",
@@ -52,7 +53,7 @@ func TestGetActualImageIdentifier(t *testing.T) {
 	t.Run("multi-arch image returns digest for matching architecture", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient)
+		tool := newEcrTool(mockClient, nil)
 
 		info := &ImageInfo{
 			Repository:   "my-repo",
@@ -99,7 +100,7 @@ func TestGetActualImageIdentifier(t *testing.T) {
 	t.Run("multi-arch image with no matching architecture returns error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient)
+		tool := newEcrTool(mockClient, nil)
 
 		info := &ImageInfo{
 			Repository:   "my-repo",
@@ -139,7 +140,7 @@ func TestGetActualImageIdentifier(t *testing.T) {
 	t.Run("BatchGetImage error returns error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient)
+		tool := newEcrTool(mockClient, nil)
 
 		info := &ImageInfo{
 			Repository:   "my-repo",
@@ -159,7 +160,7 @@ func TestGetActualImageIdentifier(t *testing.T) {
 	t.Run("empty images returns error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient)
+		tool := newEcrTool(mockClient, nil)
 
 		info := &ImageInfo{
 			Repository:   "my-repo",
@@ -181,7 +182,7 @@ func TestGetActualImageIdentifier(t *testing.T) {
 	t.Run("nil manifest returns error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient)
+		tool := newEcrTool(mockClient, nil)
 
 		info := &ImageInfo{
 			Repository:   "my-repo",
@@ -205,7 +206,7 @@ func TestGetActualImageIdentifier(t *testing.T) {
 	t.Run("invalid JSON manifest returns error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient)
+		tool := newEcrTool(mockClient, nil)
 
 		info := &ImageInfo{
 			Repository:   "my-repo",
@@ -230,7 +231,7 @@ func TestGetActualImageIdentifier(t *testing.T) {
 	t.Run("multi-arch image skips manifests without platform", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient)
+		tool := newEcrTool(mockClient, nil)
 
 		info := &ImageInfo{
 			Repository:   "my-repo",
@@ -277,7 +278,7 @@ func TestGetImageScanFindings(t *testing.T) {
 	t.Run("successfully returns scan findings", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient)
+		tool := newEcrTool(mockClient, nil)
 
 		info := &ImageInfo{
 			Repository: "my-repo",
@@ -314,7 +315,7 @@ func TestGetImageScanFindings(t *testing.T) {
 	t.Run("DescribeImageScanFindings error returns error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient)
+		tool := newEcrTool(mockClient, nil)
 
 		info := &ImageInfo{
 			Repository: "my-repo",
@@ -336,7 +337,7 @@ func TestGetImageScanFindings(t *testing.T) {
 	t.Run("nil ImageScanFindings returns error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient)
+		tool := newEcrTool(mockClient, nil)
 
 		info := &ImageInfo{
 			Repository: "my-repo",
@@ -354,7 +355,7 @@ func TestGetImageScanFindings(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "image scan findings missing for my-repo:v1.0.0")
+		assert.Contains(t, err.Error(), "image scan findings missing")
 	})
 }
 
@@ -370,4 +371,55 @@ func TestToCPUArchitecture(t *testing.T) {
 	t.Run("unknown architecture maps to empty", func(t *testing.T) {
 		assert.Equal(t, ecstypes.CPUArchitecture(""), toCPUArchitecture("riscv"))
 	})
+}
+
+type stubWaiter func(context.Context, *ImageInfo, time.Duration) (*ecr.DescribeImageScanFindingsOutput, error)
+
+func (w stubWaiter) WaitForImageScan(ctx context.Context, info *ImageInfo, interval time.Duration) (*ecr.DescribeImageScanFindingsOutput, error) {
+	return w(ctx, info, interval)
+}
+
+func TestExecImageScanFindings(t *testing.T) {
+	findings := &ecrtypes.ImageScanFindings{Findings: []ecrtypes.ImageScanFinding{{Name: aws.String("CVE-TEST")}}}
+	startErr := errors.New("start failed")
+	waitErr := errors.New("wait failed")
+	for _, tc := range []struct {
+		name     string
+		startErr error
+		waitErr  error
+		findings *ecrtypes.ImageScanFindings
+		wantErr  string
+	}{
+		{name: "returns completed scan findings", findings: findings},
+		{name: "returns start error without waiting", startErr: startErr, wantErr: startErr.Error()},
+		{name: "returns waiter error", waitErr: waitErr, wantErr: waitErr.Error()},
+		{name: "returns error for missing findings", wantErr: "image scan findings missing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0"}
+			client := mock_awsiface.NewMockEcrClient(gomock.NewController(t))
+			client.EXPECT().StartImageScan(ctx, &ecr.StartImageScanInput{
+				RepositoryName: aws.String(info.Repository),
+				ImageId:        &ecrtypes.ImageIdentifier{ImageTag: aws.String(info.Tag)},
+			}).Return(&ecr.StartImageScanOutput{}, tc.startErr)
+			waited := false
+			tool := newEcrTool(client, stubWaiter(func(gotCtx context.Context, gotInfo *ImageInfo, interval time.Duration) (*ecr.DescribeImageScanFindingsOutput, error) {
+				waited = true
+				assert.Equal(t, ctx, gotCtx)
+				assert.Equal(t, info, gotInfo)
+				assert.Equal(t, 30*time.Second, interval)
+				return &ecr.DescribeImageScanFindingsOutput{ImageScanFindings: tc.findings}, tc.waitErr
+			}))
+			got, err := tool.ExecImageScanFindings(ctx, info)
+			assert.Equal(t, tc.startErr == nil, waited)
+			if tc.wantErr != "" {
+				assert.EqualError(t, err, tc.wantErr)
+				assert.Nil(t, got)
+			} else {
+				assert.NoError(t, err)
+				assert.Same(t, findings, got)
+			}
+		})
+	}
 }

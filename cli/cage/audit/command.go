@@ -50,7 +50,11 @@ func (a *command) doScan(ctx context.Context) (results []ScanResult, err error) 
 	go func() {
 		defer close(waiter)
 		scanner := a.di.Get(key.Scanner).(Scanner)
-		results, err = scanner.Scan(ctx, a.Cluster, a.Service)
+		results, err = scanner.Scan(ctx, ScanRequest{
+			Cluster: a.Cluster,
+			Service: a.Service,
+			InPlace: a.InPlace,
+		})
 		waiter <- struct{}{}
 	}()
 	interval := a.SpinInterval()

@@ -63,6 +63,26 @@ func TestAudit(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 	})
+	for _, inPlace := range []bool{false, true} {
+		name := "in-place defaults to false"
+		if inPlace {
+			name = "forwards in-place flag"
+		}
+		t.Run(name, func(t *testing.T) {
+			mockAudit := mock_types.NewMockAudit(gomock.NewController(t))
+			mockAudit.EXPECT().Run(gomock.Any()).Return(nil)
+			app := setupAuditApp(t, func(ctx context.Context, input *cageapp.AuditCmdInput) (types.Audit, error) {
+				assert.Equal(t, inPlace, input.InPlace)
+				return mockAudit, nil
+			})
+			args := []string{"cage", "audit", "--region", "us-east-1", "--cluster", "cluster", "--service", "service"}
+			if inPlace {
+				args = append(args, "--in-place")
+			}
+			assert.NoError(t, app.Run(t.Context(), args))
+		})
+	}
+
 	setupBase := func(t *testing.T) (*cli.Command, *mock_types.MockAudit) {
 		t.Helper()
 		ctrl := gomock.NewController(t)

@@ -31,7 +31,7 @@ func TestAuditCommandRun(t *testing.T) {
 			b.Set(key.Time, test.NewNeverTimer())
 		})
 		gomock.InOrder(
-			mockScanner.EXPECT().Scan(t.Context(), "cluster", "service").Return(nil, test.Err),
+			mockScanner.EXPECT().Scan(t.Context(), audit.ScanRequest{Cluster: "cluster", Service: "service"}).Return(nil, test.Err),
 		)
 		input := cageapp.NewAuditCmdInput()
 		input.Cluster = "cluster"
@@ -43,34 +43,42 @@ func TestAuditCommandRun(t *testing.T) {
 		assert.Len(mockPrinter.Stderr, 1)
 	})
 
-	t.Run("should return nil on successful scan", func(t *testing.T) {
+	for _, inPlace := range []bool{false, true} {
+		name := "should return nil on successful scan"
+		if inPlace {
+			name = "should forward in-place scan request"
+		}
+		t.Run(name, func(t *testing.T) {
 
-		mockScanner, mockPrinter := setup(t)
-		mockDI := di.NewDomain(func(b *di.B) {
-			b.Set(key.Printer, mockPrinter)
-			b.Set(key.Scanner, mockScanner)
-			b.Set(key.Time, test.NewNeverTimer())
+			mockScanner, mockPrinter := setup(t)
+			mockDI := di.NewDomain(func(b *di.B) {
+				b.Set(key.Printer, mockPrinter)
+				b.Set(key.Scanner, mockScanner)
+				b.Set(key.Time, test.NewNeverTimer())
+			})
+
+			var results []audit.ScanResult
+			gomock.InOrder(
+				mockScanner.EXPECT().Scan(t.Context(), audit.ScanRequest{Cluster: "cluster", Service: "service", InPlace: inPlace}).Return(results, nil),
+			)
+
+			cmd := audit.NewCommand(mockDI, &cageapp.AuditCmdInput{
+				InPlace: inPlace,
+				Cluster:     "cluster",
+				Service:     "service",
+				App:         &cageapp.App{NoColor: true},
+			})
+
+			err := cmd.Run(t.Context())
+			assert := assert.New(t)
+			assert.NoError(err)
+			assert.Len(mockPrinter.Stdout, 1) // only "No CVEs found" message (no header)
+			assert.Contains(mockPrinter.Stdout[0], "No CVEs found")
+			assert.Len(mockPrinter.Stderr, 1)
+			assert.Equal(mockPrinter.Stderr[0], "\r")
 		})
 
-		var results []audit.ScanResult
-		gomock.InOrder(
-			mockScanner.EXPECT().Scan(t.Context(), "cluster", "service").Return(results, nil),
-		)
-
-		cmd := audit.NewCommand(mockDI, &cageapp.AuditCmdInput{
-			Cluster: "cluster",
-			Service: "service",
-			App:     &cageapp.App{NoColor: true},
-		})
-
-		err := cmd.Run(t.Context())
-		assert := assert.New(t)
-		assert.NoError(err)
-		assert.Len(mockPrinter.Stdout, 1) // only "No CVEs found" message (no header)
-		assert.Contains(mockPrinter.Stdout[0], "No CVEs found")
-		assert.Len(mockPrinter.Stderr, 1)
-		assert.Equal(mockPrinter.Stderr[0], "\r")
-	})
+	}
 
 	t.Run("should log json output when JSON flag is set", func(t *testing.T) {
 
@@ -83,7 +91,7 @@ func TestAuditCommandRun(t *testing.T) {
 
 		var results []audit.ScanResult
 		gomock.InOrder(
-			mockScanner.EXPECT().Scan(t.Context(), "cluster", "service").Return(results, nil),
+			mockScanner.EXPECT().Scan(t.Context(), audit.ScanRequest{Cluster: "cluster", Service: "service"}).Return(results, nil),
 		)
 
 		cmd := audit.NewCommand(mockDI, &cageapp.AuditCmdInput{
@@ -122,9 +130,9 @@ func TestAuditCommandRun(t *testing.T) {
 			b.Set(key.Time, test.NewNeverTimer())
 		})
 		gomock.InOrder(
-			mockScanner.EXPECT().Scan(ctx, "cluster", "service").DoAndReturn(func(context.Context, string, string) ([]*audit.ScanResult, error) {
+			mockScanner.EXPECT().Scan(ctx, audit.ScanRequest{Cluster: "cluster", Service: "service"}).DoAndReturn(func(context.Context, audit.ScanRequest) ([]audit.ScanResult, error) {
 				cancel()
-				return nil, nil
+				return nil, ctx.Err()
 			}),
 		)
 

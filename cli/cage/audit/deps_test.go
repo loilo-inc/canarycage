@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
+	"github.com/loilo-inc/canarycage/v5/key"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestProvideAuditCmd(t *testing.T) {
@@ -19,6 +21,7 @@ func TestProvideAuditCmd(t *testing.T) {
 	if audit == nil {
 		t.Fatal("ProvideAuditCmd() returned nil audit")
 	}
+	assert.IsType(t, &scanner{}, audit.(*command).di.Get(key.Scanner))
 }
 
 func TestProvideAuditCmd_WithDifferentRegions(t *testing.T) {

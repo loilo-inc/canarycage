@@ -12,7 +12,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	smithy "github.com/aws/smithy-go"
+	"github.com/loilo-inc/canarycage/v5/key"
 	"github.com/loilo-inc/canarycage/v5/mocks/mock_awsiface"
+	"github.com/loilo-inc/canarycage/v5/test"
+	"github.com/loilo-inc/logos/v2/di"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -38,81 +41,106 @@ func (s *stubEcrTool) GetImageScanFindings(ctx context.Context, info *ImageInfo,
 	return s.findings, nil
 }
 
+func (s *stubEcrTool) ExecImageScanFindings(ctx context.Context, info *ImageInfo) (*ecrtypes.ImageScanFindings, error) {
+	return s.findings, s.errScan
+}
+
 func TestScanner_Scan(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("returns scan results for each image", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockEcs := mock_awsiface.NewMockEcsClient(ctrl)
-		mockEcr := mock_awsiface.NewMockEcrClient(ctrl)
-		scanner := NewScanner(mockEcs, mockEcr)
+	for _, inPlace := range []bool{false, true} {
+		name := "returns existing scan results for each image"
+		if inPlace {
+			name = "performs in-place scan for each ECR image"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockEcs := mock_awsiface.NewMockEcsClient(ctrl)
+			mockEcr := mock_awsiface.NewMockEcrClient(ctrl)
+			scanner := NewScanner(di.NewDomain(func(b *di.B) {
+				b.Set(key.EcsCli, mockEcs)
+				b.Set(key.EcrCli, mockEcr)
+				b.Set(key.Time, test.NewFakeTime())
+				b.Set(key.Logger, test.NewLogger())
+			}))
 
-		mockEcs.EXPECT().DescribeServices(ctx, gomock.AssignableToTypeOf(&ecs.DescribeServicesInput{})).
-			Return(&ecs.DescribeServicesOutput{
-				Services: []ecstypes.Service{{TaskDefinition: aws.String("td:1")}},
-			}, nil)
+			mockEcs.EXPECT().DescribeServices(ctx, gomock.AssignableToTypeOf(&ecs.DescribeServicesInput{})).
+				Return(&ecs.DescribeServicesOutput{
+					Services: []ecstypes.Service{{TaskDefinition: aws.String("td:1")}},
+				}, nil)
 
-		mockEcs.EXPECT().DescribeTaskDefinition(ctx, gomock.AssignableToTypeOf(&ecs.DescribeTaskDefinitionInput{})).
-			Return(&ecs.DescribeTaskDefinitionOutput{
-				TaskDefinition: &ecstypes.TaskDefinition{
-					ContainerDefinitions: []ecstypes.ContainerDefinition{
-						{
-							Name:  aws.String("app"),
-							Image: aws.String("123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo:1.2.3"),
-						},
-						{
-							Name:  aws.String("sidecar"),
-							Image: aws.String("nginx:latest"),
+			mockEcs.EXPECT().DescribeTaskDefinition(ctx, gomock.AssignableToTypeOf(&ecs.DescribeTaskDefinitionInput{})).
+				Return(&ecs.DescribeTaskDefinitionOutput{
+					TaskDefinition: &ecstypes.TaskDefinition{
+						ContainerDefinitions: []ecstypes.ContainerDefinition{
+							{
+								Name:  aws.String("app"),
+								Image: aws.String("123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo:1.2.3"),
+							},
+							{
+								Name:  aws.String("sidecar"),
+								Image: aws.String("nginx:latest"),
+							},
 						},
 					},
-				},
-			}, nil)
+				}, nil)
 
-		manifestJSON, _ := json.Marshal(dockerSchema{
-			SchemaVersion: 2,
-			MediaType:     "application/vnd.docker.distribution.manifest.v2+json",
+			manifestJSON, _ := json.Marshal(dockerSchema{
+				SchemaVersion: 2,
+				MediaType:     "application/vnd.docker.distribution.manifest.v2+json",
+			})
+			manifestStr := string(manifestJSON)
+
+			mockEcr.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).
+				DoAndReturn(func(ctx context.Context, input *ecr.BatchGetImageInput, opts ...func(*ecr.Options)) (*ecr.BatchGetImageOutput, error) {
+					assert.Equal(t, "my-repo", *input.RepositoryName)
+					assert.Equal(t, "1.2.3", *input.ImageIds[0].ImageTag)
+					return &ecr.BatchGetImageOutput{
+						Images: []ecrtypes.Image{{ImageManifest: &manifestStr}},
+					}, nil
+				})
+
+			if inPlace {
+				mockEcr.EXPECT().StartImageScan(ctx, &ecr.StartImageScanInput{
+					RepositoryName: aws.String("my-repo"),
+					ImageId:        &ecrtypes.ImageIdentifier{ImageTag: aws.String("1.2.3")},
+				}).Return(&ecr.StartImageScanOutput{}, nil)
+			}
+			mockEcr.EXPECT().DescribeImageScanFindings(ctx, gomock.AssignableToTypeOf(&ecr.DescribeImageScanFindingsInput{})).
+				DoAndReturn(func(ctx context.Context, input *ecr.DescribeImageScanFindingsInput, opts ...func(*ecr.Options)) (*ecr.DescribeImageScanFindingsOutput, error) {
+					assert.Equal(t, "my-repo", *input.RepositoryName)
+					assert.Equal(t, "1.2.3", *input.ImageId.ImageTag)
+					return &ecr.DescribeImageScanFindingsOutput{
+						ImageScanFindings: &ecrtypes.ImageScanFindings{},
+						ImageScanStatus:   &ecrtypes.ImageScanStatus{Status: ecrtypes.ScanStatusComplete},
+					}, nil
+				})
+
+			results, err := scanner.Scan(ctx, ScanRequest{Cluster: "cluster-a", Service: "service-a", InPlace: inPlace})
+
+			assert.NoError(t, err)
+			if assert.Len(t, results, 2) {
+				assert.Equal(t, "app", results[0].ImageInfo.ContainerName)
+				assert.NoError(t, results[0].Err)
+				assert.Equal(t, "sidecar", results[1].ImageInfo.ContainerName)
+				assert.EqualError(t, results[1].Err, "non-ECR image")
+			}
 		})
-		manifestStr := string(manifestJSON)
 
-		mockEcr.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).
-			DoAndReturn(func(ctx context.Context, input *ecr.BatchGetImageInput, opts ...func(*ecr.Options)) (*ecr.BatchGetImageOutput, error) {
-				assert.Equal(t, "my-repo", *input.RepositoryName)
-				assert.Equal(t, "1.2.3", *input.ImageIds[0].ImageTag)
-				return &ecr.BatchGetImageOutput{
-					Images: []ecrtypes.Image{{ImageManifest: &manifestStr}},
-				}, nil
-			})
-
-		mockEcr.EXPECT().DescribeImageScanFindings(ctx, gomock.AssignableToTypeOf(&ecr.DescribeImageScanFindingsInput{})).
-			DoAndReturn(func(ctx context.Context, input *ecr.DescribeImageScanFindingsInput, opts ...func(*ecr.Options)) (*ecr.DescribeImageScanFindingsOutput, error) {
-				assert.Equal(t, "my-repo", *input.RepositoryName)
-				assert.Equal(t, "1.2.3", *input.ImageId.ImageTag)
-				return &ecr.DescribeImageScanFindingsOutput{
-					ImageScanFindings: &ecrtypes.ImageScanFindings{},
-				}, nil
-			})
-
-		results, err := scanner.Scan(ctx, "cluster-a", "service-a")
-
-		assert.NoError(t, err)
-		if assert.Len(t, results, 2) {
-			assert.Equal(t, "app", results[0].ImageInfo.ContainerName)
-			assert.NoError(t, results[0].Err)
-			assert.Equal(t, "sidecar", results[1].ImageInfo.ContainerName)
-			assert.EqualError(t, results[1].Err, "non-ECR image")
-		}
-	})
-
+	}
 	t.Run("ecs error returns error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockEcs := mock_awsiface.NewMockEcsClient(ctrl)
 		mockEcr := mock_awsiface.NewMockEcrClient(ctrl)
-		scanner := NewScanner(mockEcs, mockEcr)
+		scanner := NewScanner(di.NewDomain(func(b *di.B) {
+			b.Set(key.EcsCli, mockEcs)
+			b.Set(key.EcrCli, mockEcr)
+		}))
 
 		mockEcs.EXPECT().DescribeServices(ctx, gomock.AssignableToTypeOf(&ecs.DescribeServicesInput{})).
 			Return(nil, errors.New("ecs error"))
 
-		results, err := scanner.Scan(ctx, "cluster-a", "service-a")
+		results, err := scanner.Scan(ctx, ScanRequest{Cluster: "cluster-a", Service: "service-a"})
 
 		assert.EqualError(t, err, "ecs error")
 		assert.Nil(t, results)
@@ -145,7 +173,7 @@ func TestScanImage(t *testing.T) {
 			findings: findings,
 		}
 
-		result := scanImage(ctx, stub, imageInfo)
+		result := scanImage(ctx, stub, imageInfo, false)
 
 		assert.NoError(t, result.Err)
 		assert.Equal(t, imageInfo, result.ImageInfo)
@@ -158,7 +186,7 @@ func TestScanImage(t *testing.T) {
 			errID: expectedErr,
 		}
 
-		result := scanImage(ctx, stub, imageInfo)
+		result := scanImage(ctx, stub, imageInfo, false)
 
 		assert.Equal(t, expectedErr, result.Err)
 		assert.Equal(t, imageInfo, result.ImageInfo)
@@ -175,7 +203,7 @@ func TestScanImage(t *testing.T) {
 			errScan: scanErr,
 		}
 
-		result := scanImage(ctx, stub, imageInfo)
+		result := scanImage(ctx, stub, imageInfo, false)
 
 		assert.Equal(t, scanErr, result.Err)
 		assert.Equal(t, imageInfo, result.ImageInfo)
@@ -195,7 +223,7 @@ func TestScanImage(t *testing.T) {
 			errScan: scanErr,
 		}
 
-		result := scanImage(ctx, stub, imageInfo)
+		result := scanImage(ctx, stub, imageInfo, false)
 
 		assert.Equal(t, ErrScanNotFound, result.Err)
 		assert.Equal(t, imageInfo, result.ImageInfo)
@@ -214,7 +242,7 @@ func TestScanImage(t *testing.T) {
 			findings: findings,
 		}
 
-		result := scanImage(ctx, stub, imageInfo)
+		result := scanImage(ctx, stub, imageInfo, false)
 
 		assert.NoError(t, result.Err)
 		assert.Equal(t, imageInfo, result.ImageInfo)

@@ -27,6 +27,7 @@ type (
 	EcrClient interface {
 		BatchGetImage(ctx context.Context, params *ecr.BatchGetImageInput, optFns ...func(*ecr.Options)) (*ecr.BatchGetImageOutput, error)
 		DescribeImageScanFindings(ctx context.Context, params *ecr.DescribeImageScanFindingsInput, optFns ...func(*ecr.Options)) (*ecr.DescribeImageScanFindingsOutput, error)
+		StartImageScan(ctx context.Context, params *ecr.StartImageScanInput, optFns ...func(*ecr.Options)) (*ecr.StartImageScanOutput, error)
 	}
 	AlbClient interface {
 		DescribeTargetGroups(ctx context.Context, params *elbv2.DescribeTargetGroupsInput, optFns ...func(*elbv2.Options)) (*elbv2.DescribeTargetGroupsOutput, error)
@@ -44,3 +45,4 @@ type (
 var _ EcsClient = (*ecs.Client)(nil)
 var _ AlbClient = (*elbv2.Client)(nil)
 var _ Ec2Client = (*ec2.Client)(nil)
+var _ EcrClient = (*ecr.Client)(nil)
