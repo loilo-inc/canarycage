@@ -93,7 +93,7 @@ By default, `cage rollout` will only update the task definition of the service. 
 
 ### cage audit
 
-`audit` command scans container images used by an ECS service and summarizes ECR image scan findings. Basic usage is as follows:
+`audit` command summarizes existing ECR image scan findings for container images used by an ECS service. Basic usage is as follows:
 
 ```bash
 $ cage audit --region ${AWS_REGION} ./deploy
@@ -106,6 +106,24 @@ $ cage audit --region ${AWS_REGION} --cluster ${ECS_CLUSTER} --service ${ECS_SER
 ```
 
 By default, the output is a table with per-container status and severity counts. Use `--detail` to include vulnerability descriptions and `--json` to output the aggregated result as JSON.
+
+#### `--in-place` flag
+
+Use `--in-place` to reuse recent ECR basic image scan findings or start a new scan when needed:
+
+```bash
+$ cage audit --region ${AWS_REGION} --in-place ./deploy
+```
+
+This flag also works with `--cluster`, `--service`, and `--json`:
+
+- If a scan is already in progress, wait for its results without starting another scan.
+- If the last scan completed within 24 hours, return its existing findings.
+- If no scan results exist, the completion timestamp is missing, or the last scan completed more than 24 hours ago, start a new scan and wait for its results.
+
+While waiting, the scan is checked every 30 seconds for up to 5 minutes. For multi-architecture images, the scan targets the image matching the ECS task definition's CPU architecture.
+
+ECR allows a basic scan of an individual image only once per 24 hours, including scans started on push. Requests exceeding this limit are reported as scan errors. See the [StartImageScan API documentation](https://docs.aws.amazon.com/AmazonECR/latest/APIReference/API_StartImageScan.html).
 
 ### IAM Policy (for `cage rollout`)
 
@@ -233,7 +251,7 @@ Here is a recommended example of IAM policy for `cage audit` command:
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Action": ["ecr:BatchGetImage", "ecr:DescribeImageScanFindings"],
+      "Action": ["ecr:BatchGetImage", "ecr:DescribeImageScanFindings", "ecr:StartImageScan"],
       "Effect": "Allow",
       "Resource": ["arn:aws:ecr::123456789010:repository/your-repository-name"]
     },
@@ -245,6 +263,8 @@ Here is a recommended example of IAM policy for `cage audit` command:
   ]
 }
 ```
+
+`ecr:StartImageScan` is required when using `--in-place`. You can omit this action when only reading existing scan findings.
 
 You can restrict the `Resource` field of `ecs:DescribeServices` and `ecs:DescribeTaskDefinition` actions to specific services and task definitions if you want to limit the scope of the policy.
 

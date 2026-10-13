@@ -102,6 +102,14 @@ func TestScanner_Scan(t *testing.T) {
 				})
 
 			if inPlace {
+				completedAt := time.Now().Add(-25 * time.Hour)
+				mockEcr.EXPECT().DescribeImageScanFindings(ctx, &ecr.DescribeImageScanFindingsInput{
+					RepositoryName: aws.String("my-repo"),
+					ImageId:        &ecrtypes.ImageIdentifier{ImageTag: aws.String("1.2.3")},
+				}).Return(&ecr.DescribeImageScanFindingsOutput{
+					ImageScanStatus:   &ecrtypes.ImageScanStatus{Status: ecrtypes.ScanStatusComplete},
+					ImageScanFindings: &ecrtypes.ImageScanFindings{ImageScanCompletedAt: &completedAt},
+				}, nil)
 				mockEcr.EXPECT().StartImageScan(ctx, &ecr.StartImageScanInput{
 					RepositoryName: aws.String("my-repo"),
 					ImageId:        &ecrtypes.ImageIdentifier{ImageTag: aws.String("1.2.3")},
@@ -181,7 +189,7 @@ func TestScanImage(t *testing.T) {
 			findings: findings,
 		}
 
-		result := scanImage(ctx, stub, imageInfo, false)
+		result := (&scanner{}).scanImage(ctx, stub, imageInfo, false)
 
 		assert.NoError(t, result.Err)
 		assert.Equal(t, imageInfo, result.ImageInfo)
@@ -194,7 +202,7 @@ func TestScanImage(t *testing.T) {
 			errID: expectedErr,
 		}
 
-		result := scanImage(ctx, stub, imageInfo, false)
+		result := (&scanner{}).scanImage(ctx, stub, imageInfo, false)
 
 		assert.Equal(t, expectedErr, result.Err)
 		assert.Equal(t, imageInfo, result.ImageInfo)
@@ -211,7 +219,7 @@ func TestScanImage(t *testing.T) {
 			errScan: scanErr,
 		}
 
-		result := scanImage(ctx, stub, imageInfo, false)
+		result := (&scanner{}).scanImage(ctx, stub, imageInfo, false)
 
 		assert.Equal(t, scanErr, result.Err)
 		assert.Equal(t, imageInfo, result.ImageInfo)
@@ -231,7 +239,7 @@ func TestScanImage(t *testing.T) {
 			errScan: scanErr,
 		}
 
-		result := scanImage(ctx, stub, imageInfo, false)
+		result := (&scanner{}).scanImage(ctx, stub, imageInfo, false)
 
 		assert.Equal(t, ErrScanNotFound, result.Err)
 		assert.Equal(t, imageInfo, result.ImageInfo)
@@ -250,7 +258,7 @@ func TestScanImage(t *testing.T) {
 			findings: findings,
 		}
 
-		result := scanImage(ctx, stub, imageInfo, false)
+		result := (&scanner{}).scanImage(ctx, stub, imageInfo, false)
 
 		assert.NoError(t, result.Err)
 		assert.Equal(t, imageInfo, result.ImageInfo)

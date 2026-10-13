@@ -46,7 +46,7 @@ func (s *scanner) Scan(
 	findingsList := make([]ScanResult, len(imageInfos))
 	for i, info := range imageInfos {
 		if info.IsECRImage() {
-			findingsList[i] = scanImage(ctx, ecrTool, info, req.InPlace)
+			findingsList[i] = s.scanImage(ctx, ecrTool, info, req.InPlace)
 		} else {
 			findingsList[i] = ScanResult{ImageInfo: info, Err: ErrNonEcrImage}
 		}
@@ -57,7 +57,7 @@ func (s *scanner) Scan(
 var ErrNonEcrImage = fmt.Errorf("non-ECR image")
 var ErrScanNotFound = fmt.Errorf("scan not found")
 
-func scanImage(ctx context.Context, ecrTool EcrTool, info ImageInfo, inPlace bool) ScanResult {
+func (s *scanner) scanImage(ctx context.Context, ecrTool EcrTool, info ImageInfo, inPlace bool) ScanResult {
 	imageID, err := ecrTool.GetActualImageIdentifier(ctx, &info)
 	if err != nil {
 		return ScanResult{ImageInfo: info, Err: err}
