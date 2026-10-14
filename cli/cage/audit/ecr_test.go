@@ -276,6 +276,28 @@ func TestGetActualImageIdentifier(t *testing.T) {
 func TestGetImageScanFindings(t *testing.T) {
 	ctx := context.Background()
 
+	for _, status := range []ecrtypes.ScanStatus{ecrtypes.ScanStatusInProgress, ecrtypes.ScanStatusPending} {
+		t.Run("does not wait for "+string(status), func(t *testing.T) {
+			client := mock_awsiface.NewMockEcrClient(gomock.NewController(t))
+			info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0"}
+			imageID := &ecrtypes.ImageIdentifier{ImageTag: aws.String(info.Tag)}
+			findings := &ecrtypes.ImageScanFindings{}
+			client.EXPECT().DescribeImageScanFindings(ctx, &ecr.DescribeImageScanFindingsInput{
+				RepositoryName: aws.String(info.Repository), ImageId: imageID,
+			}).Return(&ecr.DescribeImageScanFindingsOutput{
+				ImageScanStatus:   &ecrtypes.ImageScanStatus{Status: status},
+				ImageScanFindings: findings,
+			}, nil).Times(1)
+			tool := newEcrTool(client, stubWaiter(func(context.Context, *ImageInfo, *ecrtypes.ImageIdentifier, time.Duration) (*ecr.DescribeImageScanFindingsOutput, error) {
+				t.Fatal("ordinary audit must not wait for a scan")
+				return nil, nil
+			}))
+			got, err := tool.GetImageScanFindings(ctx, info, imageID)
+			assert.NoError(t, err)
+			assert.Same(t, findings, got)
+		})
+	}
+
 	t.Run("successfully returns scan findings", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
@@ -413,6 +435,7 @@ func TestExecImageScanFindings(t *testing.T) {
 		{name: "starts scan when completed timestamp is missing", initial: &ecr.DescribeImageScanFindingsOutput{ImageScanFindings: findings}, start: true, wait: true, wantFindings: findings},
 		{name: "starts scan when findings are missing", initial: &ecr.DescribeImageScanFindingsOutput{}, start: true, wait: true, wantFindings: findings},
 		{name: "waits for first scan already in progress", initial: &ecr.DescribeImageScanFindingsOutput{ImageScanStatus: &ecrtypes.ImageScanStatus{Status: ecrtypes.ScanStatusInProgress}}, wait: true, wantFindings: findings},
+		{name: "waits for pending scan without starting another", initial: &ecr.DescribeImageScanFindingsOutput{ImageScanStatus: &ecrtypes.ImageScanStatus{Status: ecrtypes.ScanStatusPending}}, wait: true, wantFindings: findings},
 		{name: "propagates describe error without starting", describeErr: describeErr, wantErr: describeErr.Error()},
 		{name: "returns start error without waiting", initial: old, start: true, startErr: startErr, wantErr: startErr.Error()},
 		{name: "returns waiter error after starting", initial: old, start: true, wait: true, waitErr: waitErr, wantErr: waitErr.Error()},

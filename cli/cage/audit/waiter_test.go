@@ -43,6 +43,12 @@ func TestWaitForImageScan(t *testing.T) {
 		}
 		gomock.InOrder(
 			client.EXPECT().DescribeImageScanFindings(t.Context(), input).Return(&ecr.DescribeImageScanFindingsOutput{
+				ImageScanStatus: &ecrtypes.ImageScanStatus{Status: ecrtypes.ScanStatusPending},
+			}, nil),
+			client.EXPECT().DescribeImageScanFindings(t.Context(), input).Return(&ecr.DescribeImageScanFindingsOutput{
+				ImageScanStatus: &ecrtypes.ImageScanStatus{Status: ecrtypes.ScanStatusPending},
+			}, nil),
+			client.EXPECT().DescribeImageScanFindings(t.Context(), input).Return(&ecr.DescribeImageScanFindingsOutput{
 				ImageScanStatus: &ecrtypes.ImageScanStatus{Status: ecrtypes.ScanStatusInProgress},
 			}, nil),
 			client.EXPECT().DescribeImageScanFindings(t.Context(), input).Return(completed, nil),

@@ -64,11 +64,14 @@ func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo)
 }
 
 func (t *ecrTool) GetImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error) {
-	res, err := t.prepareForImageScan(ctx, info, imageID)
+	res, err := t.Ecr.DescribeImageScanFindings(ctx, &ecr.DescribeImageScanFindingsInput{
+		RepositoryName: aws.String(info.Repository),
+		ImageId:        imageID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	return t.unwrapFindings(res.result)
+	return t.unwrapFindings(res)
 }
 
 func (t *ecrTool) ExecImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error) {
@@ -114,7 +117,8 @@ func (t *ecrTool) prepareForImageScan(ctx context.Context, info *ImageInfo, imag
 	}
 
 	if res.ImageScanStatus != nil &&
-		res.ImageScanStatus.Status == ecrtypes.ScanStatusInProgress {
+		(res.ImageScanStatus.Status == ecrtypes.ScanStatusInProgress ||
+			res.ImageScanStatus.Status == ecrtypes.ScanStatusPending) {
 		waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer cancel()
 		if res, err = t.Waiter.WaitForImageScan(waitCtx, info, imageID, 30*time.Second); err != nil {

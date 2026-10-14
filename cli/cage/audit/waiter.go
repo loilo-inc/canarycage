@@ -49,6 +49,7 @@ func (w *waiter) WaitForImageScan(ctx context.Context, info *ImageInfo, imageID 
 
 			switch status {
 			case ecrtypes.ScanStatusInProgress:
+			case ecrtypes.ScanStatusPending:
 				continue
 			case ecrtypes.ScanStatusComplete:
 				return res, nil
