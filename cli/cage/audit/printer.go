@@ -39,11 +39,6 @@ func (p *printer) Print(scanResults []ScanResult) {
 	for _, r := range scanResults {
 		agg.Add(r)
 	}
-	total := agg.TotalCVECount()
-	if total == 0 {
-		l.Printf("%s\n", p.color.Greenf("No CVEs found"))
-		return
-	}
 	containerMax, imageMax := MaxHeaderWidth(scanResults)
 	// |container|status|critical|high|medium|low|info|image|
 	headerFmt := fmt.Sprintf("|%%-%ds|%%-10s|%%-8s|%%-5s|%%-6s|%%-4s|%%-4s|%%-%ds|\n", containerMax, imageMax)
@@ -82,11 +77,31 @@ func (p *printer) Print(scanResults []ScanResult) {
 		list = append(list, fmt.Sprintf("%d %s", v.Count, sp.BSprintf("%s", v.Severity)))
 	}
 
-	l.Printf(
-		"\nTotal: %s (%s)\n",
-		highest.BSprintf("%d", summary.TotalCount),
-		strings.Join(list, ", "),
-	)
+	total := agg.TotalCVECount()
+	errors := agg.Errors()
+	hasError := len(errors) > 0
+	if total == 0 {
+		if !hasError {
+			l.Printf("%s\n", p.color.Greenf("\nNo CVEs found"))
+		} else {
+			l.Printf("%s\n", p.color.Yellowf("\nNo CVEs found, but need a closer look\n"))
+		}
+	} else {
+		l.Printf(
+			"\nTotal: %s (%s)\n",
+			highest.BSprintf("%d", summary.TotalCount),
+			strings.Join(list, ", "),
+		)
+		if hasError {
+			l.Printf("%s\n", p.color.Yellowf("\nNeed a closer look\n"))
+		}
+	}
+
+	if len(errors) > 0 {
+		for _, v := range errors {
+			l.Printf("- %s\n", v.ErrorSummary())
+		}
+	}
 }
 
 func (p *printer) PrintJSON(metadata Target, scanResults []ScanResult) {
