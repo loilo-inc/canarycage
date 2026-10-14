@@ -123,7 +123,14 @@ func (a *aggregater) Result() Result {
 	sort.Slice(vulns, func(i, j int) bool {
 		return vulns[i].CVE.Name < vulns[j].CVE.Name
 	})
-	return Result{Summary: summary, Vulns: vulns}
+	errors := make([]ScanError, 0, len(a.errors))
+	for _, r := range a.errors {
+		errors = append(errors, ScanError{
+			ContainerName: r.ContainerName,
+			ErrorMessage:  r.Err.Error(),
+		})
+	}
+	return Result{Summary: summary, Vulns: vulns, Errors: errors}
 }
 
 func (a *aggregater) Errors() []ScanResult {

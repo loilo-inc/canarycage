@@ -97,7 +97,7 @@ func (p *printer) Print(scanResults []ScanResult) {
 		}
 	}
 
-	if len(errors) > 0 {
+	if hasError {
 		for _, v := range errors {
 			l.Printf("- %s\n", v.ErrorSummary())
 		}

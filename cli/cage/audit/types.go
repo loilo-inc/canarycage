@@ -121,6 +121,12 @@ type Target struct {
 type Result struct {
 	Summary *AggregateResult `json:"summary"`
 	Vulns   []Vuln           `json:"vulns"`
+	Errors  []ScanError      `json:"errors"`
+}
+
+type ScanError struct {
+	ContainerName string `json:"container_name"`
+	ErrorMessage  string `json:"error_message"`
 }
 
 type Vuln struct {
