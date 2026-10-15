@@ -33,6 +33,7 @@ type AuditCmdInput struct {
 	Region    string
 	Cluster   string
 	Service   string
+	InPlace   bool
 	LogDetail bool
 	JSON      bool
 }

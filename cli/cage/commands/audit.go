@@ -32,6 +32,12 @@ func Audit(app *cageapp.App, provider cageapp.AuditCmdProvider) *cli.Command {
 				Value:       false,
 				Destination: &input.JSON,
 			},
+			&cli.BoolFlag{
+				Name:        "in-place",
+				Usage:       "Perform in-place image scan",
+				Value:       false,
+				Destination: &input.InPlace,
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			dir, _, err := RequireArgs(cmd, 0, 1)

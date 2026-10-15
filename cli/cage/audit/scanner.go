@@ -9,38 +9,44 @@ import (
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	smithy "github.com/aws/smithy-go"
 	"github.com/loilo-inc/canarycage/v5/awsiface"
+	"github.com/loilo-inc/canarycage/v5/key"
+	"github.com/loilo-inc/logos/v2/di"
 )
 
 type scanner struct {
-	ecs awsiface.EcsClient
-	ecr awsiface.EcrClient
+	di *di.D
+}
+
+type ScanRequest struct {
+	Cluster string
+	Service string
+	InPlace bool
 }
 
 type Scanner interface {
-	Scan(ctx context.Context, cluster string, service string) ([]ScanResult, error)
+	Scan(ctx context.Context, req ScanRequest) ([]ScanResult, error)
 }
 
 var _ Scanner = (*scanner)(nil)
 
-func NewScanner(ecs awsiface.EcsClient, ecr awsiface.EcrClient) Scanner {
-	return &scanner{ecs: ecs, ecr: ecr}
+func NewScanner(di *di.D) Scanner {
+	return &scanner{di: di}
 }
 
 func (s *scanner) Scan(
 	ctx context.Context,
-	cluster string,
-	service string,
+	req ScanRequest,
 ) (results []ScanResult, err error) {
-	ecsTool := newEcsTool(s.ecs)
-	ecrTool := newEcrTool(s.ecr)
+	ecsTool := newEcsTool(s.di.Get(key.EcsCli).(awsiface.EcsClient))
+	ecrTool := newEcrTool(s.di.Get(key.EcrCli).(awsiface.EcrClient), &waiter{di: s.di})
 	var imageInfos []ImageInfo
-	if imageInfos, err = ecsTool.GetServiceImageInfos(ctx, cluster, service); err != nil {
+	if imageInfos, err = ecsTool.GetServiceImageInfos(ctx, req.Cluster, req.Service); err != nil {
 		return nil, err
 	}
 	findingsList := make([]ScanResult, len(imageInfos))
 	for i, info := range imageInfos {
 		if info.IsECRImage() {
-			findingsList[i] = scanImage(ctx, ecrTool, info)
+			findingsList[i] = s.scanImage(ctx, ecrTool, info, req.InPlace)
 		} else {
 			findingsList[i] = ScanResult{ImageInfo: info, Err: ErrNonEcrImage}
 		}
@@ -51,15 +57,25 @@ func (s *scanner) Scan(
 var ErrNonEcrImage = fmt.Errorf("non-ECR image")
 var ErrScanNotFound = fmt.Errorf("scan not found")
 
-func scanImage(ctx context.Context, ecrTool EcrTool, info ImageInfo) ScanResult {
-	if imageID, err := ecrTool.GetActualImageIdentifier(ctx, &info); err != nil {
+func (s *scanner) scanImage(ctx context.Context, ecrTool EcrTool, info ImageInfo, inPlace bool) ScanResult {
+	imageID, err := ecrTool.GetActualImageIdentifier(ctx, &info)
+	if err != nil {
 		return ScanResult{ImageInfo: info, Err: err}
-	} else if findings, err := ecrTool.GetImageScanFindings(ctx, &info, imageID); err != nil {
-		return ScanResult{ImageInfo: info, Err: parseError(err)}
-	} else {
-		cves := scanFindingsToCVEs(findings)
-		return ScanResult{ImageInfo: info, Cves: cves}
 	}
+
+	var findings *ecrtypes.ImageScanFindings
+	if inPlace {
+		findings, err = ecrTool.ExecImageScanFindings(ctx, &info, imageID)
+	} else {
+		findings, err = ecrTool.GetImageScanFindings(ctx, &info, imageID)
+	}
+
+	if err != nil {
+		return ScanResult{ImageInfo: info, Err: parseError(err)}
+	}
+
+	cves := scanFindingsToCVEs(findings)
+	return ScanResult{ImageInfo: info, Cves: cves}
 }
 
 func parseError(err error) error {

@@ -348,6 +348,26 @@ func (mr *MockEcrClientMockRecorder) DescribeImageScanFindings(ctx, params any, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeImageScanFindings", reflect.TypeOf((*MockEcrClient)(nil).DescribeImageScanFindings), varargs...)
 }
 
+// StartImageScan mocks base method.
+func (m *MockEcrClient) StartImageScan(ctx context.Context, params *ecr.StartImageScanInput, optFns ...func(*ecr.Options)) (*ecr.StartImageScanOutput, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, params}
+	for _, a := range optFns {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "StartImageScan", varargs...)
+	ret0, _ := ret[0].(*ecr.StartImageScanOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StartImageScan indicates an expected call of StartImageScan.
+func (mr *MockEcrClientMockRecorder) StartImageScan(ctx, params any, optFns ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, params}, optFns...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartImageScan", reflect.TypeOf((*MockEcrClient)(nil).StartImageScan), varargs...)
+}
+
 // MockAlbClient is a mock of AlbClient interface.
 type MockAlbClient struct {
 	ctrl     *gomock.Controller

@@ -42,16 +42,16 @@ func (m *MockScanner) EXPECT() *MockScannerMockRecorder {
 }
 
 // Scan mocks base method.
-func (m *MockScanner) Scan(ctx context.Context, cluster, service string) ([]audit.ScanResult, error) {
+func (m *MockScanner) Scan(ctx context.Context, req audit.ScanRequest) ([]audit.ScanResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Scan", ctx, cluster, service)
+	ret := m.ctrl.Call(m, "Scan", ctx, req)
 	ret0, _ := ret[0].([]audit.ScanResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Scan indicates an expected call of Scan.
-func (mr *MockScannerMockRecorder) Scan(ctx, cluster, service any) *gomock.Call {
+func (mr *MockScannerMockRecorder) Scan(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Scan", reflect.TypeOf((*MockScanner)(nil).Scan), ctx, cluster, service)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Scan", reflect.TypeOf((*MockScanner)(nil).Scan), ctx, req)
 }
