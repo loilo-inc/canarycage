@@ -64,16 +64,18 @@ func TestAuditCommandRun(t *testing.T) {
 
 			cmd := audit.NewCommand(mockDI, &cageapp.AuditCmdInput{
 				InPlace: inPlace,
-				Cluster:     "cluster",
-				Service:     "service",
-				App:         &cageapp.App{NoColor: true},
+				Cluster: "cluster",
+				Service: "service",
+				App:     &cageapp.App{NoColor: true},
 			})
 
 			err := cmd.Run(t.Context())
 			assert := assert.New(t)
 			assert.NoError(err)
-			assert.Len(mockPrinter.Stdout, 1) // only "No CVEs found" message (no header)
-			assert.Contains(mockPrinter.Stdout[0], "No CVEs found")
+			if assert.Len(mockPrinter.Stdout, 2) {
+				assert.Contains(mockPrinter.Stdout[0], "CONTAINER")
+				assert.Equal("\nNo CVEs found\n", mockPrinter.Stdout[1])
+			}
 			assert.Len(mockPrinter.Stderr, 1)
 			assert.Equal(mockPrinter.Stderr[0], "\r")
 		})

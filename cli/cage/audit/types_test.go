@@ -2,12 +2,34 @@ package audit
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 )
+
+func TestScanResult_ErrorSummary(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "successful scan"},
+		{name: "scan not found", err: ErrScanNotFound, want: "[N/A] app: Scan not found"},
+		{name: "wrapped scan not found", err: fmt.Errorf("describe: %w", ErrScanNotFound), want: "[N/A] app: Scan not found"},
+		{name: "non-ECR image", err: ErrNonEcrImage, want: "[N/A] app: Non-ECR image"},
+		{name: "wrapped non-ECR image", err: fmt.Errorf("scan: %w", ErrNonEcrImage), want: "[N/A] app: Non-ECR image"},
+		{name: "scan failure", err: errors.New("access denied"), want: "[ERROR] app: access denied"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ScanResult{ImageInfo: ImageInfo{ContainerName: "app"}, Err: tt.err}
+			assert.Equal(t, tt.want, result.ErrorSummary())
+		})
+	}
+}
 
 func TestImageInfo_IsECRImage(t *testing.T) {
 	tests := []struct {

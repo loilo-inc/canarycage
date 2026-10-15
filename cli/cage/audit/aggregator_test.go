@@ -1,12 +1,39 @@
 package audit
 
 import (
+	"errors"
 	"testing"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/loilo-inc/logos/v2/set"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestAggregater_Errors(t *testing.T) {
+	agg := NewAggregater()
+	assert.Empty(t, agg.Errors())
+	success := ScanResult{
+		ImageInfo: ImageInfo{ContainerName: "app"},
+		Cves:      []CVE{{Name: "CVE-2026-1234", Severity: ecrtypes.FindingSeverityHigh}},
+	}
+	agg.Add(success)
+	assert.Empty(t, agg.Errors())
+
+	failed := []ScanResult{
+		{ImageInfo: ImageInfo{ContainerName: "app"}, Err: ErrScanNotFound},
+		{ImageInfo: ImageInfo{ContainerName: "sidecar"}, Err: ErrNonEcrImage},
+		{ImageInfo: ImageInfo{ContainerName: "worker"}, Err: errors.New("scan failed")},
+	}
+	for _, result := range failed {
+		agg.Add(result)
+	}
+	agg.Add(ScanResult{ImageInfo: ImageInfo{ContainerName: "healthy"}})
+
+	assert.Equal(t, failed, agg.Errors())
+	assert.Equal(t, 1, agg.TotalCVECount())
+	assert.Len(t, agg.summaries["app"], 2)
+	assert.Equal(t, ScanStatusNA, agg.summaries["app"][1].Status)
+}
 
 func TestSeverityPrinter_Sprintf(t *testing.T) {
 	tests := []struct {
@@ -309,7 +336,42 @@ func TestAggregater_Result(t *testing.T) {
 		assert.NotNil(t, result.Summary)
 		assert.Equal(t, 0, result.Summary.TotalCount)
 		assert.Equal(t, 0, len(result.Vulns))
+		assert.Equal(t, []ScanError{}, result.Errors)
 	})
+
+	for _, withCVEs := range []bool{false, true} {
+		name := "returns scan errors without vulnerabilities"
+		if withCVEs {
+			name = "returns scan errors alongside vulnerabilities"
+		}
+		t.Run(name, func(t *testing.T) {
+			agg := NewAggregater()
+			success := ScanResult{ImageInfo: ImageInfo{ContainerName: "app"}}
+			if withCVEs {
+				success.Cves = []CVE{{Name: "CVE-2026-1234", Severity: ecrtypes.FindingSeverityHigh}}
+			}
+			agg.Add(success)
+			agg.Add(ScanResult{ImageInfo: ImageInfo{ContainerName: "missing-scan"}, Err: ErrScanNotFound})
+			agg.Add(ScanResult{ImageInfo: ImageInfo{ContainerName: "non-ecr"}, Err: ErrNonEcrImage})
+			agg.Add(ScanResult{ImageInfo: ImageInfo{ContainerName: "failed-scan"}, Err: errors.New("access denied")})
+			agg.Add(ScanResult{ImageInfo: ImageInfo{ContainerName: "healthy"}})
+
+			result := agg.Result()
+
+			assert.Equal(t, []ScanError{
+				{ContainerName: "missing-scan", ErrorMessage: "scan not found"},
+				{ContainerName: "non-ecr", ErrorMessage: "non-ECR image"},
+				{ContainerName: "failed-scan", ErrorMessage: "access denied"},
+			}, result.Errors)
+			assert.Equal(t, len(success.Cves), result.Summary.TotalCount)
+			if withCVEs {
+				assert.Equal(t, 1, result.Summary.HighCount)
+				assert.Equal(t, []Vuln{{CVE: success.Cves[0], Containers: []string{"app"}}}, result.Vulns)
+			} else {
+				assert.Empty(t, result.Vulns)
+			}
+		})
+	}
 
 	t.Run("returns result with vulnerabilities", func(t *testing.T) {
 		agg := NewAggregater()
@@ -340,6 +402,7 @@ func TestAggregater_Result(t *testing.T) {
 		assert.Equal(t, 1, result.Summary.CriticalCount)
 		assert.Equal(t, 1, result.Summary.HighCount)
 		assert.Equal(t, 2, len(result.Vulns))
+		assert.Equal(t, []ScanError{}, result.Errors)
 
 		// Find CVE-2021-1234 in results
 		var vuln1234 Vuln

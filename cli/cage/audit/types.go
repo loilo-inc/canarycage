@@ -2,6 +2,7 @@ package audit
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
@@ -82,6 +83,18 @@ func (r ScanResult) Summary() ScanResultSummary {
 	}
 }
 
+func (r ScanResult) ErrorSummary() string {
+	switch e := r.Err; {
+	case errors.Is(e, ErrScanNotFound):
+		return fmt.Sprintf("[N/A] %s: Scan not found", r.ContainerName)
+	case errors.Is(e, ErrNonEcrImage):
+		return fmt.Sprintf("[N/A] %s: Non-ECR image", r.ContainerName)
+	case e != nil:
+		return fmt.Sprintf("[ERROR] %s: %s", r.ContainerName, e.Error())
+	}
+	return ""
+}
+
 type ScanResultSummary struct {
 	ContainerName string     `json:"container_name"`
 	Status        ScanStatus `json:"status"`
@@ -108,6 +121,12 @@ type Target struct {
 type Result struct {
 	Summary *AggregateResult `json:"summary"`
 	Vulns   []Vuln           `json:"vulns"`
+	Errors  []ScanError      `json:"errors"`
+}
+
+type ScanError struct {
+	ContainerName string `json:"container_name"`
+	ErrorMessage  string `json:"error_message"`
 }
 
 type Vuln struct {

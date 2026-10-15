@@ -13,6 +13,7 @@ type aggregater struct {
 	cves            map[string]CVE
 	cveToContainers map[string]set.Set[string]
 	summaries       map[string][]ScanResultSummary
+	errors          []ScanResult
 }
 
 func NewAggregater() *aggregater {
@@ -32,6 +33,9 @@ func (a *aggregater) Add(r ScanResult) {
 			a.cveToContainers[f.Name] = set.NewSet[string]()
 		}
 		a.cveToContainers[f.Name].Add(container)
+	}
+	if r.Err != nil {
+		a.errors = append(a.errors, r)
 	}
 }
 
@@ -119,7 +123,18 @@ func (a *aggregater) Result() Result {
 	sort.Slice(vulns, func(i, j int) bool {
 		return vulns[i].CVE.Name < vulns[j].CVE.Name
 	})
-	return Result{Summary: summary, Vulns: vulns}
+	errors := make([]ScanError, 0, len(a.errors))
+	for _, r := range a.errors {
+		errors = append(errors, ScanError{
+			ContainerName: r.ContainerName,
+			ErrorMessage:  r.Err.Error(),
+		})
+	}
+	return Result{Summary: summary, Vulns: vulns, Errors: errors}
+}
+
+func (a *aggregater) Errors() []ScanResult {
+	return a.errors
 }
 
 type severityPrinter struct {

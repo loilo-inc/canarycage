@@ -2,6 +2,7 @@ package audit
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -55,9 +56,54 @@ func TestPrinter_Print(t *testing.T) {
 		result := makeScanResult()
 		printer.Print(result)
 
-		assert.Equal(t, []string{"No CVEs found\n"}, p.Logs)
+		assert.Equal(t, []string{
+			"|CONTAINER     |STATUS    |CRITICAL|HIGH |MEDIUM|LOW |INFO|IMAGE                         |\n",
+			"|test-container|OK        |0       |0    |0     |0   |0   |test-registry/test-repo:latest|\n",
+			"\nNo CVEs found\n",
+		}, p.Logs)
 		assert.Len(t, p.Stderr, 0)
 	})
+
+	for _, withCVEs := range []bool{false, true} {
+		name := "prints scan errors when no CVEs are found"
+		if withCVEs {
+			name = "prints scan errors alongside CVEs and total"
+		}
+		t.Run(name, func(t *testing.T) {
+			d, p := setup(t)
+			printer := NewPrinter(d, true, false)
+			results := makeScanResult()
+			if withCVEs {
+				results = makeScanResult(ecrtypes.FindingSeverityHigh)
+			}
+			results = append(results,
+				ScanResult{ImageInfo: ImageInfo{ContainerName: "missing-scan"}, Err: ErrScanNotFound},
+				ScanResult{ImageInfo: ImageInfo{ContainerName: "non-ecr"}, Err: ErrNonEcrImage},
+				ScanResult{ImageInfo: ImageInfo{ContainerName: "failed-scan"}, Err: errors.New("access denied")},
+			)
+
+			printer.Print(results)
+
+			output := strings.Join(p.Logs, "")
+			assert.Contains(t, output, "|missing-scan  |N/A")
+			assert.Contains(t, output, "|non-ecr       |ERROR")
+			assert.Contains(t, output, "|failed-scan   |ERROR")
+			assert.Contains(t, p.Logs, "- [N/A] missing-scan: Scan not found\n")
+			assert.Contains(t, p.Logs, "- [N/A] non-ecr: Non-ECR image\n")
+			assert.Contains(t, p.Logs, "- [ERROR] failed-scan: access denied\n")
+			assert.NotContains(t, p.Logs, "\nNo CVEs found\n")
+			if withCVEs {
+				assert.Contains(t, output, "CVE-2023-0001")
+				assert.Contains(t, p.Logs, "\nTotal: 1 (1 HIGH)\n")
+				assert.Contains(t, p.Logs, "\nNeed a closer look\n\n")
+				assert.NotContains(t, output, "No CVEs found")
+			} else {
+				assert.Contains(t, p.Logs, "\nNo CVEs found, but need a closer look\n\n")
+				assert.NotContains(t, output, "Total:")
+			}
+			assert.Empty(t, p.Stderr)
+		})
+	}
 
 	t.Run("prints table header", func(t *testing.T) {
 		d, p := setup(t)
@@ -114,6 +160,7 @@ func TestPrinter_Print(t *testing.T) {
 			return strings.Contains(log, "Total:")
 		})
 		assert.True(t, totalFound, "Expected Total summary line")
+		assert.NotContains(t, strings.Join(p.Logs, ""), "closer look")
 	})
 }
 
