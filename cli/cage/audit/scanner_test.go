@@ -97,7 +97,7 @@ func TestScanner_Scan(t *testing.T) {
 					assert.Equal(t, "my-repo", *input.RepositoryName)
 					assert.Equal(t, "1.2.3", *input.ImageIds[0].ImageTag)
 					return &ecr.BatchGetImageOutput{
-						Images: []ecrtypes.Image{{ImageManifest: &manifestStr, ImageManifestMediaType: aws.String(mediaTypeDockerTag)}},
+						Images: []ecrtypes.Image{{ImageManifest: &manifestStr, ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v2+json")}},
 					}, nil
 				})
 

@@ -5,16 +5,10 @@ import (
 )
 
 const mediaTypeDockerList = "application/vnd.docker.distribution.manifest.list.v2+json"
-const mediaTypeDockerTag = "application/vnd.docker.distribution.manifest.v2+json"
 const mediaTypeOCIList = "application/vnd.oci.image.index.v1+json"
-const mediaTypeOCITag = "application/vnd.oci.image.manifest.v1+json"
 
 func isMediaTypeList(mediaType string) bool {
 	return mediaType == mediaTypeDockerList || mediaType == mediaTypeOCIList
-}
-
-func isMediaTypeTag(mediaType string) bool {
-	return mediaType == mediaTypeDockerTag || mediaType == mediaTypeOCITag
 }
 
 type Schema struct {

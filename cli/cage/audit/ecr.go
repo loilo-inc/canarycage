@@ -59,10 +59,6 @@ func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo)
 		return nil, fmt.Errorf("no image found for architecture: %s in %s:%s", info.PlatformArch, info.Repository, info.Tag)
 	}
 
-	if !isMediaTypeTag(mediaType) {
-		return nil, fmt.Errorf("unsupported media type: %s", mediaType)
-	}
-
 	return &ecrtypes.ImageIdentifier{ImageTag: aws.String(info.Tag)}, nil
 }
 
