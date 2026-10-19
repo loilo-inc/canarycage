@@ -73,22 +73,27 @@ func TestGetActualImageIdentifier(t *testing.T) {
 		})
 	}
 
+	imageID := &ecrtypes.ImageIdentifier{
+		ImageTag:    aws.String("v1.0.0"),
+		ImageDigest: aws.String("sha256:single-image"),
+	}
+
 	for _, tc := range []struct {
 		name    string
 		images  []ecrtypes.Image
 		apiErr  error
 		wantErr string
 	}{
-		{name: "Docker single image", images: []ecrtypes.Image{{ImageManifest: aws.String(`{"schemaVersion":2}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v2+json")}}},
-		{name: "OCI single image", images: []ecrtypes.Image{{ImageManifest: aws.String(`{"schemaVersion":2}`), ImageManifestMediaType: aws.String("application/vnd.oci.image.manifest.v1+json")}}},
-		{name: "Docker schema 1 returns tag", images: []ecrtypes.Image{{ImageManifest: aws.String(`{"schemaVersion":1,"name":"my-repo","tag":"v1.0.0","architecture":"amd64","fsLayers":[],"history":[]}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v1+json")}}},
-		{name: "Docker signed schema 1 returns tag", images: []ecrtypes.Image{{ImageManifest: aws.String(`{"schemaVersion":1,"name":"my-repo","tag":"v1.0.0","architecture":"amd64","fsLayers":[],"history":[],"signatures":[]}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v1+prettyjws")}}},
+		{name: "Docker single image", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{"schemaVersion":2}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v2+json")}}},
+		{name: "OCI single image", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{"schemaVersion":2}`), ImageManifestMediaType: aws.String("application/vnd.oci.image.manifest.v1+json")}}},
+		{name: "Docker schema 1 returns image identifier", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{"schemaVersion":1,"name":"my-repo","tag":"v1.0.0","architecture":"amd64","fsLayers":[],"history":[]}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v1+json")}}},
+		{name: "Docker signed schema 1 returns image identifier", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{"schemaVersion":1,"name":"my-repo","tag":"v1.0.0","architecture":"amd64","fsLayers":[],"history":[],"signatures":[]}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v1+prettyjws")}}},
 		{name: "API error", apiErr: errors.New("API error"), wantErr: "API error"},
 		{name: "empty images", wantErr: "image manifest not found"},
 		{name: "nil manifest", images: []ecrtypes.Image{{ImageManifestMediaType: aws.String(mediaTypeOCIList)}}, wantErr: "image manifest not found"},
-		{name: "unknown media type returns tag", images: []ecrtypes.Image{{ImageManifest: aws.String(`{}`), ImageManifestMediaType: aws.String("application/unknown")}}},
-		{name: "nil media type", images: []ecrtypes.Image{{ImageManifest: aws.String(`{}`)}}},
-		{name: "empty media type", images: []ecrtypes.Image{{ImageManifest: aws.String(`{}`), ImageManifestMediaType: aws.String("")}}},
+		{name: "unknown media type returns image identifier", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{}`), ImageManifestMediaType: aws.String("application/unknown")}}},
+		{name: "nil media type", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{}`)}}},
+		{name: "empty media type", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{}`), ImageManifestMediaType: aws.String("")}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
@@ -102,7 +107,7 @@ func TestGetActualImageIdentifier(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, &ecrtypes.ImageIdentifier{ImageTag: aws.String(info.Tag)}, got)
+			assert.Equal(t, imageID, got)
 		})
 	}
 }
