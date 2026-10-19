@@ -81,7 +81,6 @@ func (r ScanResult) Summary() ScanResultSummary {
 		LowCount:      low,
 		InfoCount:     info,
 		ImageURI:      r.formatImageLabel(),
-		ImageDigest:   r.Digest,
 	}
 }
 
@@ -106,7 +105,6 @@ type ScanResultSummary struct {
 	LowCount      int32      `json:"low_count"`
 	InfoCount     int32      `json:"info_count"`
 	ImageURI      string     `json:"image_uri"`
-	ImageDigest   string     `json:"image_digest"`
 }
 
 type FinalResult struct {
