@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/loilo-inc/canarycage/v5/cli/cage/audit"
 	"github.com/loilo-inc/canarycage/v5/cli/cage/cageapp"
 	"github.com/loilo-inc/canarycage/v5/key"
@@ -12,6 +13,7 @@ import (
 	"github.com/loilo-inc/canarycage/v5/test"
 	"github.com/loilo-inc/logos/v2/di"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -91,7 +93,47 @@ func TestAuditCommandRun(t *testing.T) {
 			b.Set(key.Time, test.NewNeverTimer())
 		})
 
-		var results []audit.ScanResult
+		results := []audit.ScanResult{
+			{
+				ImageInfo: audit.ImageInfo{
+					ContainerName: "app",
+					Registry:      "123456789012.dkr.ecr.ap-northeast-1.amazonaws.com",
+					Repository:    "my-app",
+					Tag:           "v1.2.3",
+					Digest:        "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+					PlatformOS:    audit.PlatformOSLinux,
+					PlatformArch:  audit.PlatformArchArm64,
+				},
+				Cves: []audit.CVE{
+					{
+						Name: "CVE-2025-0001", Description: "Critical vulnerability in libssl",
+						PackageName: "libssl3", PackageVersion: "3.0.11",
+						Uri: "https://example.com/CVE-2025-0001", Severity: ecrtypes.FindingSeverityCritical,
+					},
+					{
+						Name: "CVE-2025-0002", Description: "High severity vulnerability in curl",
+						PackageName: "curl", PackageVersion: "8.4.0",
+						Uri: "https://example.com/CVE-2025-0002", Severity: ecrtypes.FindingSeverityHigh,
+					},
+					{
+						Name: "CVE-2025-0003", Description: "Medium severity vulnerability in zlib",
+						PackageName: "zlib", PackageVersion: "1.2.13",
+						Uri: "https://example.com/CVE-2025-0003", Severity: ecrtypes.FindingSeverityMedium,
+					},
+				},
+			},
+			{
+				ImageInfo: audit.ImageInfo{
+					ContainerName: "sidecar",
+					Registry:      "docker.io",
+					Repository:    "library/nginx",
+					Tag:           "1.27",
+					PlatformOS:    audit.PlatformOSLinux,
+					PlatformArch:  audit.PlatformArchArm64,
+				},
+				Err: audit.ErrNonEcrImage,
+			},
+		}
 		gomock.InOrder(
 			mockScanner.EXPECT().Scan(t.Context(), audit.ScanRequest{Cluster: "cluster", Service: "service"}).Return(results, nil),
 		)
@@ -106,18 +148,34 @@ func TestAuditCommandRun(t *testing.T) {
 
 		err := cmd.Run(t.Context())
 		assert := assert.New(t)
-		assert.NoError(err)
-		assert.Len(mockPrinter.Stdout, 1)
-		jsonOutput := mockPrinter.Stdout[0]
-		var finalResult audit.FinalResult
-		err = json.Unmarshal([]byte(jsonOutput), &finalResult)
-		assert.NoError(err)
-		assert.Equal("ap-northeast-1", finalResult.Target.Region)
-		assert.Equal("cluster", finalResult.Target.Cluster)
-		assert.Equal("service", finalResult.Target.Service)
-		assert.Equal(0, finalResult.Result.Summary.CriticalCount)
-		assert.Equal(0, finalResult.Result.Summary.HighCount)
-		assert.Equal(0, finalResult.Result.Summary.MediumCount)
+		require.NoError(t, err)
+		require.Len(t, mockPrinter.Stdout, 1)
+		exp := audit.FinalResult{
+			Target: audit.Target{
+				Region:  "ap-northeast-1",
+				Cluster: "cluster",
+				Service: "service",
+				Images:  []audit.ImageInfo{results[0].ImageInfo, results[1].ImageInfo},
+			},
+			Result: audit.Result{
+				Summary: &audit.AggregateResult{
+					CriticalCount: 1, HighCount: 1, MediumCount: 1,
+					TotalCount: 3, HighestSeverity: ecrtypes.FindingSeverityCritical,
+				},
+				Vulns: []audit.Vuln{
+					{CVE: results[0].Cves[0], Containers: []string{"app"}},
+					{CVE: results[0].Cves[1], Containers: []string{"app"}},
+					{CVE: results[0].Cves[2], Containers: []string{"app"}},
+				},
+				Errors: []audit.ScanError{
+					{ContainerName: "sidecar", ErrorMessage: "non-ECR image"},
+				},
+			},
+			ScannedAt: "0001-01-01T00:00:00Z",
+		}
+		expJSON, err := json.Marshal(exp)
+		require.NoError(t, err)
+		assert.JSONEq(string(expJSON), mockPrinter.Stdout[0])
 		// only the spinner removal log
 		assert.Len(mockPrinter.Stderr, 1)
 		assert.Equal(mockPrinter.Stderr[0], "\r")
