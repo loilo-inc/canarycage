@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -24,21 +23,16 @@ import (
 
 type stubEcrTool struct {
 	imageID  *ecrtypes.ImageIdentifier
-	platform *Platform
 	findings *ecrtypes.ImageScanFindings
 	errID    error
 	errScan  error
 }
 
-func (s *stubEcrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo) (*ActualImageInfo, error) {
+func (s *stubEcrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo) (*ecrtypes.ImageIdentifier, error) {
 	if s.errID != nil {
 		return nil, s.errID
 	}
-	platform := Platform{OS: info.PlatformOS, Architecture: info.PlatformArch}
-	if s.platform != nil {
-		platform = *s.platform
-	}
-	return &ActualImageInfo{ImageIdentifier: s.imageID, Platform: platform}, nil
+	return s.imageID, nil
 }
 
 func (s *stubEcrTool) GetImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error) {
@@ -275,33 +269,6 @@ func TestScanImage(t *testing.T) {
 		assert.Equal(t, imageInfo, result.ImageInfo)
 		assert.Empty(t, result.Cves)
 	})
-}
-
-func TestScanImage_ResolvedImageInfo(t *testing.T) {
-	for _, inPlace := range []bool{false, true} {
-		for _, scanErr := range []error{nil, errors.New("scan failed")} {
-			t.Run(fmt.Sprintf("inPlace=%t/error=%v", inPlace, scanErr), func(t *testing.T) {
-				info := ImageInfo{
-					ContainerName: "app", Repository: "repo", Tag: "latest",
-					PlatformOS: PlatformOSWindows, PlatformArch: PlatformArchAmd64,
-				}
-				stub := &stubEcrTool{
-					imageID:  &ecrtypes.ImageIdentifier{ImageDigest: aws.String("sha256:resolved"), ImageTag: aws.String("v1")},
-					platform: &Platform{OS: PlatformOSWindows, Architecture: PlatformArchAmd64},
-					findings: &ecrtypes.ImageScanFindings{},
-					errScan:  scanErr,
-				}
-
-				result := (&scanner{}).scanImage(t.Context(), stub, info, inPlace)
-
-				assert.ErrorIs(t, result.Err, scanErr)
-				want := info
-				want.Digest = "sha256:resolved"
-				want.Tag = "v1"
-				assert.Equal(t, want, result.ImageInfo)
-			})
-		}
-	}
 }
 func TestScanFindingsToCVEs(t *testing.T) {
 	t.Run("uses basic Findings when present", func(t *testing.T) {

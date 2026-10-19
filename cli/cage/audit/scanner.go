@@ -58,27 +58,27 @@ var ErrNonEcrImage = fmt.Errorf("non-ECR image")
 var ErrScanNotFound = fmt.Errorf("scan not found")
 
 func (s *scanner) scanImage(ctx context.Context, ecrTool EcrTool, info ImageInfo, inPlace bool) ScanResult {
-	actual, err := ecrTool.GetActualImageIdentifier(ctx, &info)
+	imageID, err := ecrTool.GetActualImageIdentifier(ctx, &info)
 	if err != nil {
 		return ScanResult{ImageInfo: info, Err: err}
 	}
-
-	updatedInfo := info
-	updatedInfo.update(actual)
+	if imageID.ImageDigest != nil {
+		info.Digest = *imageID.ImageDigest
+	}
 
 	var findings *ecrtypes.ImageScanFindings
 	if inPlace {
-		findings, err = ecrTool.ExecImageScanFindings(ctx, &info, actual.ImageIdentifier)
+		findings, err = ecrTool.ExecImageScanFindings(ctx, &info, imageID)
 	} else {
-		findings, err = ecrTool.GetImageScanFindings(ctx, &info, actual.ImageIdentifier)
+		findings, err = ecrTool.GetImageScanFindings(ctx, &info, imageID)
 	}
 
 	if err != nil {
-		return ScanResult{ImageInfo: updatedInfo, Err: parseError(err)}
+		return ScanResult{ImageInfo: info, Err: parseError(err)}
 	}
 
 	cves := scanFindingsToCVEs(findings)
-	return ScanResult{ImageInfo: updatedInfo, Cves: cves}
+	return ScanResult{ImageInfo: info, Cves: cves}
 }
 
 func parseError(err error) error {
