@@ -10,11 +10,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/v5/awsiface"
 )
-
-const dockerManifestListMediaType = "application/vnd.docker.distribution.manifest.list.v2+json"
 
 type ecrTool struct {
 	Ecr    awsiface.EcrClient
@@ -43,18 +40,20 @@ func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo)
 		return nil, fmt.Errorf("image manifest not found for %s:%s", info.Repository, info.Tag)
 	}
 
-	var manifest dockerSchema
-	if err := json.Unmarshal([]byte(*res.Images[0].ImageManifest), &manifest); err != nil {
-		return nil, fmt.Errorf("parse image manifest for %s:%s: %w", info.Repository, info.Tag, err)
-	}
+	image := res.Images[0]
+	mediaType := aws.ToString(image.ImageManifestMediaType)
 
-	if manifest.MediaType == dockerManifestListMediaType {
-		for _, candidate := range manifest.Manifests {
-			if candidate.Platform == nil {
+	if isMediaTypeList(mediaType) {
+		var schema Schema
+		if err := json.Unmarshal([]byte(*res.Images[0].ImageManifest), &schema); err != nil {
+			return nil, fmt.Errorf("parse image manifest for %s:%s: %w", info.Repository, info.Tag, err)
+		}
+		for _, manifest := range schema.Manifests {
+			if manifest.Platform == nil {
 				continue
 			}
-			if toCPUArchitecture(candidate.Platform.Architecture) == info.PlatformArch {
-				return &ecrtypes.ImageIdentifier{ImageDigest: aws.String(candidate.Digest)}, nil
+			if toCPUArchitecture(manifest.Platform.Architecture) == info.PlatformArch {
+				return &ecrtypes.ImageIdentifier{ImageDigest: aws.String(manifest.Digest)}, nil
 			}
 		}
 		return nil, fmt.Errorf("no image found for architecture: %s in %s:%s", info.PlatformArch, info.Repository, info.Tag)
@@ -150,34 +149,3 @@ func (t *ecrTool) unwrapFindings(res *ecr.DescribeImageScanFindingsOutput) (*ecr
 }
 
 var _ awsiface.EcrClient = (*ecr.Client)(nil)
-
-type dockerSchema struct {
-	SchemaVersion int              `json:"schemaVersion"`
-	MediaType     string           `json:"mediaType"`
-	Manifests     []dockerManifest `json:"manifests,omitempty"`
-	Config        *dockerManifest  `json:"config,omitempty"`
-	Layers        []dockerManifest `json:"layers,omitempty"`
-}
-
-type dockerManifest struct {
-	MediaType string          `json:"mediaType"`
-	Size      int64           `json:"size"`
-	Digest    string          `json:"digest"`
-	Platform  *dockerPlatform `json:"platform,omitempty"`
-}
-
-type dockerPlatform struct {
-	Architecture string `json:"architecture"`
-	OS           string `json:"os"`
-}
-
-func toCPUArchitecture(arch string) ecstypes.CPUArchitecture {
-	switch arch {
-	case "amd64":
-		return ecstypes.CPUArchitectureX8664
-	case "arm64":
-		return ecstypes.CPUArchitectureArm64
-	default:
-		return ""
-	}
-}
