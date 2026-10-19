@@ -62,6 +62,9 @@ func (s *scanner) scanImage(ctx context.Context, ecrTool EcrTool, info ImageInfo
 	if err != nil {
 		return ScanResult{ImageInfo: info, Err: err}
 	}
+	if imageID.ImageDigest != nil {
+		info.Digest = *imageID.ImageDigest
+	}
 
 	var findings *ecrtypes.ImageScanFindings
 	if inPlace {

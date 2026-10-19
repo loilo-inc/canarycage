@@ -59,7 +59,7 @@ func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo)
 		return nil, fmt.Errorf("no image found for architecture: %s in %s:%s", info.PlatformArch, info.Repository, info.Tag)
 	}
 
-	return &ecrtypes.ImageIdentifier{ImageTag: aws.String(info.Tag)}, nil
+	return image.ImageId, nil
 }
 
 func (t *ecrTool) GetImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error) {

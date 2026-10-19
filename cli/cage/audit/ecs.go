@@ -47,8 +47,14 @@ func (t *ecsTool) GetServiceImageInfos(ctx context.Context, cluster string, serv
 	}
 
 	arch := ecstypes.CPUArchitectureX8664
-	if td.RuntimePlatform != nil && td.RuntimePlatform.CpuArchitecture != "" {
-		arch = td.RuntimePlatform.CpuArchitecture
+	os := ecstypes.OSFamilyLinux
+	if td.RuntimePlatform != nil {
+		if td.RuntimePlatform.OperatingSystemFamily != "" {
+			os = td.RuntimePlatform.OperatingSystemFamily
+		}
+		if td.RuntimePlatform.CpuArchitecture != "" {
+			arch = td.RuntimePlatform.CpuArchitecture
+		}
 	}
 
 	if len(td.ContainerDefinitions) == 0 {
@@ -63,6 +69,7 @@ func (t *ecsTool) GetServiceImageInfos(ctx context.Context, cluster string, serv
 		parsed := ParseImageInfo(*cd.Image)
 		images = append(images, ImageInfo{
 			ContainerName: *cd.Name,
+			PlatformOS:    os,
 			PlatformArch:  arch,
 			Registry:      parsed.Registry,
 			Repository:    parsed.Repository,

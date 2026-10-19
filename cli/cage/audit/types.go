@@ -10,12 +10,13 @@ import (
 )
 
 type ImageInfo struct {
-	ContainerName string
-	Registry      string
-	Repository    string
-	Tag           string
-	PlatFormOS    ecstypes.OSFamily
-	PlatformArch  ecstypes.CPUArchitecture
+	ContainerName string                   `json:"container_name"`
+	Registry      string                   `json:"registry"`
+	Repository    string                   `json:"repository"`
+	Tag           string                   `json:"tag"`
+	Digest        string                   `json:"digest,omitempty"`
+	PlatformOS    ecstypes.OSFamily        `json:"platform_os"`
+	PlatformArch  ecstypes.CPUArchitecture `json:"platform_arch"`
 }
 
 func (i *ImageInfo) IsECRImage() bool {
@@ -80,6 +81,7 @@ func (r ScanResult) Summary() ScanResultSummary {
 		LowCount:      low,
 		InfoCount:     info,
 		ImageURI:      r.formatImageLabel(),
+		ImageDigest:   r.Digest,
 	}
 }
 
@@ -104,6 +106,7 @@ type ScanResultSummary struct {
 	LowCount      int32      `json:"low_count"`
 	InfoCount     int32      `json:"info_count"`
 	ImageURI      string     `json:"image_uri"`
+	ImageDigest   string     `json:"image_digest"`
 }
 
 type FinalResult struct {
@@ -113,9 +116,10 @@ type FinalResult struct {
 }
 
 type Target struct {
-	Region  string `json:"region"`
-	Cluster string `json:"cluster"`
-	Service string `json:"service"`
+	Region  string      `json:"region"`
+	Cluster string      `json:"cluster"`
+	Service string      `json:"service"`
+	Images  []ImageInfo `json:"images"`
 }
 
 type Result struct {

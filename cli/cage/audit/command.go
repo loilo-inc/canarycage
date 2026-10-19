@@ -27,12 +27,17 @@ func (a *command) Run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	var images []ImageInfo
+	for _, r := range results {
+		images = append(images, r.ImageInfo)
+	}
 	p := NewPrinter(a.di, a.NoColor, a.LogDetail)
 	if a.JSON {
 		metadata := Target{
 			Region:  a.Region,
 			Cluster: a.Cluster,
 			Service: a.Service,
+			Images:  images,
 		}
 		p.PrintJSON(metadata, results)
 	} else {
