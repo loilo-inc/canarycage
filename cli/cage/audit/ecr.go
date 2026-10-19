@@ -52,7 +52,8 @@ func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo)
 			if manifest.Platform == nil {
 				continue
 			}
-			if toCPUArchitecture(manifest.Platform.Architecture) == info.PlatformArch {
+			if manifest.Platform.Architecture == string(info.PlatformArch) &&
+				manifest.Platform.OS == string(info.PlatformOS) {
 				return &ecrtypes.ImageIdentifier{ImageDigest: aws.String(manifest.Digest)}, nil
 			}
 		}

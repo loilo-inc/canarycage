@@ -6,18 +6,34 @@ import (
 	"regexp"
 
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 )
 
 type ImageInfo struct {
-	ContainerName string                   `json:"container_name"`
-	Registry      string                   `json:"registry"`
-	Repository    string                   `json:"repository"`
-	Tag           string                   `json:"tag"`
-	Digest        string                   `json:"digest,omitempty"`
-	PlatformOS    ecstypes.OSFamily        `json:"platform_os"`
-	PlatformArch  ecstypes.CPUArchitecture `json:"platform_arch"`
+	ContainerName string       `json:"container_name"`
+	Registry      string       `json:"registry"`
+	Repository    string       `json:"repository"`
+	Tag           string       `json:"tag"`
+	Digest        string       `json:"digest,omitempty"`
+	PlatformOS    PlatformOS   `json:"platform_os"`
+	PlatformArch  PlatformArch `json:"platform_arch"`
 }
+
+// Docker-OCI style OS name (e.g., "linux")
+type PlatformOS string
+
+const (
+	PlatformOSLinux       PlatformOS = "linux"
+	PlatformOSUnsupported PlatformOS = "unsupported"
+)
+
+// Docker-OCI style architecture name (e.g., "amd64", "arm64")
+type PlatformArch string
+
+const (
+	PlatformArchAmd64       PlatformArch = "amd64"
+	PlatformArchArm64       PlatformArch = "arm64"
+	PlatformArchUnsupported PlatformArch = "unsupported"
+)
 
 func (i *ImageInfo) IsECRImage() bool {
 	return i.Registry == "public.ecr.aws" || i.registryHasECRSuffix()
@@ -27,6 +43,15 @@ var ecrURLPattern = regexp.MustCompile(`^[0-9]{12}\.dkr\.ecr\.[a-zA-Z0-9-]+\.ama
 
 func (i *ImageInfo) registryHasECRSuffix() bool {
 	return ecrURLPattern.MatchString(i.Registry)
+}
+
+func (i *ImageInfo) updateIdentity(actualImage *ecrtypes.ImageIdentifier) {
+	if actualImage.ImageDigest != nil {
+		i.Digest = *actualImage.ImageDigest
+	}
+	if actualImage.ImageTag != nil {
+		i.Tag = *actualImage.ImageTag
+	}
 }
 
 type ScanResult struct {

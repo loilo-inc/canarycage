@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -166,6 +167,62 @@ func TestScanner_Scan(t *testing.T) {
 		assert.EqualError(t, err, "ecs error")
 		assert.Nil(t, results)
 	})
+}
+
+func TestScanner_Scan_UnsupportedOS(t *testing.T) {
+	for _, os := range []ecstypes.OSFamily{
+		ecstypes.OSFamilyWindowsServer2019Full,
+		ecstypes.OSFamilyWindowsServer2022Core,
+		"UNKNOWN",
+	} {
+		for _, inPlace := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/inPlace=%t", os, inPlace), func(t *testing.T) {
+				ctrl := gomock.NewController(t)
+				mockEcs := mock_awsiface.NewMockEcsClient(ctrl)
+				// No ECR calls are expected, including manifest lookup and scan retrieval.
+				mockEcr := mock_awsiface.NewMockEcrClient(ctrl)
+				scanner := NewScanner(di.NewDomain(func(b *di.B) {
+					b.Set(key.EcsCli, mockEcs)
+					b.Set(key.EcrCli, mockEcr)
+				}))
+				mockEcs.EXPECT().DescribeServices(t.Context(), &ecs.DescribeServicesInput{
+					Cluster: aws.String("cluster"), Services: []string{"service"},
+				}).Return(&ecs.DescribeServicesOutput{
+					Services: []ecstypes.Service{{TaskDefinition: aws.String("td:1")}},
+				}, nil)
+				mockEcs.EXPECT().DescribeTaskDefinition(t.Context(), &ecs.DescribeTaskDefinitionInput{
+					TaskDefinition: aws.String("td:1"),
+				}).Return(&ecs.DescribeTaskDefinitionOutput{
+					TaskDefinition: &ecstypes.TaskDefinition{
+						RuntimePlatform: &ecstypes.RuntimePlatform{
+							OperatingSystemFamily: os,
+							CpuArchitecture:       ecstypes.CPUArchitectureX8664,
+						},
+						ContainerDefinitions: []ecstypes.ContainerDefinition{{
+							Name:  aws.String("app"),
+							Image: aws.String("123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo:1.2.3"),
+						}},
+					},
+				}, nil)
+
+				results, err := scanner.Scan(t.Context(), ScanRequest{
+					Cluster: "cluster", Service: "service", InPlace: inPlace,
+				})
+
+				assert.NoError(t, err)
+				if assert.Len(t, results, 1) {
+					assert.ErrorIs(t, results[0].Err, ErrUnsupportedOS)
+					assert.Equal(t, ImageInfo{
+						ContainerName: "app",
+						Registry:      "123456789012.dkr.ecr.us-west-2.amazonaws.com",
+						Repository:    "my-repo", Tag: "1.2.3",
+						PlatformOS: PlatformOSUnsupported, PlatformArch: PlatformArchAmd64,
+					}, results[0].ImageInfo)
+					assert.Empty(t, results[0].Cves)
+				}
+			})
+		}
+	}
 }
 
 func TestScanImage(t *testing.T) {

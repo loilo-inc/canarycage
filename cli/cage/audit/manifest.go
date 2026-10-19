@@ -34,13 +34,20 @@ type Platform struct {
 	Variant      string `json:"variant,omitempty"`
 }
 
-func toCPUArchitecture(arch string) ecstypes.CPUArchitecture {
-	switch arch {
-	case "amd64":
-		return ecstypes.CPUArchitectureX8664
-	case "arm64":
-		return ecstypes.CPUArchitectureArm64
-	default:
-		return ""
+func toDockerPlatform(p *ecstypes.RuntimePlatform) (PlatformOS, PlatformArch) {
+	var os PlatformOS = PlatformOSUnsupported
+	var arch PlatformArch = PlatformArchUnsupported
+	if p == nil ||
+		p.OperatingSystemFamily == "" ||
+		p.OperatingSystemFamily == ecstypes.OSFamilyLinux {
+		os = PlatformOSLinux
 	}
+	if p == nil ||
+		p.CpuArchitecture == "" ||
+		p.CpuArchitecture == ecstypes.CPUArchitectureX8664 {
+		arch = PlatformArchAmd64
+	} else if p.CpuArchitecture == ecstypes.CPUArchitectureArm64 {
+		arch = PlatformArchArm64
+	}
+	return os, arch
 }

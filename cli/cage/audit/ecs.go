@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/v5/awsiface"
 )
 
@@ -46,16 +45,7 @@ func (t *ecsTool) GetServiceImageInfos(ctx context.Context, cluster string, serv
 		return nil, fmt.Errorf("task definition not found: %s", taskDefinition)
 	}
 
-	arch := ecstypes.CPUArchitectureX8664
-	os := ecstypes.OSFamilyLinux
-	if td.RuntimePlatform != nil {
-		if td.RuntimePlatform.OperatingSystemFamily != "" {
-			os = td.RuntimePlatform.OperatingSystemFamily
-		}
-		if td.RuntimePlatform.CpuArchitecture != "" {
-			arch = td.RuntimePlatform.CpuArchitecture
-		}
-	}
+	os, arch := toDockerPlatform(td.RuntimePlatform)
 
 	if len(td.ContainerDefinitions) == 0 {
 		return nil, fmt.Errorf("no container definitions found for task definition: %s", taskDefinition)
