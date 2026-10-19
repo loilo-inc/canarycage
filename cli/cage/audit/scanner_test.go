@@ -86,7 +86,7 @@ func TestScanner_Scan(t *testing.T) {
 					},
 				}, nil)
 
-			manifestJSON, _ := json.Marshal(dockerSchema{
+			manifestJSON, _ := json.Marshal(Schema{
 				SchemaVersion: 2,
 				MediaType:     "application/vnd.docker.distribution.manifest.v2+json",
 			})
@@ -97,7 +97,7 @@ func TestScanner_Scan(t *testing.T) {
 					assert.Equal(t, "my-repo", *input.RepositoryName)
 					assert.Equal(t, "1.2.3", *input.ImageIds[0].ImageTag)
 					return &ecr.BatchGetImageOutput{
-						Images: []ecrtypes.Image{{ImageManifest: &manifestStr}},
+						Images: []ecrtypes.Image{{ImageManifest: &manifestStr, ImageManifestMediaType: aws.String(mediaTypeDockerTag)}},
 					}, nil
 				})
 

@@ -2,7 +2,6 @@ package audit
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -14,265 +13,98 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/v5/mocks/mock_awsiface"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetActualImageIdentifier(t *testing.T) {
-	ctx := context.Background()
+	const arm64Digest = "sha256:8c31ff948acc1d452447c7562927ad269241bb7f104510d9d5a6a28ea4a1c755"
+	// Keep the relevant OCI fields from the reported Redis index, including
+	// attestation entries and an ARM variant that are absent from Docker fixtures.
+	const manifests = `"manifests":[
+		{"digest":"sha256:noplatform"},
+		{"digest":"sha256:attestation","platform":{"architecture":"unknown","os":"unknown"},
+		 "annotations":{"vnd.docker.reference.type":"attestation-manifest"}},
+		{"digest":"sha256:amd64digest","platform":{"architecture":"amd64","os":"linux"}},
+		{"digest":"` + arm64Digest + `","platform":{"architecture":"arm64","os":"linux","variant":"v8"}}
+	]`
 
-	t.Run("single architecture image returns tag", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient, nil)
+	for _, mediaType := range []string{mediaTypeDockerList, mediaTypeOCIList} {
+		t.Run(mediaType, func(t *testing.T) {
+			for _, tc := range []struct {
+				name       string
+				arch       ecstypes.CPUArchitecture
+				manifest   string
+				wantDigest string
+				wantErr    string
+			}{
+				{name: "ARM64 digest skips missing platform and attestation", arch: ecstypes.CPUArchitectureArm64,
+					manifest: `{"schemaVersion":2,"mediaType":"` + mediaType + `",` + manifests + `}`, wantDigest: arm64Digest},
+				{name: "AMD64 digest", arch: ecstypes.CPUArchitectureX8664,
+					manifest: `{"schemaVersion":2,"mediaType":"` + mediaType + `",` + manifests + `}`, wantDigest: "sha256:amd64digest"},
+				{name: "no matching architecture", arch: ecstypes.CPUArchitectureArm64,
+					manifest: `{"schemaVersion":2,"manifests":[{"digest":"sha256:amd64digest","platform":{"architecture":"amd64","os":"linux"}}]}`,
+					wantErr:  "no image found for architecture: ARM64 in my-repo:v1.0.0"},
+				{name: "empty list", arch: ecstypes.CPUArchitectureArm64, manifest: `{"schemaVersion":2,"manifests":[]}`,
+					wantErr: "no image found for architecture: ARM64 in my-repo:v1.0.0"},
+				{name: "invalid JSON", manifest: "invalid json", wantErr: "parse image manifest for my-repo:v1.0.0"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					ctx := t.Context()
+					client := mock_awsiface.NewMockEcrClient(gomock.NewController(t))
+					info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0", PlatformArch: tc.arch}
+					client.EXPECT().BatchGetImage(ctx, &ecr.BatchGetImageInput{
+						RepositoryName: aws.String(info.Repository),
+						ImageIds:       []ecrtypes.ImageIdentifier{{ImageTag: aws.String(info.Tag)}},
+					}).Return(&ecr.BatchGetImageOutput{Images: []ecrtypes.Image{{
+						ImageManifest: aws.String(tc.manifest), ImageManifestMediaType: aws.String(mediaType),
+					}}}, nil)
 
-		info := &ImageInfo{
-			Repository:   "my-repo",
-			Tag:          "v1.0.0",
-			PlatformArch: ecstypes.CPUArchitectureX8664,
-		}
+					got, err := newEcrTool(client, nil).GetActualImageIdentifier(ctx, info)
+					if tc.wantErr != "" {
+						require.ErrorContains(t, err, tc.wantErr)
+						assert.Nil(t, got)
+						return
+					}
+					require.NoError(t, err)
+					assert.Equal(t, &ecrtypes.ImageIdentifier{ImageDigest: aws.String(tc.wantDigest)}, got)
+				})
+			}
+		})
+	}
 
-		manifest := dockerSchema{
-			SchemaVersion: 2,
-			MediaType:     "application/vnd.docker.distribution.manifest.v2+json",
-		}
-		manifestJSON, _ := json.Marshal(manifest)
-		manifestStr := string(manifestJSON)
-
-		mockClient.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).Return(&ecr.BatchGetImageOutput{
-			Images: []ecrtypes.Image{
-				{ImageManifest: &manifestStr},
-			},
-		}, nil)
-
-		result, err := tool.GetActualImageIdentifier(ctx, info)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, "v1.0.0", *result.ImageTag)
-	})
-
-	t.Run("multi-arch image returns digest for matching architecture", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient, nil)
-
-		info := &ImageInfo{
-			Repository:   "my-repo",
-			Tag:          "v1.0.0",
-			PlatformArch: ecstypes.CPUArchitectureArm64,
-		}
-
-		manifest := dockerSchema{
-			SchemaVersion: 2,
-			MediaType:     dockerManifestListMediaType,
-			Manifests: []dockerManifest{
-				{
-					Digest: "sha256:amd64digest",
-					Platform: &dockerPlatform{
-						Architecture: "amd64",
-						OS:           "linux",
-					},
-				},
-				{
-					Digest: "sha256:arm64digest",
-					Platform: &dockerPlatform{
-						Architecture: "arm64",
-						OS:           "linux",
-					},
-				},
-			},
-		}
-		manifestJSON, _ := json.Marshal(manifest)
-		manifestStr := string(manifestJSON)
-
-		mockClient.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).Return(&ecr.BatchGetImageOutput{
-			Images: []ecrtypes.Image{
-				{ImageManifest: &manifestStr},
-			},
-		}, nil)
-
-		result, err := tool.GetActualImageIdentifier(ctx, info)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, "sha256:arm64digest", *result.ImageDigest)
-	})
-
-	t.Run("multi-arch image with no matching architecture returns error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient, nil)
-
-		info := &ImageInfo{
-			Repository:   "my-repo",
-			Tag:          "v1.0.0",
-			PlatformArch: ecstypes.CPUArchitectureArm64,
-		}
-
-		manifest := dockerSchema{
-			SchemaVersion: 2,
-			MediaType:     dockerManifestListMediaType,
-			Manifests: []dockerManifest{
-				{
-					Digest: "sha256:amd64digest",
-					Platform: &dockerPlatform{
-						Architecture: "amd64",
-						OS:           "linux",
-					},
-				},
-			},
-		}
-		manifestJSON, _ := json.Marshal(manifest)
-		manifestStr := string(manifestJSON)
-
-		mockClient.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).Return(&ecr.BatchGetImageOutput{
-			Images: []ecrtypes.Image{
-				{ImageManifest: &manifestStr},
-			},
-		}, nil)
-
-		result, err := tool.GetActualImageIdentifier(ctx, info)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "no image found for architecture")
-	})
-
-	t.Run("BatchGetImage error returns error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient, nil)
-
-		info := &ImageInfo{
-			Repository:   "my-repo",
-			Tag:          "v1.0.0",
-			PlatformArch: ecstypes.CPUArchitectureX8664,
-		}
-
-		mockClient.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).Return(nil, errors.New("API error"))
-
-		result, err := tool.GetActualImageIdentifier(ctx, info)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "API error")
-	})
-
-	t.Run("empty images returns error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient, nil)
-
-		info := &ImageInfo{
-			Repository:   "my-repo",
-			Tag:          "v1.0.0",
-			PlatformArch: ecstypes.CPUArchitectureX8664,
-		}
-
-		mockClient.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).Return(&ecr.BatchGetImageOutput{
-			Images: []ecrtypes.Image{},
-		}, nil)
-
-		result, err := tool.GetActualImageIdentifier(ctx, info)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "image manifest not found")
-	})
-
-	t.Run("nil manifest returns error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient, nil)
-
-		info := &ImageInfo{
-			Repository:   "my-repo",
-			Tag:          "v1.0.0",
-			PlatformArch: ecstypes.CPUArchitectureX8664,
-		}
-
-		mockClient.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).Return(&ecr.BatchGetImageOutput{
-			Images: []ecrtypes.Image{
-				{ImageManifest: nil},
-			},
-		}, nil)
-
-		result, err := tool.GetActualImageIdentifier(ctx, info)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "image manifest not found")
-	})
-
-	t.Run("invalid JSON manifest returns error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient, nil)
-
-		info := &ImageInfo{
-			Repository:   "my-repo",
-			Tag:          "v1.0.0",
-			PlatformArch: ecstypes.CPUArchitectureX8664,
-		}
-
-		invalidJSON := "invalid json"
-		mockClient.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).Return(&ecr.BatchGetImageOutput{
-			Images: []ecrtypes.Image{
-				{ImageManifest: &invalidJSON},
-			},
-		}, nil)
-
-		result, err := tool.GetActualImageIdentifier(ctx, info)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "parse image manifest")
-	})
-
-	t.Run("multi-arch image skips manifests without platform", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := mock_awsiface.NewMockEcrClient(ctrl)
-		tool := newEcrTool(mockClient, nil)
-
-		info := &ImageInfo{
-			Repository:   "my-repo",
-			Tag:          "v1.0.0",
-			PlatformArch: ecstypes.CPUArchitectureArm64,
-		}
-
-		manifest := dockerSchema{
-			SchemaVersion: 2,
-			MediaType:     dockerManifestListMediaType,
-			Manifests: []dockerManifest{
-				{
-					Digest:   "sha256:noplatform",
-					Platform: nil,
-				},
-				{
-					Digest: "sha256:arm64digest",
-					Platform: &dockerPlatform{
-						Architecture: "arm64",
-						OS:           "linux",
-					},
-				},
-			},
-		}
-		manifestJSON, _ := json.Marshal(manifest)
-		manifestStr := string(manifestJSON)
-
-		mockClient.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).Return(&ecr.BatchGetImageOutput{
-			Images: []ecrtypes.Image{
-				{ImageManifest: &manifestStr},
-			},
-		}, nil)
-
-		result, err := tool.GetActualImageIdentifier(ctx, info)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, "sha256:arm64digest", *result.ImageDigest)
-	})
+	for _, tc := range []struct {
+		name    string
+		images  []ecrtypes.Image
+		apiErr  error
+		wantErr string
+	}{
+		{name: "Docker single image", images: []ecrtypes.Image{{ImageManifest: aws.String(`{"schemaVersion":2}`), ImageManifestMediaType: aws.String(mediaTypeDockerTag)}}},
+		{name: "OCI single image", images: []ecrtypes.Image{{ImageManifest: aws.String(`{"schemaVersion":2}`), ImageManifestMediaType: aws.String(mediaTypeOCITag)}}},
+		{name: "API error", apiErr: errors.New("API error"), wantErr: "API error"},
+		{name: "empty images", wantErr: "image manifest not found"},
+		{name: "nil manifest", images: []ecrtypes.Image{{ImageManifestMediaType: aws.String(mediaTypeOCIList)}}, wantErr: "image manifest not found"},
+		{name: "unsupported media type", images: []ecrtypes.Image{{ImageManifest: aws.String(`{}`), ImageManifestMediaType: aws.String("application/unknown")}}, wantErr: "unsupported media type: application/unknown"},
+		{name: "nil media type", images: []ecrtypes.Image{{ImageManifest: aws.String(`{}`)}}, wantErr: "unsupported media type:"},
+		{name: "empty media type", images: []ecrtypes.Image{{ImageManifest: aws.String(`{}`), ImageManifestMediaType: aws.String("")}}, wantErr: "unsupported media type:"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			client := mock_awsiface.NewMockEcrClient(gomock.NewController(t))
+			client.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).Return(&ecr.BatchGetImageOutput{Images: tc.images}, tc.apiErr)
+			info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0", PlatformArch: ecstypes.CPUArchitectureArm64}
+			got, err := newEcrTool(client, nil).GetActualImageIdentifier(ctx, info)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				assert.Nil(t, got)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, &ecrtypes.ImageIdentifier{ImageTag: aws.String(info.Tag)}, got)
+		})
+	}
 }
+
 func TestGetImageScanFindings(t *testing.T) {
 	ctx := context.Background()
 
@@ -379,20 +211,6 @@ func TestGetImageScanFindings(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "image scan findings missing")
-	})
-}
-
-func TestToCPUArchitecture(t *testing.T) {
-	t.Run("amd64 maps to x86_64", func(t *testing.T) {
-		assert.Equal(t, ecstypes.CPUArchitectureX8664, toCPUArchitecture("amd64"))
-	})
-
-	t.Run("arm64 maps to arm64", func(t *testing.T) {
-		assert.Equal(t, ecstypes.CPUArchitectureArm64, toCPUArchitecture("arm64"))
-	})
-
-	t.Run("unknown architecture maps to empty", func(t *testing.T) {
-		assert.Equal(t, ecstypes.CPUArchitecture(""), toCPUArchitecture("riscv"))
 	})
 }
 
