@@ -54,7 +54,8 @@ func TestGetServiceImageInfos(t *testing.T) {
 		assert.NoError(t, err)
 		if assert.Len(t, result, 2) {
 			assert.Equal(t, "app", result[0].ContainerName)
-			assert.Equal(t, ecstypes.CPUArchitectureX8664, result[0].PlatformArch)
+			assert.Equal(t, PlatformArchAmd64, result[0].PlatformArch)
+			assert.Equal(t, PlatformOSLinux, result[0].PlatformOS)
 			assert.Equal(t, "123456789012.dkr.ecr.us-west-2.amazonaws.com", result[0].Registry)
 			assert.Equal(t, "my-repo", result[0].Repository)
 			assert.Equal(t, "1.2.3", result[0].Tag)
@@ -92,7 +93,8 @@ func TestGetServiceImageInfos(t *testing.T) {
 
 		assert.NoError(t, err)
 		if assert.Len(t, result, 1) {
-			assert.Equal(t, ecstypes.CPUArchitectureArm64, result[0].PlatformArch)
+			assert.Equal(t, PlatformArchArm64, result[0].PlatformArch)
+			assert.Equal(t, PlatformOSLinux, result[0].PlatformOS)
 		}
 	})
 
@@ -235,6 +237,44 @@ func TestGetServiceImageInfos(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "container definition is missing name or image")
 	})
+}
+
+func TestGetServiceImageInfos_RuntimePlatform(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		runtime  *ecstypes.RuntimePlatform
+		wantOS   PlatformOS
+		wantArch PlatformArch
+	}{
+		{name: "empty runtime platform", runtime: &ecstypes.RuntimePlatform{}, wantOS: PlatformOSLinux, wantArch: PlatformArchAmd64},
+		{name: "Linux ARM64", runtime: &ecstypes.RuntimePlatform{OperatingSystemFamily: ecstypes.OSFamilyLinux, CpuArchitecture: ecstypes.CPUArchitectureArm64}, wantOS: PlatformOSLinux, wantArch: PlatformArchArm64},
+		{name: "Windows core", runtime: &ecstypes.RuntimePlatform{OperatingSystemFamily: ecstypes.OSFamilyWindowsServer2022Core, CpuArchitecture: ecstypes.CPUArchitectureX8664}, wantOS: PlatformOSWindows, wantArch: PlatformArchAmd64},
+		{name: "Windows full with default architecture", runtime: &ecstypes.RuntimePlatform{OperatingSystemFamily: ecstypes.OSFamilyWindowsServer2019Full}, wantOS: PlatformOSWindows, wantArch: PlatformArchAmd64},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mock_awsiface.NewMockEcsClient(gomock.NewController(t))
+			client.EXPECT().DescribeServices(t.Context(), &ecs.DescribeServicesInput{
+				Cluster: aws.String("cluster"), Services: []string{"service"},
+			}).Return(&ecs.DescribeServicesOutput{
+				Services: []ecstypes.Service{{TaskDefinition: aws.String("td:1")}},
+			}, nil)
+			client.EXPECT().DescribeTaskDefinition(t.Context(), &ecs.DescribeTaskDefinitionInput{
+				TaskDefinition: aws.String("td:1"),
+			}).Return(&ecs.DescribeTaskDefinitionOutput{
+				TaskDefinition: &ecstypes.TaskDefinition{
+					RuntimePlatform:      tc.runtime,
+					ContainerDefinitions: []ecstypes.ContainerDefinition{{Name: aws.String("app"), Image: aws.String("repo:latest")}},
+				},
+			}, nil)
+
+			images, err := newEcsTool(client).GetServiceImageInfos(t.Context(), "cluster", "service")
+			assert.NoError(t, err)
+			if assert.Len(t, images, 1) {
+				assert.Equal(t, tc.wantOS, images[0].PlatformOS)
+				assert.Equal(t, tc.wantArch, images[0].PlatformArch)
+			}
+		})
+	}
 }
 
 func TestParseImageInfo(t *testing.T) {

@@ -19,16 +19,21 @@ type ecrTool struct {
 }
 
 type EcrTool interface {
-	GetActualImageIdentifier(ctx context.Context, info *ImageInfo) (*ecrtypes.ImageIdentifier, error)
+	GetActualImageIdentifier(ctx context.Context, info *ImageInfo) (*ActualImageInfo, error)
 	GetImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error)
 	ExecImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error)
+}
+
+type ActualImageInfo struct {
+	ImageIdentifier *ecrtypes.ImageIdentifier
+	Platform        Platform
 }
 
 func newEcrTool(ecrClient awsiface.EcrClient, scanWaiter Waiter) EcrTool {
 	return &ecrTool{Ecr: ecrClient, Waiter: scanWaiter}
 }
 
-func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo) (*ecrtypes.ImageIdentifier, error) {
+func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo) (*ActualImageInfo, error) {
 	res, err := t.Ecr.BatchGetImage(ctx, &ecr.BatchGetImageInput{
 		RepositoryName: aws.String(info.Repository),
 		ImageIds:       []ecrtypes.ImageIdentifier{{ImageTag: aws.String(info.Tag)}},
@@ -52,14 +57,24 @@ func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo)
 			if manifest.Platform == nil {
 				continue
 			}
-			if toCPUArchitecture(manifest.Platform.Architecture) == info.PlatformArch {
-				return &ecrtypes.ImageIdentifier{ImageDigest: aws.String(manifest.Digest)}, nil
+			if manifest.Platform.Architecture == info.PlatformArch &&
+				manifest.Platform.OS == info.PlatformOS {
+				return &ActualImageInfo{
+					ImageIdentifier: &ecrtypes.ImageIdentifier{ImageDigest: aws.String(manifest.Digest)},
+					Platform:        *manifest.Platform,
+				}, nil
 			}
 		}
 		return nil, fmt.Errorf("no image found for architecture: %s in %s:%s", info.PlatformArch, info.Repository, info.Tag)
 	}
 
-	return image.ImageId, nil
+	return &ActualImageInfo{
+		ImageIdentifier: image.ImageId,
+		Platform: Platform{
+			OS:           info.PlatformOS,
+			Architecture: info.PlatformArch,
+		},
+	}, nil
 }
 
 func (t *ecrTool) GetImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error) {

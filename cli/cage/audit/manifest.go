@@ -1,6 +1,8 @@
 package audit
 
 import (
+	"strings"
+
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 )
 
@@ -29,17 +31,26 @@ type Manifest struct {
 }
 
 type Platform struct {
-	Architecture string `json:"architecture"`
-	OS           string `json:"os"`
-	Variant      string `json:"variant,omitempty"`
+	Architecture PlatformArch `json:"architecture"`
+	OS           PlatformOS   `json:"os"`
+	Variant      string       `json:"variant,omitempty"`
 }
 
-func toCPUArchitecture(arch string) ecstypes.CPUArchitecture {
+func toPlatformOS(os ecstypes.OSFamily) PlatformOS {
+	if os == ecstypes.OSFamilyLinux {
+		return PlatformOSLinux
+	} else if strings.HasPrefix(string(os), "WINDOWS") {
+		return PlatformOSWindows
+	}
+	return ""
+}
+
+func toPlatformArch(arch ecstypes.CPUArchitecture) PlatformArch {
 	switch arch {
-	case "amd64":
-		return ecstypes.CPUArchitectureX8664
-	case "arm64":
-		return ecstypes.CPUArchitectureArm64
+	case ecstypes.CPUArchitectureX8664:
+		return PlatformArchAmd64
+	case ecstypes.CPUArchitectureArm64:
+		return PlatformArchArm64
 	default:
 		return ""
 	}

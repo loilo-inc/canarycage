@@ -14,16 +14,37 @@ func TestIsMediaTypeList(t *testing.T) {
 	assert.False(t, isMediaTypeList("application/vnd.docker.distribution.manifest.v2+json"))
 }
 
-func TestToCPUArchitecture(t *testing.T) {
-	t.Run("amd64 maps to x86_64", func(t *testing.T) {
-		assert.Equal(t, ecstypes.CPUArchitectureX8664, toCPUArchitecture("amd64"))
-	})
+func TestToPlatformOS(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		os   ecstypes.OSFamily
+		want PlatformOS
+	}{
+		{name: "Linux", os: ecstypes.OSFamilyLinux, want: PlatformOSLinux},
+		{name: "Windows core", os: ecstypes.OSFamilyWindowsServer2022Core, want: PlatformOSWindows},
+		{name: "Windows full", os: ecstypes.OSFamilyWindowsServer2019Full, want: PlatformOSWindows},
+		{name: "empty", os: "", want: ""},
+		{name: "unknown", os: "UNKNOWN", want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, toPlatformOS(tc.os))
+		})
+	}
+}
 
-	t.Run("arm64 maps to arm64", func(t *testing.T) {
-		assert.Equal(t, ecstypes.CPUArchitectureArm64, toCPUArchitecture("arm64"))
-	})
-
-	t.Run("unknown architecture maps to empty", func(t *testing.T) {
-		assert.Equal(t, ecstypes.CPUArchitecture(""), toCPUArchitecture("riscv"))
-	})
+func TestToPlatformArch(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		arch ecstypes.CPUArchitecture
+		want PlatformArch
+	}{
+		{name: "X86_64", arch: ecstypes.CPUArchitectureX8664, want: PlatformArchAmd64},
+		{name: "ARM64", arch: ecstypes.CPUArchitectureArm64, want: PlatformArchArm64},
+		{name: "empty", arch: "", want: ""},
+		{name: "unknown", arch: "RISCV64", want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, toPlatformArch(tc.arch))
+		})
+	}
 }

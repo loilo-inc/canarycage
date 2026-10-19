@@ -10,14 +10,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/v5/mocks/mock_awsiface"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
-func TestGetActualImageIdentifier(t *testing.T) {
+func TestGetActualImageInfo(t *testing.T) {
 	const arm64Digest = "sha256:8c31ff948acc1d452447c7562927ad269241bb7f104510d9d5a6a28ea4a1c755"
 	// Keep the relevant OCI fields from the reported Redis index, including
 	// attestation entries and an ARM variant that are absent from Docker fixtures.
@@ -32,27 +31,45 @@ func TestGetActualImageIdentifier(t *testing.T) {
 	for _, mediaType := range []string{mediaTypeDockerList, mediaTypeOCIList} {
 		t.Run(mediaType, func(t *testing.T) {
 			for _, tc := range []struct {
-				name       string
-				arch       ecstypes.CPUArchitecture
-				manifest   string
-				wantDigest string
-				wantErr    string
+				name        string
+				arch        PlatformArch
+				os          PlatformOS
+				wantVariant string
+				manifest    string
+				wantDigest  string
+				wantErr     string
 			}{
-				{name: "ARM64 digest skips missing platform and attestation", arch: ecstypes.CPUArchitectureArm64,
-					manifest: `{"schemaVersion":2,"mediaType":"` + mediaType + `",` + manifests + `}`, wantDigest: arm64Digest},
-				{name: "AMD64 digest", arch: ecstypes.CPUArchitectureX8664,
+				{name: "ARM64 digest skips missing platform and attestation", arch: PlatformArchArm64, os: PlatformOSLinux,
+					manifest: `{"schemaVersion":2,"mediaType":"` + mediaType + `",` + manifests + `}`, wantDigest: arm64Digest, wantVariant: "v8"},
+				{name: "AMD64 digest", arch: PlatformArchAmd64, os: PlatformOSLinux,
 					manifest: `{"schemaVersion":2,"mediaType":"` + mediaType + `",` + manifests + `}`, wantDigest: "sha256:amd64digest"},
-				{name: "no matching architecture", arch: ecstypes.CPUArchitectureArm64,
+				{name: "no matching architecture", arch: PlatformArchArm64, os: PlatformOSLinux,
 					manifest: `{"schemaVersion":2,"manifests":[{"digest":"sha256:amd64digest","platform":{"architecture":"amd64","os":"linux"}}]}`,
-					wantErr:  "no image found for architecture: ARM64 in my-repo:v1.0.0"},
-				{name: "empty list", arch: ecstypes.CPUArchitectureArm64, manifest: `{"schemaVersion":2,"manifests":[]}`,
-					wantErr: "no image found for architecture: ARM64 in my-repo:v1.0.0"},
+					wantErr:  "no image found for architecture: arm64 in my-repo:v1.0.0"},
+				{name: "empty list", arch: PlatformArchArm64, os: PlatformOSLinux, manifest: `{"schemaVersion":2,"manifests":[]}`,
+					wantErr: "no image found for architecture: arm64 in my-repo:v1.0.0"},
+				{name: "Windows skips Linux with the same architecture", arch: PlatformArchAmd64, os: PlatformOSWindows,
+					manifest: `{"schemaVersion":2,"manifests":[
+                        {"digest":"sha256:linux","platform":{"architecture":"amd64","os":"linux"}},
+                        {"digest":"sha256:windows","platform":{"architecture":"amd64","os":"windows"}}
+                    ]}`, wantDigest: "sha256:windows"},
+				{name: "Linux skips Windows with the same architecture", arch: PlatformArchAmd64, os: PlatformOSLinux,
+					manifest: `{"schemaVersion":2,"manifests":[
+                        {"digest":"sha256:windows","platform":{"architecture":"amd64","os":"windows"}},
+                        {"digest":"sha256:linux","platform":{"architecture":"amd64","os":"linux"}}
+                    ]}`, wantDigest: "sha256:linux"},
+				{name: "no matching OS", arch: PlatformArchAmd64, os: PlatformOSWindows,
+					manifest: `{"schemaVersion":2,"manifests":[{"digest":"sha256:linux","platform":{"architecture":"amd64","os":"linux"}}]}`,
+					wantErr:  "no image found"},
+				{name: "missing OS does not match", arch: PlatformArchAmd64, os: PlatformOSLinux,
+					manifest: `{"schemaVersion":2,"manifests":[{"digest":"sha256:missing-os","platform":{"architecture":"amd64"}}]}`,
+					wantErr:  "no image found"},
 				{name: "invalid JSON", manifest: "invalid json", wantErr: "parse image manifest for my-repo:v1.0.0"},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
 					client := mock_awsiface.NewMockEcrClient(gomock.NewController(t))
-					info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0", PlatformArch: tc.arch}
+					info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0", PlatformArch: tc.arch, PlatformOS: tc.os}
 					client.EXPECT().BatchGetImage(ctx, &ecr.BatchGetImageInput{
 						RepositoryName: aws.String(info.Repository),
 						ImageIds:       []ecrtypes.ImageIdentifier{{ImageTag: aws.String(info.Tag)}},
@@ -67,7 +84,10 @@ func TestGetActualImageIdentifier(t *testing.T) {
 						return
 					}
 					require.NoError(t, err)
-					assert.Equal(t, &ecrtypes.ImageIdentifier{ImageDigest: aws.String(tc.wantDigest)}, got)
+					assert.Equal(t, &ActualImageInfo{
+						ImageIdentifier: &ecrtypes.ImageIdentifier{ImageDigest: aws.String(tc.wantDigest)},
+						Platform:        Platform{OS: tc.os, Architecture: tc.arch, Variant: tc.wantVariant},
+					}, got)
 				})
 			}
 		})
@@ -99,7 +119,7 @@ func TestGetActualImageIdentifier(t *testing.T) {
 			ctx := t.Context()
 			client := mock_awsiface.NewMockEcrClient(gomock.NewController(t))
 			client.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).Return(&ecr.BatchGetImageOutput{Images: tc.images}, tc.apiErr)
-			info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0", PlatformArch: ecstypes.CPUArchitectureArm64}
+			info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0", PlatformArch: PlatformArchArm64, PlatformOS: PlatformOSLinux}
 			got, err := newEcrTool(client, nil).GetActualImageIdentifier(ctx, info)
 			if tc.wantErr != "" {
 				require.ErrorContains(t, err, tc.wantErr)
@@ -107,7 +127,10 @@ func TestGetActualImageIdentifier(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, imageID, got)
+			assert.Equal(t, &ActualImageInfo{
+				ImageIdentifier: imageID,
+				Platform:        Platform{OS: PlatformOSLinux, Architecture: PlatformArchArm64},
+			}, got)
 		})
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/v5/awsiface"
 )
 
@@ -46,14 +45,14 @@ func (t *ecsTool) GetServiceImageInfos(ctx context.Context, cluster string, serv
 		return nil, fmt.Errorf("task definition not found: %s", taskDefinition)
 	}
 
-	arch := ecstypes.CPUArchitectureX8664
-	os := ecstypes.OSFamilyLinux
+	arch := PlatformArchAmd64
+	os := PlatformOSLinux
 	if td.RuntimePlatform != nil {
 		if td.RuntimePlatform.OperatingSystemFamily != "" {
-			os = td.RuntimePlatform.OperatingSystemFamily
+			os = toPlatformOS(td.RuntimePlatform.OperatingSystemFamily)
 		}
 		if td.RuntimePlatform.CpuArchitecture != "" {
-			arch = td.RuntimePlatform.CpuArchitecture
+			arch = toPlatformArch(td.RuntimePlatform.CpuArchitecture)
 		}
 	}
 
