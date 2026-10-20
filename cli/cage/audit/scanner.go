@@ -45,7 +45,10 @@ func (s *scanner) Scan(
 	}
 	findingsList := make([]ScanResult, len(imageInfos))
 	for i, info := range imageInfos {
-		if info.IsECRImage() {
+		// Windows images are not supported for scanning
+		if info.PlatformOS != PlatformOSLinux {
+			findingsList[i] = ScanResult{ImageInfo: info, Err: ErrUnsupportedOS}
+		} else if info.IsECRImage() {
 			findingsList[i] = s.scanImage(ctx, ecrTool, info, req.InPlace)
 		} else {
 			findingsList[i] = ScanResult{ImageInfo: info, Err: ErrNonEcrImage}
@@ -56,6 +59,7 @@ func (s *scanner) Scan(
 
 var ErrNonEcrImage = fmt.Errorf("non-ECR image")
 var ErrScanNotFound = fmt.Errorf("scan not found")
+var ErrUnsupportedOS = fmt.Errorf("unsupported OS")
 
 func (s *scanner) scanImage(ctx context.Context, ecrTool EcrTool, info ImageInfo, inPlace bool) ScanResult {
 	imageID, err := ecrTool.GetActualImageIdentifier(ctx, &info)
@@ -63,19 +67,22 @@ func (s *scanner) scanImage(ctx context.Context, ecrTool EcrTool, info ImageInfo
 		return ScanResult{ImageInfo: info, Err: err}
 	}
 
+	updatedInfo := info
+	updatedInfo.updateIdentity(imageID)
+
 	var findings *ecrtypes.ImageScanFindings
 	if inPlace {
-		findings, err = ecrTool.ExecImageScanFindings(ctx, &info, imageID)
+		findings, err = ecrTool.ExecImageScanFindings(ctx, &updatedInfo, imageID)
 	} else {
-		findings, err = ecrTool.GetImageScanFindings(ctx, &info, imageID)
+		findings, err = ecrTool.GetImageScanFindings(ctx, &updatedInfo, imageID)
 	}
 
 	if err != nil {
-		return ScanResult{ImageInfo: info, Err: parseError(err)}
+		return ScanResult{ImageInfo: updatedInfo, Err: parseError(err)}
 	}
 
 	cves := scanFindingsToCVEs(findings)
-	return ScanResult{ImageInfo: info, Cves: cves}
+	return ScanResult{ImageInfo: updatedInfo, Cves: cves}
 }
 
 func parseError(err error) error {

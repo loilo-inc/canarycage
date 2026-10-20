@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/loilo-inc/canarycage/v5/mocks/mock_awsiface"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,26 +32,34 @@ func TestGetActualImageIdentifier(t *testing.T) {
 		t.Run(mediaType, func(t *testing.T) {
 			for _, tc := range []struct {
 				name       string
-				arch       ecstypes.CPUArchitecture
+				arch       PlatformArch
 				manifest   string
 				wantDigest string
 				wantErr    string
 			}{
-				{name: "ARM64 digest skips missing platform and attestation", arch: ecstypes.CPUArchitectureArm64,
+				{name: "ARM64 digest skips missing platform and attestation", arch: PlatformArchArm64,
 					manifest: `{"schemaVersion":2,"mediaType":"` + mediaType + `",` + manifests + `}`, wantDigest: arm64Digest},
-				{name: "AMD64 digest", arch: ecstypes.CPUArchitectureX8664,
+				{name: "AMD64 digest", arch: PlatformArchAmd64,
 					manifest: `{"schemaVersion":2,"mediaType":"` + mediaType + `",` + manifests + `}`, wantDigest: "sha256:amd64digest"},
-				{name: "no matching architecture", arch: ecstypes.CPUArchitectureArm64,
+				{name: "no matching architecture", arch: PlatformArchArm64,
 					manifest: `{"schemaVersion":2,"manifests":[{"digest":"sha256:amd64digest","platform":{"architecture":"amd64","os":"linux"}}]}`,
-					wantErr:  "no image found for architecture: ARM64 in my-repo:v1.0.0"},
-				{name: "empty list", arch: ecstypes.CPUArchitectureArm64, manifest: `{"schemaVersion":2,"manifests":[]}`,
-					wantErr: "no image found for architecture: ARM64 in my-repo:v1.0.0"},
+					wantErr:  "no image found for architecture: arm64 in my-repo:v1.0.0"},
+				{name: "empty list", arch: PlatformArchArm64, manifest: `{"schemaVersion":2,"manifests":[]}`,
+					wantErr: "no image found for architecture: arm64 in my-repo:v1.0.0"},
+				{name: "Linux skips Windows with the same architecture", arch: PlatformArchAmd64,
+					manifest: `{"schemaVersion":2,"manifests":[
+                        {"digest":"sha256:windows","platform":{"architecture":"amd64","os":"windows"}},
+                        {"digest":"sha256:linux","platform":{"architecture":"amd64","os":"linux"}}
+                    ]}`, wantDigest: "sha256:linux"},
+				{name: "no Linux manifest", arch: PlatformArchAmd64,
+					manifest: `{"schemaVersion":2,"manifests":[{"digest":"sha256:windows","platform":{"architecture":"amd64","os":"windows"}}]}`,
+					wantErr:  "no image found"},
 				{name: "invalid JSON", manifest: "invalid json", wantErr: "parse image manifest for my-repo:v1.0.0"},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
 					client := mock_awsiface.NewMockEcrClient(gomock.NewController(t))
-					info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0", PlatformArch: tc.arch}
+					info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0", PlatformArch: tc.arch, PlatformOS: PlatformOSLinux}
 					client.EXPECT().BatchGetImage(ctx, &ecr.BatchGetImageInput{
 						RepositoryName: aws.String(info.Repository),
 						ImageIds:       []ecrtypes.ImageIdentifier{{ImageTag: aws.String(info.Tag)}},
@@ -73,28 +80,33 @@ func TestGetActualImageIdentifier(t *testing.T) {
 		})
 	}
 
+	imageID := &ecrtypes.ImageIdentifier{
+		ImageTag:    aws.String("v1.0.0"),
+		ImageDigest: aws.String("sha256:single-image"),
+	}
+
 	for _, tc := range []struct {
 		name    string
 		images  []ecrtypes.Image
 		apiErr  error
 		wantErr string
 	}{
-		{name: "Docker single image", images: []ecrtypes.Image{{ImageManifest: aws.String(`{"schemaVersion":2}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v2+json")}}},
-		{name: "OCI single image", images: []ecrtypes.Image{{ImageManifest: aws.String(`{"schemaVersion":2}`), ImageManifestMediaType: aws.String("application/vnd.oci.image.manifest.v1+json")}}},
-		{name: "Docker schema 1 returns tag", images: []ecrtypes.Image{{ImageManifest: aws.String(`{"schemaVersion":1,"name":"my-repo","tag":"v1.0.0","architecture":"amd64","fsLayers":[],"history":[]}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v1+json")}}},
-		{name: "Docker signed schema 1 returns tag", images: []ecrtypes.Image{{ImageManifest: aws.String(`{"schemaVersion":1,"name":"my-repo","tag":"v1.0.0","architecture":"amd64","fsLayers":[],"history":[],"signatures":[]}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v1+prettyjws")}}},
+		{name: "Docker single image", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{"schemaVersion":2}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v2+json")}}},
+		{name: "OCI single image", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{"schemaVersion":2}`), ImageManifestMediaType: aws.String("application/vnd.oci.image.manifest.v1+json")}}},
+		{name: "Docker schema 1 returns image identifier", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{"schemaVersion":1,"name":"my-repo","tag":"v1.0.0","architecture":"amd64","fsLayers":[],"history":[]}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v1+json")}}},
+		{name: "Docker signed schema 1 returns image identifier", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{"schemaVersion":1,"name":"my-repo","tag":"v1.0.0","architecture":"amd64","fsLayers":[],"history":[],"signatures":[]}`), ImageManifestMediaType: aws.String("application/vnd.docker.distribution.manifest.v1+prettyjws")}}},
 		{name: "API error", apiErr: errors.New("API error"), wantErr: "API error"},
 		{name: "empty images", wantErr: "image manifest not found"},
 		{name: "nil manifest", images: []ecrtypes.Image{{ImageManifestMediaType: aws.String(mediaTypeOCIList)}}, wantErr: "image manifest not found"},
-		{name: "unknown media type returns tag", images: []ecrtypes.Image{{ImageManifest: aws.String(`{}`), ImageManifestMediaType: aws.String("application/unknown")}}},
-		{name: "nil media type", images: []ecrtypes.Image{{ImageManifest: aws.String(`{}`)}}},
-		{name: "empty media type", images: []ecrtypes.Image{{ImageManifest: aws.String(`{}`), ImageManifestMediaType: aws.String("")}}},
+		{name: "unknown media type returns image identifier", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{}`), ImageManifestMediaType: aws.String("application/unknown")}}},
+		{name: "nil media type", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{}`)}}},
+		{name: "empty media type", images: []ecrtypes.Image{{ImageId: imageID, ImageManifest: aws.String(`{}`), ImageManifestMediaType: aws.String("")}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
 			client := mock_awsiface.NewMockEcrClient(gomock.NewController(t))
 			client.EXPECT().BatchGetImage(ctx, gomock.AssignableToTypeOf(&ecr.BatchGetImageInput{})).Return(&ecr.BatchGetImageOutput{Images: tc.images}, tc.apiErr)
-			info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0", PlatformArch: ecstypes.CPUArchitectureArm64}
+			info := &ImageInfo{Repository: "my-repo", Tag: "v1.0.0", PlatformArch: PlatformArchArm64, PlatformOS: PlatformOSLinux}
 			got, err := newEcrTool(client, nil).GetActualImageIdentifier(ctx, info)
 			if tc.wantErr != "" {
 				require.ErrorContains(t, err, tc.wantErr)
@@ -102,7 +114,7 @@ func TestGetActualImageIdentifier(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, &ecrtypes.ImageIdentifier{ImageTag: aws.String(info.Tag)}, got)
+			assert.Equal(t, imageID, got)
 		})
 	}
 }

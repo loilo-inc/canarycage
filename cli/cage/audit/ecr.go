@@ -52,14 +52,15 @@ func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo)
 			if manifest.Platform == nil {
 				continue
 			}
-			if toCPUArchitecture(manifest.Platform.Architecture) == info.PlatformArch {
+			if manifest.Platform.Architecture == string(info.PlatformArch) &&
+				manifest.Platform.OS == string(info.PlatformOS) {
 				return &ecrtypes.ImageIdentifier{ImageDigest: aws.String(manifest.Digest)}, nil
 			}
 		}
 		return nil, fmt.Errorf("no image found for architecture: %s in %s:%s", info.PlatformArch, info.Repository, info.Tag)
 	}
 
-	return &ecrtypes.ImageIdentifier{ImageTag: aws.String(info.Tag)}, nil
+	return image.ImageId, nil
 }
 
 func (t *ecrTool) GetImageScanFindings(ctx context.Context, info *ImageInfo, imageID *ecrtypes.ImageIdentifier) (*ecrtypes.ImageScanFindings, error) {

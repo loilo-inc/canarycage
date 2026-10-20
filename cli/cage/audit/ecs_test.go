@@ -54,7 +54,8 @@ func TestGetServiceImageInfos(t *testing.T) {
 		assert.NoError(t, err)
 		if assert.Len(t, result, 2) {
 			assert.Equal(t, "app", result[0].ContainerName)
-			assert.Equal(t, ecstypes.CPUArchitectureX8664, result[0].PlatformArch)
+			assert.Equal(t, PlatformArchAmd64, result[0].PlatformArch)
+			assert.Equal(t, PlatformOSLinux, result[0].PlatformOS)
 			assert.Equal(t, "123456789012.dkr.ecr.us-west-2.amazonaws.com", result[0].Registry)
 			assert.Equal(t, "my-repo", result[0].Repository)
 			assert.Equal(t, "1.2.3", result[0].Tag)
@@ -92,7 +93,8 @@ func TestGetServiceImageInfos(t *testing.T) {
 
 		assert.NoError(t, err)
 		if assert.Len(t, result, 1) {
-			assert.Equal(t, ecstypes.CPUArchitectureArm64, result[0].PlatformArch)
+			assert.Equal(t, PlatformArchArm64, result[0].PlatformArch)
+			assert.Equal(t, PlatformOSLinux, result[0].PlatformOS)
 		}
 	})
 

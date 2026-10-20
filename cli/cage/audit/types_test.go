@@ -21,6 +21,7 @@ func TestScanResult_ErrorSummary(t *testing.T) {
 		{name: "wrapped scan not found", err: fmt.Errorf("describe: %w", ErrScanNotFound), want: "[N/A] app: Scan not found"},
 		{name: "non-ECR image", err: ErrNonEcrImage, want: "[N/A] app: Non-ECR image"},
 		{name: "wrapped non-ECR image", err: fmt.Errorf("scan: %w", ErrNonEcrImage), want: "[N/A] app: Non-ECR image"},
+		{name: "unsupported OS", err: ErrUnsupportedOS, want: "[ERROR] app: unsupported OS"},
 		{name: "scan failure", err: errors.New("access denied"), want: "[ERROR] app: access denied"},
 	}
 	for _, tt := range tests {
@@ -85,6 +86,62 @@ func TestImageInfo_IsECRImage(t *testing.T) {
 				Registry: tt.registry,
 			}
 			assert.Equal(t, tt.want, i.IsECRImage())
+		})
+	}
+}
+
+func TestImageInfo_UpdateIdentity(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		identifier ecrtypes.ImageIdentifier
+		wantDigest string
+		wantTag    string
+	}{
+		{
+			name:       "updates digest and tag",
+			identifier: ecrtypes.ImageIdentifier{ImageDigest: new("sha256:resolved"), ImageTag: new("v2")},
+			wantDigest: "sha256:resolved",
+			wantTag:    "v2",
+		},
+		{
+			name:       "digest only preserves tag",
+			identifier: ecrtypes.ImageIdentifier{ImageDigest: new("sha256:resolved")},
+			wantDigest: "sha256:resolved",
+			wantTag:    "v1",
+		},
+		{
+			name:       "tag only preserves digest",
+			identifier: ecrtypes.ImageIdentifier{ImageTag: new("v2")},
+			wantDigest: "sha256:original",
+			wantTag:    "v2",
+		},
+		{
+			name:       "missing digest and tag preserve existing values",
+			wantDigest: "sha256:original",
+			wantTag:    "v1",
+		},
+		{
+			name:       "explicit empty values clear digest and tag",
+			identifier: ecrtypes.ImageIdentifier{ImageDigest: new(""), ImageTag: new("")},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := ImageInfo{
+				ContainerName: "app",
+				Registry:      "123456789012.dkr.ecr.ap-northeast-1.amazonaws.com",
+				Repository:    "my-app",
+				Tag:           "v1",
+				Digest:        "sha256:original",
+				PlatformOS:    PlatformOSLinux,
+				PlatformArch:  PlatformArchArm64,
+			}
+			want := info
+			want.Digest = tc.wantDigest
+			want.Tag = tc.wantTag
+
+			info.updateIdentity(&tc.identifier)
+
+			assert.Equal(t, want, info)
 		})
 	}
 }
