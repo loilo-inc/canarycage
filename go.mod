@@ -2,8 +2,6 @@ module github.com/loilo-inc/canarycage/v5
 
 go 1.26.0
 
-toolchain go1.27.4
-
 require (
 	github.com/aws/aws-sdk-go-v2 v1.47.5
 	github.com/aws/aws-sdk-go-v2/config v1.33.12
