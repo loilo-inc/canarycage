@@ -43,7 +43,7 @@ func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo)
 		return nil, err
 	}
 	if len(res.Images) == 0 || res.Images[0].ImageManifest == nil {
-		return nil, fmt.Errorf("image manifest not found for %s:%s", info.Repository, info.Tag)
+		return nil, fmt.Errorf("image manifest not found for %s", info.formatImageLabel())
 	}
 
 	image := res.Images[0]
@@ -52,7 +52,7 @@ func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo)
 	if isMediaTypeList(mediaType) {
 		var schema Schema
 		if err := json.Unmarshal([]byte(*res.Images[0].ImageManifest), &schema); err != nil {
-			return nil, fmt.Errorf("parse image manifest for %s:%s: %w", info.Repository, info.Tag, err)
+			return nil, fmt.Errorf("parse image manifest for %s: %w", info.formatImageLabel(), err)
 		}
 		for _, manifest := range schema.Manifests {
 			if manifest.Platform == nil {
@@ -63,7 +63,7 @@ func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo)
 				return &ecrtypes.ImageIdentifier{ImageDigest: aws.String(manifest.Digest)}, nil
 			}
 		}
-		return nil, fmt.Errorf("no image found for architecture: %s in %s:%s", info.PlatformArch, info.Repository, info.Tag)
+		return nil, fmt.Errorf("no image found for architecture: %s in %s", info.PlatformArch, info.formatImageLabel())
 	}
 
 	return image.ImageId, nil

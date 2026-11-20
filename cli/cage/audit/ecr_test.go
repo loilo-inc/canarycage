@@ -354,3 +354,28 @@ func TestGetActualImageIdentifierPrefersDigest(t *testing.T) {
 		})
 	}
 }
+
+func TestGetActualImageIdentifierDigestDiagnostics(t *testing.T) {
+	const digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	const label = "registry.example.com/my-repo:latest@" + digest
+	for _, tc := range []struct {
+		name    string
+		images  []ecrtypes.Image
+		wantErr string
+	}{
+		{"missing manifest", nil, "image manifest not found for " + label},
+		{"invalid manifest", []ecrtypes.Image{{ImageManifest: aws.String("invalid"), ImageManifestMediaType: aws.String(mediaTypeOCIList)}}, "parse image manifest for " + label + ":"},
+		{"missing architecture", []ecrtypes.Image{{ImageManifest: aws.String(`{"schemaVersion":2,"manifests":[]}`), ImageManifestMediaType: aws.String(mediaTypeOCIList)}}, "no image found for architecture: arm64 in " + label},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mock_awsiface.NewMockEcrClient(gomock.NewController(t))
+			client.EXPECT().BatchGetImage(t.Context(), gomock.Any()).Return(&ecr.BatchGetImageOutput{Images: tc.images}, nil)
+			got, err := newEcrTool(client, nil).GetActualImageIdentifier(t.Context(), &ImageInfo{
+				Registry: "registry.example.com", Repository: "my-repo", Tag: "latest", Digest: digest,
+				PlatformOS: PlatformOSLinux, PlatformArch: PlatformArchArm64,
+			})
+			require.ErrorContains(t, err, tc.wantErr)
+			assert.Nil(t, got)
+		})
+	}
+}

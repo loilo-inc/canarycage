@@ -146,7 +146,14 @@ func (p *printer) logVuln(severity ecrtypes.FindingSeverity, vulns []Vuln) {
 }
 
 func (i *ImageInfo) formatImageLabel() string {
-	return fmt.Sprintf("%s/%s:%s", i.Registry, i.Repository, i.Tag)
+	var registry string
+	if i.Registry != "" {
+		registry = i.Registry + "/"
+	}
+	if i.Digest == "" {
+		return fmt.Sprintf("%s%s:%s", registry, i.Repository, i.Tag)
+	}
+	return fmt.Sprintf("%s%s:%s@%s", registry, i.Repository, i.Tag, i.Digest)
 }
 
 func MaxHeaderWidth(imageInfos []ScanResult) (int, int) {

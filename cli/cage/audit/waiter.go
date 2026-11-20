@@ -30,7 +30,7 @@ func (w *waiter) WaitForImageScan(ctx context.Context, info *ImageInfo, imageID 
 	ecrcli := w.di.Get(key.EcrCli).(awsiface.EcrClient)
 	logger := w.di.Get(key.Logger).(logger.Logger)
 	for {
-		logger.Errorf("Waiting for image scan: repository=%s, tag=%s", info.Repository, info.Tag)
+		logger.Errorf("Waiting for image scan: %s", info.formatImageLabel())
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

@@ -98,8 +98,7 @@ func ParseImageInfo(image string) ParsedImageInfo {
 }
 
 func splitRepoTag(imageNoRegistry string) ParsedImageInfo {
-	tag := "latest"
-	ref := ParsedImageInfo{}
+	ref := ParsedImageInfo{Tag: "latest"}
 	value := imageNoRegistry
 	// Check for digest first
 	withDigest := strings.SplitN(value, "@", 2)
@@ -111,12 +110,10 @@ func splitRepoTag(imageNoRegistry string) ParsedImageInfo {
 	if len(withTag) == 2 {
 		ref.Repository = withTag[0]
 		if withTag[1] != "" {
-			tag = withTag[1]
+			ref.Tag = withTag[1]
 		}
 	} else {
 		ref.Repository = value
 	}
-
-	ref.Tag = tag
 	return ref
 }
