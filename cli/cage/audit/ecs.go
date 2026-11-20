@@ -86,15 +86,21 @@ func ParseImageInfo(image string) ParsedImageInfo {
 	}
 
 	registry := parts[0]
-	repoAndTag := strings.Join(parts[1:], "/")
-	parsedRef := splitRepoTag(repoAndTag)
+	var imageNoRegistry string
+	if !strings.Contains(registry, ".") && !strings.Contains(registry, ":") && registry != "localhost" {
+		registry = ""
+		imageNoRegistry = strings.Join(parts, "/")
+	} else {
+		imageNoRegistry = strings.Join(parts[1:], "/")
+	}
+	parsedRef := splitRepoTag(imageNoRegistry)
 	return ParsedImageInfo{Registry: registry, Repository: parsedRef.Repository, Tag: parsedRef.Tag, Digest: parsedRef.Digest}
 }
 
-func splitRepoTag(origImage string) ParsedImageInfo {
+func splitRepoTag(imageNoRegistry string) ParsedImageInfo {
 	tag := "latest"
 	ref := ParsedImageInfo{}
-	value := origImage
+	value := imageNoRegistry
 	// Check for digest first
 	withDigest := strings.SplitN(value, "@", 2)
 	if len(withDigest) == 2 {

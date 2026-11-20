@@ -261,6 +261,28 @@ func TestParseImageInfo(t *testing.T) {
 	})
 }
 
+func TestParseImageInfoRegistryQualification(t *testing.T) {
+	const digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	for _, tc := range []struct {
+		name  string
+		input string
+		want  ParsedImageInfo
+	}{
+		{"namespace with tag", "team/repo:v1", ParsedImageInfo{Repository: "team/repo", Tag: "v1"}},
+		{"namespace with digest", "team/repo@" + digest, ParsedImageInfo{Repository: "team/repo", Tag: "latest", Digest: digest}},
+		{"namespace with tag and digest", "team/repo:v1@" + digest, ParsedImageInfo{Repository: "team/repo", Tag: "v1", Digest: digest}},
+		{"nested namespace", "team/sub/repo", ParsedImageInfo{Repository: "team/sub/repo", Tag: "latest"}},
+		{"domain with namespace", "registry.example.com/team/repo:v1", ParsedImageInfo{Registry: "registry.example.com", Repository: "team/repo", Tag: "v1"}},
+		{"registry with port", "registry:5000/team/repo:v1", ParsedImageInfo{Registry: "registry:5000", Repository: "team/repo", Tag: "v1"}},
+		{"localhost", "localhost/repo:v1", ParsedImageInfo{Registry: "localhost", Repository: "repo", Tag: "v1"}},
+		{"localhost with port and digest", "localhost:5000/repo@" + digest, ParsedImageInfo{Registry: "localhost:5000", Repository: "repo", Tag: "latest", Digest: digest}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, ParseImageInfo(tc.input))
+		})
+	}
+}
+
 func TestSplitRepoTag(t *testing.T) {
 	const digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	for _, tc := range []struct {
