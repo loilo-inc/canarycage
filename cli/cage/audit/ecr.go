@@ -29,9 +29,15 @@ func newEcrTool(ecrClient awsiface.EcrClient, scanWaiter Waiter) EcrTool {
 }
 
 func (t *ecrTool) GetActualImageIdentifier(ctx context.Context, info *ImageInfo) (*ecrtypes.ImageIdentifier, error) {
+	var identifier ecrtypes.ImageIdentifier
+	if info.Digest != "" {
+		identifier.ImageDigest = aws.String(info.Digest)
+	} else if info.Tag != "" {
+		identifier.ImageTag = aws.String(info.Tag)
+	}
 	res, err := t.Ecr.BatchGetImage(ctx, &ecr.BatchGetImageInput{
 		RepositoryName: aws.String(info.Repository),
-		ImageIds:       []ecrtypes.ImageIdentifier{{ImageTag: aws.String(info.Tag)}},
+		ImageIds:       []ecrtypes.ImageIdentifier{identifier},
 	})
 	if err != nil {
 		return nil, err

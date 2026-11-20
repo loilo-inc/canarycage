@@ -331,3 +331,26 @@ func TestGetImageScanFindings_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, expected)
 	assert.Nil(t, got)
 }
+
+func TestGetActualImageIdentifierPrefersDigest(t *testing.T) {
+	const digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	for _, tag := range []string{"", "latest", "v1"} {
+		t.Run("tag="+tag, func(t *testing.T) {
+			ctx := t.Context()
+			client := mock_awsiface.NewMockEcrClient(gomock.NewController(t))
+			identifier := &ecrtypes.ImageIdentifier{ImageDigest: aws.String(digest)}
+			client.EXPECT().BatchGetImage(ctx, &ecr.BatchGetImageInput{
+				RepositoryName: aws.String("my-repo"),
+				ImageIds:       []ecrtypes.ImageIdentifier{*identifier},
+			}).Return(&ecr.BatchGetImageOutput{Images: []ecrtypes.Image{{
+				ImageId: identifier, ImageManifest: aws.String(`{"schemaVersion":2}`),
+				ImageManifestMediaType: aws.String("application/vnd.oci.image.manifest.v1+json"),
+			}}}, nil)
+			got, err := newEcrTool(client, nil).GetActualImageIdentifier(ctx, &ImageInfo{
+				Repository: "my-repo", Tag: tag, Digest: digest,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, identifier, got)
+		})
+	}
+}

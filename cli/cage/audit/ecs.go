@@ -64,6 +64,7 @@ func (t *ecsTool) GetServiceImageInfos(ctx context.Context, cluster string, serv
 			Registry:      parsed.Registry,
 			Repository:    parsed.Repository,
 			Tag:           parsed.Tag,
+			Digest:        parsed.Digest,
 		})
 	}
 
@@ -74,30 +75,42 @@ type ParsedImageInfo struct {
 	Registry   string
 	Repository string
 	Tag        string
+	Digest     string
 }
 
 func ParseImageInfo(image string) ParsedImageInfo {
 	parts := strings.Split(image, "/")
 	if len(parts) == 1 {
-		repository, tag := splitRepoTag(image)
-		return ParsedImageInfo{Repository: repository, Tag: tag}
+		parsedRef := splitRepoTag(image)
+		return ParsedImageInfo{Repository: parsedRef.Repository, Tag: parsedRef.Tag, Digest: parsedRef.Digest}
 	}
 
 	registry := parts[0]
 	repoAndTag := strings.Join(parts[1:], "/")
-	repository, tag := splitRepoTag(repoAndTag)
-	return ParsedImageInfo{Registry: registry, Repository: repository, Tag: tag}
+	parsedRef := splitRepoTag(repoAndTag)
+	return ParsedImageInfo{Registry: registry, Repository: parsedRef.Repository, Tag: parsedRef.Tag, Digest: parsedRef.Digest}
 }
 
-func splitRepoTag(value string) (string, string) {
-	repository := value
+func splitRepoTag(origImage string) ParsedImageInfo {
 	tag := "latest"
-	if strings.Contains(value, ":") {
-		parts := strings.SplitN(value, ":", 2)
-		repository = parts[0]
-		if parts[1] != "" {
-			tag = parts[1]
-		}
+	ref := ParsedImageInfo{}
+	value := origImage
+	// Check for digest first
+	withDigest := strings.SplitN(value, "@", 2)
+	if len(withDigest) == 2 {
+		value = withDigest[0]
+		ref.Digest = withDigest[1]
 	}
-	return repository, tag
+	withTag := strings.SplitN(value, ":", 2)
+	if len(withTag) == 2 {
+		ref.Repository = withTag[0]
+		if withTag[1] != "" {
+			tag = withTag[1]
+		}
+	} else {
+		ref.Repository = value
+	}
+
+	ref.Tag = tag
+	return ref
 }
