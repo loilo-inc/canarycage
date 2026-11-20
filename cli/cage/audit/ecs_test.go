@@ -261,22 +261,75 @@ func TestParseImageInfo(t *testing.T) {
 	})
 }
 
+func TestParseImageInfoRegistryQualification(t *testing.T) {
+	const digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	for _, tc := range []struct {
+		name  string
+		input string
+		want  ParsedImageInfo
+	}{
+		{"namespace with tag", "team/repo:v1", ParsedImageInfo{Repository: "team/repo", Tag: "v1"}},
+		{"namespace with digest", "team/repo@" + digest, ParsedImageInfo{Repository: "team/repo", Tag: "latest", Digest: digest}},
+		{"namespace with tag and digest", "team/repo:v1@" + digest, ParsedImageInfo{Repository: "team/repo", Tag: "v1", Digest: digest}},
+		{"nested namespace", "team/sub/repo", ParsedImageInfo{Repository: "team/sub/repo", Tag: "latest"}},
+		{"domain with namespace", "registry.example.com/team/repo:v1", ParsedImageInfo{Registry: "registry.example.com", Repository: "team/repo", Tag: "v1"}},
+		{"registry with port", "registry:5000/team/repo:v1", ParsedImageInfo{Registry: "registry:5000", Repository: "team/repo", Tag: "v1"}},
+		{"localhost", "localhost/repo:v1", ParsedImageInfo{Registry: "localhost", Repository: "repo", Tag: "v1"}},
+		{"localhost with port and digest", "localhost:5000/repo@" + digest, ParsedImageInfo{Registry: "localhost:5000", Repository: "repo", Tag: "latest", Digest: digest}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, ParseImageInfo(tc.input))
+		})
+	}
+}
+
 func TestSplitRepoTag(t *testing.T) {
-	t.Run("returns latest when tag is missing", func(t *testing.T) {
-		repo, tag := splitRepoTag("repo")
-		assert.Equal(t, "repo", repo)
-		assert.Equal(t, "latest", tag)
-	})
+	const digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	for _, tc := range []struct {
+		name  string
+		input string
+		want  ParsedImageInfo
+	}{
+		{"missing tag", "repo", ParsedImageInfo{Repository: "repo", Tag: "latest"}},
+		{"explicit tag", "repo:v1", ParsedImageInfo{Repository: "repo", Tag: "v1"}},
+		{"empty tag", "repo:", ParsedImageInfo{Repository: "repo", Tag: "latest"}},
+		{"digest only", "repo@" + digest, ParsedImageInfo{Repository: "repo", Tag: "latest", Digest: digest}},
+		{"tag and digest", "repo:v1@" + digest, ParsedImageInfo{Repository: "repo", Tag: "v1", Digest: digest}},
+		{"nested repository and digest", "team/repo@" + digest, ParsedImageInfo{Repository: "team/repo", Tag: "latest", Digest: digest}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, splitRepoTag(tc.input))
+		})
+	}
+}
 
-	t.Run("returns tag when present", func(t *testing.T) {
-		repo, tag := splitRepoTag("repo:v1")
-		assert.Equal(t, "repo", repo)
-		assert.Equal(t, "v1", tag)
-	})
-
-	t.Run("returns latest when tag is empty", func(t *testing.T) {
-		repo, tag := splitRepoTag("repo:")
-		assert.Equal(t, "repo", repo)
-		assert.Equal(t, "latest", tag)
-	})
+func TestGetServiceImageInfosPreservesDigest(t *testing.T) {
+	const registry = "123456789012.dkr.ecr.us-west-2.amazonaws.com"
+	const digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	for _, tag := range []string{"", ":v1"} {
+		t.Run("repo"+tag, func(t *testing.T) {
+			ctx := t.Context()
+			client := mock_awsiface.NewMockEcsClient(gomock.NewController(t))
+			client.EXPECT().DescribeServices(ctx, gomock.Any()).Return(&ecs.DescribeServicesOutput{
+				Services: []ecstypes.Service{{TaskDefinition: aws.String("td:1")}},
+			}, nil)
+			client.EXPECT().DescribeTaskDefinition(ctx, gomock.Any()).Return(&ecs.DescribeTaskDefinitionOutput{
+				TaskDefinition: &ecstypes.TaskDefinition{ContainerDefinitions: []ecstypes.ContainerDefinition{{
+					Name: aws.String("app"), Image: aws.String(registry + "/team/repo" + tag + "@" + digest),
+				}}},
+			}, nil)
+			infos, err := newEcsTool(client).GetServiceImageInfos(ctx, "cluster", "service")
+			assert.NoError(t, err)
+			if assert.Len(t, infos, 1) {
+				assert.Equal(t, registry, infos[0].Registry)
+				assert.Equal(t, "team/repo", infos[0].Repository)
+				assert.Equal(t, digest, infos[0].Digest)
+				wantTag := "latest"
+				if tag != "" {
+					wantTag = "v1"
+				}
+				assert.Equal(t, wantTag, infos[0].Tag)
+			}
+		})
+	}
 }

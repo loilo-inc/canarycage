@@ -13,6 +13,7 @@ import (
 	"github.com/loilo-inc/canarycage/v5/test"
 	"github.com/loilo-inc/logos/v2/di"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func makeScanResult(
@@ -347,4 +348,44 @@ func TestPrinter_PrintJSON(t *testing.T) {
 		err := json.Unmarshal([]byte(p.Stdout[0]), &parsed)
 		assert.NoError(t, err)
 	})
+}
+
+func TestPrinter_ImageIdentity(t *testing.T) {
+	const digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	for _, tc := range []struct {
+		name  string
+		image string
+		want  string
+	}{
+		{"digest pinned", "registry.example.com/team/repo@" + digest, "registry.example.com/team/repo:latest@" + digest},
+		{"tag and digest", "registry.example.com/team/repo:v1@" + digest, "registry.example.com/team/repo:v1@" + digest},
+		{"digest without registry", "team/repo@" + digest, "team/repo:latest@" + digest},
+		{"tag fallback", "team/repo:v1", "team/repo:v1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parsed := ParseImageInfo(tc.image)
+			results := []ScanResult{{ImageInfo: ImageInfo{
+				ContainerName: "app", Registry: parsed.Registry,
+				Repository: parsed.Repository, Tag: parsed.Tag, Digest: parsed.Digest,
+			}}}
+			out := &test.MockPrinter{}
+			d := di.NewDomain(func(b *di.B) {
+				b.Set(key.Printer, out)
+				b.Set(key.Time, test.NewNeverTimer())
+			})
+			printer := NewPrinter(d, true, false)
+			printer.Print(results)
+			require.GreaterOrEqual(t, len(out.Logs), 2)
+			assert.Contains(t, out.Logs[1], "|"+tc.want+"|\n")
+			assert.Equal(t, len(out.Logs[0]), len(out.Logs[1]), "header must accommodate the full image label")
+
+			out.Stdout = nil
+			printer.PrintJSON(Target{Images: []ImageInfo{results[0].ImageInfo}}, results)
+			require.Len(t, out.Stdout, 1)
+			var output FinalResult
+			require.NoError(t, json.Unmarshal([]byte(out.Stdout[0]), &output))
+			require.Len(t, output.Images, 1)
+			assert.Equal(t, results[0].ImageInfo, output.Images[0])
+		})
+	}
 }
